@@ -235,3 +235,27 @@ describe("TodayScreen", () => {
     expect(screen.getByText("Your medication times")).toBeTruthy();
   });
 });
+
+
+describe("Today refresh and shortcuts", () => {
+  it("removes old times after a failed refresh instead of presenting them as current", async () => {
+    renderToday();
+    await waitFor(() => expect(screen.getAllByText("Lisinopril").length).toBeGreaterThan(0));
+    mockSchedules.mockRejectedValueOnce(new Error("offline"));
+    fireEvent.press(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(screen.getByText("Reminder times unavailable")).toBeTruthy());
+    expect(screen.queryByText("Lisinopril")).toBeNull();
+    expect(screen.queryByText("No reminder times set")).toBeNull();
+    expect(screen.getByText("Synthetic Family Clinic")).toBeTruthy();
+    fireEvent.press(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.getAllByText("Lisinopril").length).toBeGreaterThan(0));
+    expect(screen.queryByText("Reminder times unavailable")).toBeNull();
+  });
+
+  it("opens the entry form directly from the quick action", async () => {
+    const { navigate } = renderToday();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add a medication" })).toBeTruthy());
+    fireEvent.press(screen.getByRole("button", { name: "Add a medication" }));
+    expect(navigate).toHaveBeenCalledWith("MedicationEdit", {});
+  });
+});

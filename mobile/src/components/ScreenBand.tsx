@@ -5,21 +5,8 @@ import { useDomain } from "@/hooks/useDomain";
 import { CONTENT_WIDTH, colors, meter, spacing, typography } from "@/theme";
 
 /**
- * The band at the top of a destination: a full-bleed field of that
- * destination's colour with its name knocked out of it.
- *
- * ## Why the colour needs area
- *
- * The first version of this design expressed a destination's hue as a 4pt
- * stripe and a 38pt tile, and the result was correct and forgettable — five
- * carefully chosen colours that a person would never actually notice. A
- * colour that only ever appears as a hairline is not an identity, it is a
- * footnote.
- *
- * So the band is the colour at the size of a sign, because that is what it
- * is: the plate over a hospital department door, which is the exact job this
- * element does. It is also what makes the meter legible as a system — the
- * edge running down the page is the band continuing past the corner.
+ * Destination heading on a white surface, with the destination's color in
+ * the title and divider. Shared spacing keeps screen changes predictable.
  *
  * ## ⛔ What may not go in it
  *
@@ -46,10 +33,10 @@ export function ScreenBand({ title, meta, action, page = false }: ScreenBandProp
   const domain = useDomain();
 
   return (
-    <View style={[styles.band, { backgroundColor: domain.fill }]}>
+    <View style={[styles.band, { backgroundColor: colors.surface, borderBottomColor: domain.border }]}>
       <View style={[styles.inner, page && styles.innerPage]}>
         <View style={styles.row}>
-          <Text style={styles.title} accessibilityRole="header">
+          <Text style={[styles.title, { color: domain.ink }]} accessibilityRole="header">
             {title}
           </Text>
           {action}
@@ -63,6 +50,7 @@ export function ScreenBand({ title, meta, action, page = false }: ScreenBandProp
 const styles = StyleSheet.create({
   band: {
     width: "100%",
+    borderBottomWidth: 1,
     paddingTop: spacing.xl,
     paddingBottom: spacing.lg,
     paddingHorizontal: spacing.xl,
@@ -86,15 +74,13 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   title: {
-    ...typography.band,
+    ...typography.display,
     color: colors.textOnAccent,
     flexShrink: 1,
   },
   meta: {
     ...typography.caption,
     maxWidth: 70 * 7,
-    // White at 82% rather than a separate token: the band takes five
-    // different grounds and no single tint reads correctly on all of them.
-    color: "rgba(255,255,255,0.82)",
+    color: colors.textSecondary,
   },
 });

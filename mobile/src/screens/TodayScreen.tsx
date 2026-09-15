@@ -4,6 +4,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { AppButton } from "@/components/AppButton";
+import { CardGrid } from "@/components/CardGrid";
+import { NavCard } from "@/components/NavCard";
 import { AppNav } from "@/components/AppNav";
 import { DayAxis, type AxisStop } from "@/components/DayAxis";
 import { ErrorNotice } from "@/components/ErrorNotice";
@@ -58,13 +60,14 @@ type Props = NativeStackScreenProps<RootStackParamList, "Home">;
  * it is not here. Do not add it on an agent's authority.
  */
 export function TodayScreen({ navigation }: Props) {
-  const { isExpanded } = useBreakpoint();
+  const { isExpanded, isMedium } = useBreakpoint();
 
   const [medications, setMedications] = useState<Medication[] | null>(null);
   const [schedules, setSchedules] = useState<MedicationSchedule[] | null>(null);
   const [appointments, setAppointments] = useState<Appointment[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => new Date());
 
   /**
@@ -82,9 +85,9 @@ export function TodayScreen({ navigation }: Props) {
         listAppointments(),
       ]);
 
-    if (medicationResult.status === "fulfilled") setMedications(medicationResult.value);
-    if (scheduleResult.status === "fulfilled") setSchedules(scheduleResult.value);
-    if (appointmentResult.status === "fulfilled") setAppointments(appointmentResult.value);
+    setMedications(medicationResult.status === "fulfilled" ? medicationResult.value : null);
+    setSchedules(scheduleResult.status === "fulfilled" ? scheduleResult.value : null);
+    setAppointments(appointmentResult.status === "fulfilled" ? appointmentResult.value : null);
 
     const failed = [medicationResult, scheduleResult, appointmentResult].filter(
       (result) => result.status === "rejected"
@@ -112,6 +115,16 @@ export function TodayScreen({ navigation }: Props) {
     const timer = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(timer);
   }, []);
+
+  const refresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleSignOut = () => {
     void logout();
@@ -222,13 +235,23 @@ export function TodayScreen({ navigation }: Props) {
         </Pressable>
       </View>
 
-      {times.length === 0 ? (
+      {schedules === null ? (
+        <View style={styles.quietCard}>
+          <Text style={styles.quietTitle}>
+            {loading ? "Loading reminder times…" : "Reminder times unavailable"}
+          </Text>
+          <Text style={styles.quietText}>
+            {loading ? "Fetching your saved schedule." : "Try refreshing to load your saved schedule."}
+          </Text>
+        </View>
+      ) : times.length === 0 ? (
         <View style={styles.quietCard}>
           <Text style={styles.quietTitle}>No reminder times set</Text>
           <Text style={styles.quietText}>
             MedHelp can suggest times from a medication's printed directions.
             You confirm them before anything is saved.
           </Text>
+          <AppButton label="Set up reminders" variant="secondary" onPress={() => navigation.navigate("MedicationReminders")} />
         </View>
       ) : (
         <>
@@ -387,6 +410,7 @@ export function TodayScreen({ navigation }: Props) {
         band={
           <ScreenBand
             title="Today"
+            action={<AppButton label={refreshing ? "Refreshing…" : "Refresh"} variant="secondary" onPress={refresh} disabled={loading} loading={refreshing} />}
             /*
               The date, and nothing else. The band is signage: it says where
               you are and one plain fact. It may never carry a count of
@@ -420,6 +444,15 @@ export function TodayScreen({ navigation }: Props) {
             <Text style={styles.loadingText}>Loading your day…</Text>
           </View>
         ) : null}
+
+        <View style={styles.shortcuts}>
+          <Text style={styles.sectionLabel} accessibilityRole="header">Quick actions</Text>
+          <CardGrid columns={isExpanded ? 3 : isMedium ? 2 : 1}>
+            <NavCard title="Add a medication" description="Open a blank entry." icon="pill" onPress={() => navigation.navigate("MedicationEdit", {})} />
+            <NavCard title="Find a provider" description="Search the provider directory." icon="search" onPress={() => navigation.navigate("ProviderSearch", {})} />
+            <NavCard title="Write a goal" description="Keep your plans in one place." icon="check" onPress={() => navigation.navigate("GoalCreate")} />
+          </CardGrid>
+        </View>
 
         <View style={[styles.body, isExpanded && styles.bodyExpanded]}>
           <View style={[styles.main, isExpanded && styles.mainExpanded]}>
@@ -467,6 +500,7 @@ const WHERE_INFORMATION_GOES = [
 ];
 
 const styles = StyleSheet.create({
+  shortcuts: { gap: spacing.md, marginBottom: spacing.sm },
   screen: {
     gap: spacing.lg,
   },
@@ -525,9 +559,8 @@ const styles = StyleSheet.create({
     ...elevation.lg,
   },
   heroExpanded: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xxl,
+    alignItems: "flex-start",
+    gap: spacing.xl,
     paddingVertical: spacing.xl,
     paddingHorizontal: spacing.xxl,
   },
@@ -562,7 +595,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   sectionAction: {
-    minHeight: 32,
+    minHeight: MIN_TAP_TARGET,
     justifyContent: "center",
     paddingHorizontal: spacing.sm,
     marginRight: -spacing.sm,
@@ -632,7 +665,7 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
   moreRow: {
-    minHeight: 32,
+    minHeight: MIN_TAP_TARGET,
     justifyContent: "center",
   },
   footnote: {
@@ -648,9 +681,8 @@ const styles = StyleSheet.create({
 
   quietCard: {
     backgroundColor: colors.surface,
-    borderColor: colors.borderStrong,
+    borderColor: colors.border,
     borderWidth: 1,
-    borderStyle: "dashed",
     borderRadius: radius.lg,
     padding: spacing.lg,
     gap: spacing.xs,

@@ -9,7 +9,7 @@ import {
   colors,
   domains,
   elevation,
-  meter,
+  fonts,
   radius,
   spacing,
   typography,
@@ -70,13 +70,15 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
   if (!isExpanded) {
     return (
       <Screen centerContent meterless>
+        <View style={styles.mobileBrand}><View style={styles.mark}><Glyph name="symptom" size={20} color={colors.textOnAccent} /></View><Text style={styles.mobileWordmark}>MedHelp</Text></View>
         {form}
       </Screen>
     );
   }
 
   return (
-    <Screen page centerContent meterless innerStyle={styles.split}>
+    <Screen page centerContent meterless>
+      <View style={styles.split}>
       {/*
         The panel holds no focusable element — it is text and decorative
         marks — so putting it first costs a returning user no keyboard steps
@@ -94,6 +96,8 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
         </View>
 
         <Text style={styles.brandEyebrow}>Your health companion</Text>
+        <Text style={styles.headline} accessibilityRole="header">Your day,
+          {"\n"}all in one place.</Text>
         <Text style={styles.brandSubtitle}>
           General health information and medication reminders.
         </Text>
@@ -120,15 +124,26 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
       </View>
 
       <View style={styles.formColumn}>{form}</View>
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  headline: {
+    fontFamily: fonts.sansBold,
+    fontSize: 52,
+    lineHeight: 58,
+    letterSpacing: -2,
+    color: colors.accentDeep,
+    marginVertical: spacing.lg,
+  },
+  mobileBrand: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.xl },
+  mobileWordmark: { ...typography.title, color: colors.accentDeep },
   split: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xxl,
+    alignItems: "stretch",
+    gap: spacing.xxxl,
   },
   brand: {
     flex: 5,
@@ -137,7 +152,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.xxl,
+    padding: spacing.xxxl,
   },
   wordmark: {
     flexDirection: "row",
@@ -145,15 +160,15 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   mark: {
-    width: 34,
-    height: 34,
+    width: 42,
+    height: 42,
     borderRadius: radius.sm,
     backgroundColor: colors.accentDeep,
     alignItems: "center",
     justifyContent: "center",
   },
   brandTitle: {
-    ...typography.displayLarge,
+    ...typography.title,
     color: colors.textPrimary,
   },
   brandEyebrow: {
@@ -176,9 +191,9 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   indexBar: {
-    width: meter.width,
+    width: 4,
     alignSelf: "stretch",
-    borderRadius: meter.width / 2,
+    borderRadius: 2,
   },
   indexBody: {
     flex: 1,
@@ -200,6 +215,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
   },
   formColumn: {
+    justifyContent: "center",
     flex: 4,
     minWidth: 0,
   },
