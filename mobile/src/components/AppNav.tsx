@@ -193,7 +193,8 @@ export function AppNav({
               <Wordmark size={26} />
             </View>
 
-            <View style={styles.railItems}>
+            <Text style={styles.railSection}>YOUR WORKSPACE</Text>
+            <View style={styles.railItems} accessibilityRole="tablist">
               {TABS.map((tab) => (
                 <View key={tab.name}>
                   <NavItem
@@ -411,7 +412,7 @@ const styles = StyleSheet.create({
 
   // --- rail (expanded) ---
   rail: {
-    width: 264,
+    width: 240,
     backgroundColor: colors.surface,
     borderRightWidth: 1,
     borderRightColor: colors.border,
@@ -437,8 +438,9 @@ const styles = StyleSheet.create({
     ...typography.title,
     color: colors.textPrimary,
   },
+  railSection: { ...typography.overline, color: colors.textMuted, paddingHorizontal: spacing.md, marginBottom: spacing.md },
   railItems: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   railItem: {
     minHeight: MIN_TAP_TARGET,

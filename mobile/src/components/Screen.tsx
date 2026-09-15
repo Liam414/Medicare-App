@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import {
-  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,7 +14,6 @@ import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { DomainProvider, useDomain } from "@/hooks/useDomain";
 import {
   CONTENT_WIDTH,
-  chart,
   colors,
   meter,
   spacing,
@@ -23,7 +21,7 @@ import {
 } from "@/theme";
 
 /**
- * Shared page frame: the chart-paper ground, consistent padding, clear of the
+ * Shared page frame: a flat background, consistent padding, clear of the
  * keyboard, scrolling when content doesn't fit.
  *
  * Scrolling matters for accessibility as much as for small screens — at large
@@ -32,7 +30,7 @@ import {
  *
  * It draws two of the three things that make this app look like itself:
  *
- * - **The ground**, a tile of ruled paper. See `chart` in `theme.ts`.
+ * - **The ground**, a quiet neutral surface.
  * - **The meter**, a measured colour edge down the leading side, saying which
  *   part of the app this is. See `meter`, and `useDomain` for how a screen
  *   declares its colour.
@@ -105,7 +103,6 @@ interface ScreenProps {
   innerStyle?: StyleProp<ViewStyle>;
 }
 
-const GRID = require("../../assets/chart-grid.png");
 
 export function Screen({ domain, children, ...rest }: ScreenProps) {
   if (domain) {
@@ -147,16 +144,9 @@ function ScreenBody({
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       {/*
-        The ruled ground. A 40pt tile repeated rather than a hundred Views or
-        an SVG — it is 132 bytes, it composites as an opaque image, and it
-        needs no library this repository has deliberately avoided adding.
+        A quiet background keeps attention on the cards and controls.
       */}
-      <ImageBackground
-        source={GRID}
-        resizeMode="repeat"
-        imageStyle={styles.grid}
-        style={styles.flex}
-      >
+      <View style={styles.flex}>
         {/*
           Decoration and orientation, never information on its own — whatever
           this edge says, the screen's own title says in words. So it is hidden
@@ -213,7 +203,7 @@ function ScreenBody({
             </View>
           </View>
         </ScrollView>
-      </ImageBackground>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -222,12 +212,6 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  grid: {
-    // The tile is baked over `colors.background`, so it needs no tint and no
-    // opacity — see the note on `chart` in theme.ts.
-    width: chart.tile,
-    height: chart.tile,
   },
   meter: {
     position: "absolute",
@@ -257,7 +241,7 @@ const styles = StyleSheet.create({
   contentUnderBand: {
     // The band has already paid the top margin, and doubling it leaves the
     // first card floating away from the plate it belongs to.
-    paddingTop: spacing.lg,
+    paddingTop: spacing.xxl,
   },
   inner: {
     // Keeps line lengths readable on tablets and in the browser preview
