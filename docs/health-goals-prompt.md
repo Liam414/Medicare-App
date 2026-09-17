@@ -188,6 +188,120 @@ what an activity will do for someone. Those are the lines judged to be a
 clinician's call rather than a plan. Whether they are the right lines, and
 whether a prompt is an acceptable place to put them, is question 2 below.
 
+## 2026-09-13: it produced the same plan for every goal
+
+Reported by the owner: a goal of losing one pound and a goal of losing a
+hundred returned the same plan, and the plans were vague generally.
+
+The direct cause is worth repeating because it is now the second bug of its
+kind here: **`WHAT TO PROPOSE` illustrated the shape of a row** with "Walk
+after lunch", "Go to bed at the same time each night" and "Cook dinner at
+home", and the model returned those three as the plan. An example in a prompt
+is a suggestion, not an illustration — the same thing that happened to "Daily
+routine" and "Movement and meals" in the title rules a few weeks earlier.
+Every example left in this prompt is now either named as a failure or built so
+it cannot be lifted without the goal matching.
+
+The prompt also never asked the model to read the goal, and told it to assume
+everyone was starting from nothing — a uniform floor produces a uniform first
+step. Three sections were added: `READ THE GOAL BEFORE YOU PLAN IT`, `SCALE
+CHANGES THE PLAN, AND IN ONE DIRECTION ONLY`, and `BEFORE YOU ANSWER, READ THE
+PLAN BACK`. The planner also stopped decoding greedily
+(`goal_structuring.PLAN_TEMPERATURE`); `llm.chat` still defaults to 0 and
+triage still takes that default.
+
+⛔ **The safety half.** Scale may change how many rows a plan has, which days
+they sit on, and how long a rhythm is meant to last. It may never raise an
+amount, add intensity, lengthen a session or set a figure to reach. A reviewer
+should read the new sections with that distinction in mind, because it is the
+one a careless reading collapses.
+
+**Responsiveness is now measurable**: `backend/scripts/goal_plan_eval/` runs a
+corpus of synthetic contrast pairs against a live endpoint and counts shared
+rows, pair overlap, reused titles and whether a plan uses any word of its own
+goal. It says nothing about whether a plan is safe or good.
+
+### "Proven to work through medical research"
+
+Asked for at the same time, and it cannot be answered by this feature as
+built. Labelling a plan evidence-based, citing a guideline under a row, or
+linking a study beside one each makes a health claim about text a language
+model wrote under a prompt no clinician has read — a stronger claim than the
+benefit sentence the prompt already forbids, not a weaker one.
+
+Two routes reach it, both procurement rather than engineering: licensed,
+professionally reviewed behaviour-change content loaded through an empty
+container (the `protocol_content.py` shape), or question 2 below answered
+along with a clinician's read of the plans themselves. Until then the honest
+position is the one `GoalCreateScreen` already states.
+
+
+## 2026-09-13, later: detailed, sourced, and sized to the goal
+
+The owner asked for "very detailed and proven plans ... take into account for
+the complexity and difficultness of the goal". Three separate builds.
+
+**Detail.** Every suggested row carries one or two sentences saying how to do
+it on the day. Required; a row without one discards the plan. It says how and
+never why — the no-benefit-claims rule applies to it word for word, and it is
+easier to break there than in a row title because a sentence has room to
+explain itself.
+
+**Evidence.** `app/core/goal_evidence.py` is a closed register of eight
+published recommendations from named public health bodies, each quoted verbatim
+with a link. The planner picks an **id** from it; it cannot write a publisher,
+a URL, a quote or a study, and there is no field in the tool schema where one
+could go. An unknown id becomes no citation rather than the nearest one.
+
+⛔ The reviewer's question is not whether the quotes are real — they are fetched
+and verbatim, and a test holds them to whole published sentences on `.gov`
+hosts. It is whether **the mapping is sound**. A model decides that a given row
+belongs to `aerobic_activity`, and nobody qualified checks that. A citation
+attached to the wrong row is a government document appearing to endorse
+something it is not about, and that failure is invisible to every check in the
+system.
+
+⛔ Two of the eight quotes are framed as benefits rather than recommendations —
+the vegetables one says "help you feel full longer", the water one "can help
+reduce caloric intake". They are the publisher's words, attributed and
+caveated, not MedHelp's. A reviewer should still say whether a benefit sentence
+quoted under a row in a weight-loss plan reads, to the person holding the
+phone, as the app making that claim. If the answer is yes, the fix is to prefer
+recommendation-shaped quotes and drop those two.
+
+**Complexity.** The planner declares `small` / `moderate` / `major` and the row
+count must agree (1–3 / 3–4 / 4–5). A missing or unrecognised reading discards
+the plan rather than defaulting. It bounds how many things a plan contains and
+says nothing about how hard any of them is — that distinction is the whole of
+the safety argument, and it is one careless edit from collapsing.
+
+The reading is returned by the API and deliberately not rendered: telling
+somebody their goal is "major" is a judgement about their ambition, and this
+app does not make one.
+
+**A second band was added on 2026-09-13**, after a report that a goal of
+losing a hundred pounds in a year came back as four rows on four days: ten
+minutes of exercise, a glass of water and an early night. Row count could not
+see that — four rows is a perfectly good four rows — so
+`WEEK_SHAPE_BY_COMPLEXITY` bounds the shape of week a plan makes.
+
+⛔ **Its floor and its ceiling count different things.** A floor counts **how
+many days of the week the plan appears on** (major: 5, moderate: 2), because
+that is literally what "present on most days" means. A ceiling counts
+**day-slots**, one row on one day summed over the rows (small: 14), because
+what a ceiling rules out is total volume.
+
+They are not interchangeable, and getting it wrong costs a real person their
+plan. A daily walk plus three weekend errands is only **10 day-slots** and is
+on **all 7 days**; the reported plan is 4 slots on 4 days. A slot floor high
+enough to reject the second also rejects the first, which is a good answer to
+a year-long goal.
+
+⛔ It bounds **coverage**, never effort. Three gentle rows and three gruelling
+ones on the same schedule are indistinguishable to it, on purpose, and a test
+asserts exactly that so nobody later reads it as a safety control.
+
+
 ## For the reviewer
 
 1. Is "structuring only" a line that holds on the fallback path? Splitting
@@ -211,6 +325,35 @@ whether a prompt is an acceptable place to put them, is question 2 below.
    it is the most natural thing to type into an empty box?
 7. Does a goal reminder on a lock screen need different copy from a medication
    one?
+8. **Added 2026-09-13.** Now that plans are specific to the goal rather than a
+   template, they are far more likely to be acted on. Does that change the
+   answer to 2, 3 or 4 — and is the "scale may change the plan but never make
+   it harder" rule the right line to have drawn?
+9. **Added 2026-09-13.** Is a model-chosen mapping from an activity to a
+   published guideline acceptable at all, given nobody checks it? And do the
+   two benefit-shaped quotes in the register belong there? See above.
+10. **Added 2026-09-13.** Are the `detail` sentences within bounds? They are
+    the newest place a benefit claim can appear and the roomiest.
+11. **Added 2026-09-13, and the biggest question in this list now.** The
+    prompt used to cap every plan at "modest starting points"; it now builds
+    the week towards the CDC's published adult figure — 150 minutes of
+    moderate activity a week plus strengthening on about two days — and may
+    never go past it. The figure is quoted verbatim in `goal_evidence.py` and
+    is not ours. **Is reading a published adult recommendation as the ceiling
+    for a general-purpose goal box the right call, and is `complexity` the
+    right thing to scale towards it?** A plan that fills more of somebody's
+    week is a bigger intervention than one that fills less, even with every
+    intensity rule held.
+12. **Added 2026-09-13.** `WEEK_SHAPE_BY_COMPLEXITY` requires a plan the
+    model called "major" to appear on at least **five days of the week**. That
+    number is a software engineer's, it is a floor on *coverage* and never on
+    effort, and a plan that misses it is discarded — the person gets an empty
+    editor. Is five right, and is a discard the right failure, or should a
+    thin plan be shown with its thinness stated?
+13. **Added 2026-09-13.** Vagueness is asked for in the prompt and not
+    checked anywhere, because "drink a glass of water after waking" is a
+    concrete row that answers nothing and no deterministic test separates
+    those. Is that the right place to leave it?
 
 
 ## Diagnosing "MedHelp has no suggestions right now"

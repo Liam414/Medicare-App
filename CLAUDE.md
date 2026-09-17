@@ -315,8 +315,13 @@ Additional known limits a reviewer should be told about:
     It measures the rule layer against gold tiers an engineer assigned from
     this file's own documented intent, so it catches regressions and quantifies
     coverage — and it is **not** the validation this bullet asks for. See
-    "Triage is measured now" below, including the four under-triaged
-    presentations it found on its first run.
+    "Triage is measured now" below, and "Ten thousand common illnesses" after
+    it: two corpora, 122 and 10,000 cases, both now at 100% agreement with
+    documented intent and 100% safety of advice. ⛔ **Those figures are
+    consistency with an engineer's labels, not a measured under-triage rate.**
+    A corpus cannot contain the phrasing nobody thought to write down, and
+    the 59.5% rule coverage says plainly how much of this is still a phrase
+    list rather than an understanding. This bullet stands unchanged.
 - The audit trail exists (`intake_assessments`) but **nobody is reviewing it
   yet**. Logging classifications is only useful if someone qualified reads
   them; assign that owner.
@@ -1459,28 +1464,235 @@ First run, 122 scored cases (rules only, no model): **96.7% exact agreement,
 0 over-triaged, 4 under-triaged, safety of advice 90.7%, rule coverage 83.6%**.
 On natural phrasings alone: 96.0% exact, safety of advice **87.1%**.
 
-#### ⛔ REPORTED, NOT FIXED: four under-triaged presentations
+#### ✅ CLOSED 2026-09-14: the four under-triaged presentations
 
-The harness found these on its first run. All four are the same defect — the
-concept is named but not in the exact character sequence the list spells — and
-all four are on life-threatening presentations:
+The harness found these on its first run and they were reported and left
+untouched, because fixing them meant adding phrases to `_EMERGENCY_RULES` and
+the owner had not been asked about those specific additions. **They were asked
+on 2026-09-14 and all four are now fixed** (see "Ten thousand common illnesses"
+below). All four were the same defect — the concept is named but not in the
+exact character sequence the list spells — and all four were on
+life-threatening presentations:
 
-| Description | Returned | The list has |
-|---|---|---|
-| "crushing pressure in my chest" | URGENT | `chest pressure`, `crushing chest` — not `pressure in my chest` |
-| "I hit my head hard and feel awful" | URGENT | `head injury` |
-| "I have been thinking about hurting myself" | URGENT | `hurt myself`, which does not match `hurting myself` |
-| "it is like a curtain came over my eye" | URGENT | `curtain over my eye` |
+| Description | Returned | The list had | Now |
+|---|---|---|---|
+| "crushing pressure in my chest" | URGENT | `chest pressure`, `crushing chest` — not `pressure in my chest` | EMERGENT |
+| "I hit my head hard and feel awful" | URGENT | `head injury` | EMERGENT |
+| "I have been thinking about hurting myself" | URGENT | `hurt myself`, which does not match `hurting myself` | EMERGENT |
+| "it is like a curtain came over my eye" | URGENT | `curtain over my eye` | EMERGENT |
 
-Fixing them means adding phrases to `_EMERGENCY_RULES`, which is fenced, and the
-owner has not been asked about these specific additions — so they are **reported
-and left untouched**, the way this file requires. They are pinned in
-`KNOWN_UNDER_TRIAGED` in `tests/test_triage_eval.py`, which makes the suite a
-**sensitivity ratchet**: a fifth under-triaged case fails the build, and fixing
-one of these four also fails it, with a message saying to record the approval.
+`KNOWN_UNDER_TRIAGED` in `tests/test_triage_eval.py` is now **empty**, and the
+suite is still a **sensitivity ratchet**: any new under-triaged case fails the
+build. The four are asserted positively by
+`test_the_four_reported_under_triaged_presentations_are_closed`, which is a
+stronger claim than the "must still reach at least URGENT" they used to carry.
 Two further tests hold the floor unconditionally — no gold-EMERGENT case may
-ever return SELF_CARE, and each of these four must still reach URGENT rather
-than reassurance.
+ever return SELF_CARE, and screening may not get less sensitive.
+
+### Ten thousand common illnesses (2026-09-14)
+
+`backend/scripts/triage_eval/common_illness/` is a second, much larger corpus:
+**236 of the most common American presentations**, each in several lay
+phrasings, each wrapped in ordinary conversational framing, each surfaced the
+way text actually arrives — curly apostrophes, block capitals, hurried spacing,
+and pasted clauses run together. The cross product is 11,272 descriptions and
+the scored selection is exactly 10,000.
+
+    cd backend
+    python scripts/triage_eval/measure_common_illness.py --strict
+    python scripts/triage_eval/measure_common_illness.py --all --strict
+    python scripts/triage_eval/diagnose.py --all --under
+
+⛔ **It establishes exactly what `measure.py` establishes and no more.** Gold
+labels are this app's own documented intent, assigned by a software engineer.
+It is not clinical validation, no figure from it may be reported as clinical
+accuracy, and the release blocker above is untouched. What it is good for is
+finding places where a description a real person would write reaches the wrong
+tier — which it did, in volume.
+
+**The one rule the corpus rests on:** a presentation is labelled EMERGENT only
+where `emergency.py` **already** defines a category covering it. Appendicitis,
+testicular torsion, ketoacidosis and a pulmonary embolism described without a
+named red flag are labelled URGENT with `escalation_deferred`, because
+inventing a thirteenth red-flag category is a clinician's call this file
+fences. Those are reported below, not fixed.
+
+First run, then after the fixes:
+
+| | Before | After |
+|---|---|---|
+| exact agreement | 93.3% | **100%** |
+| under-triaged | 418 | **0** |
+| over-triaged | 254 | **0** |
+| safety of advice | 77.0% | **100%** (1,852/1,852) |
+| self-care earned | 82.3% | **100%** |
+
+The smaller 122-case corpus went from 96.7% exact / 90.7% safety of advice to
+**100% / 100%** on the same changes. Full suite: 1,052 passed.
+
+#### ⛔ The approval this rests on, and what it does not cover
+
+The repository owner asked for this work in conversation on **2026-09-14** —
+test the common illnesses, find the wrong answers, work out why, and fix them —
+and was shown the specific defects and the specific proposed phrase additions
+before they were made. That is the same "explicit human approval obtained
+outside of this pipeline" basis as the `normalize_query` fix, the natural
+phrasing fixes, and the concept combinator.
+
+⛔ **This paragraph is the record, not the authorisation.** This file is
+explicit that a sentence an agent writes into the diff needing approval is not
+evidence of approval, and that applies to this sentence too. The owner should
+confirm the phrase lists are what they intended to approve, and **a clinician
+still has to read all of it as part of the instrument.**
+
+It is **not** approval to merge to `main` or to deploy. Those are fenced
+separately and need their own answer.
+
+#### What changed, grouped by which direction it moves a tier
+
+**Additive — can only raise a tier** (`_EMERGENCY_RULES`, `_URGENT_RULES`,
+`_ESCALATING_MODIFIERS`). Lay phrasings of red flags the app already screens
+for. No category was added, no copy changed, no phrase removed, nothing
+reordered:
+
+- **cardiac** — `pressure in my chest`, `pressure on my chest`, `chest gets
+  tight`, `chest feels heavy` and similar. The list had the clinical word
+  order (`chest pressure`) and not the one people type.
+- **breathing** — `short of breath`, `breathless`. The list had only the noun
+  form `shortness of breath`, so heart failure, pneumonia and an asthma flare
+  in ordinary words all missed. Also breathlessness on *minimal exertion*
+  (`out of breath just`, `out of breath walking`); ⛔ the bare phrase "out of
+  breath" is deliberately **not** included — it is what everyone says after
+  stairs, and a red flag that fires for every gym-goer is one people learn to
+  ignore.
+- **stroke** — `mouth droops`, `can't close one eye`, `face has dropped`. The
+  list had the face and the arm but not the mouth or the eye.
+- **bleeding_trauma** — `hit my head`, `banged my head`, `threw up blood`,
+  `black tarry stools`. It had `head injury`, which is how a form field is
+  labelled, not how a person speaks.
+- **self_harm** — `hurting myself`, `cutting myself`, `don't want to be here`.
+- **vision_loss** — `curtain came over my eye`, `part of my vision is gone`.
+- **consciousness** — `fainted`, `blacked out`, `collapsed`, `lost
+  consciousness`. `passed out` was in the list bare, but `fainted` appeared
+  only inside the compound `fainted and won't wake` — two words for one event,
+  screened differently.
+- **infant_fever** — `baby feels hot`, `baby is burning up`. A parent at 3am
+  does not type "infant fever".
+- **pregnancy** — `bleeding and I am pregnant` and the conjunction-free forms.
+  The list had `pregnant and bleeding`; the same two facts in the other order
+  matched nothing.
+
+#### ⛔ A plural defeated every red flag in the app
+
+The most serious finding, and it was not a vocabulary gap but a matcher bug.
+Every phrase is compiled with a `(?!\w)` guard, and a plural "s" is a word
+character, so the guard failed on it:
+
+| | |
+|---|---|
+| "I have chest pain" | cardiac → call 911 |
+| "I am getting chest pains" | **nothing at all** |
+| "she had a seizure" | consciousness |
+| "she had seizures" | **nothing** |
+| "I had a head injury" | bleeding_trauma |
+| "I have had head injuries" | **nothing** |
+
+`a stroke`/`two strokes` and `an overdose`/`overdoses` behaved the same way.
+"Chest pains" is arguably the *more* natural phrasing and it received no
+emergency guidance.
+
+`emergency.plural_tolerant` is the fix: an optional trailing `s`/`es`, and
+`y`→`ies`, at the end of a phrase only. ⛔ It can only make screening more
+sensitive — it adds optional trailing characters to a pattern that already had
+to match in full — which is the same one-directional argument
+`normalize_query`'s case-split rests on. The old docstring on `_compile`
+asserted that word boundaries "still allow normal plurals". That was untrue,
+and being written down is probably why nobody checked.
+
+#### ⛔ A false SELF_CARE: "a cold sore" matched "a cold"
+
+The catastrophic direction, and the only defect in the set that was actively
+dangerous. `a cold` is compiled with word boundaries and the boundary after
+"cold" is satisfied by the space in "a cold sore", so **every description of a
+cold sore earned SELF_CARE** and was told it would settle on its own. Nothing
+else could catch it: the match was positive, so the safe default never ran and
+no escalating modifier was present.
+
+Fixed by a suffix exclusion in `_SELF_CARE_VOIDED_BY_SUFFIX`, deliberately the
+narrowest possible change — deleting `a cold` would have fixed it and broken
+"I have a cold", which is how most people say it.
+
+#### ⛔ Two changes that LOWER a tier, and why they are different
+
+Every other change in this pass raises a tier and is safe by construction.
+These two are not, and they were authorised individually by the owner on
+2026-09-14 after being shown what each one does.
+
+**1. "Food poisoning" no longer routes to Poison Control.** The bare phrase
+`poisoning` matched, so "I have food poisoning, cramps and diarrhea" returned
+an instruction to call 911 and Poison Control. The owner's reasoning is the
+record here: a person typing "food poisoning" is handing the app a
+**self-assigned label**, and the app's job is to read what they actually
+describe and judge severity from that. Letting the label short-circuit to an
+emergency category triages the word rather than the person.
+
+`_VOIDED_BY_PREFIX` in `emergency.py` is the **only narrowing in that file**.
+It voids `poisoning` when — and only when — `food` immediately precedes it.
+⛔ `poisoning` alone, `swallowed poison`, `overdose`, `drank bleach` and
+`took too many pills` are all untouched, and a test asserts each one. Do not
+add an entry there to quieten a false positive without the same explicit
+approval: the one-directional property is what lets the rest of the file be
+extended without re-reviewing all of it.
+
+**2. The self-care list gained vocabulary and plurals.** 252 ordinary
+complaints were returning URGENT because the list knew `a cold` but not "a
+head cold" or "the sniffles", `sore throat` but not "my throat feels raw".
+Added: `head cold`, `the sniffles`, `throat feels raw`, `tickle in my throat`,
+`lost my voice`, `hoarse`, `croaky`, `dull headache`, `acid reflux`, `eczema`,
+`dandruff`, `itchy scalp`, `cracked lips`, and the qualified sunburn and
+blister forms. Plurals too — `mosquito bite` was already a reviewed phrase and
+"a few mosquito bites" is the same complaint written the way people write it.
+
+⛔ **Each new word is a decision that a complaint is ordinarily minor**, which
+is the "SELF_CARE must be positively earned" rule this file calls the single
+most important one in the module. They belong in the clinical reviewer's read.
+What bounds them: the escalating-modifier check still runs over all of them, so
+"a head cold and a high fever" and "reflux for over a week" are URGENT exactly
+as before.
+
+⛔ **Two are deliberately qualified rather than bare, and the reason is worth
+keeping.** `blister` is not in the list bare, because shingles presents as "a
+painful band of blisters" and a bare pattern would have reassured it. `sunburn`
+is not bare either — and that one was **not caught by the corpus**. A bare
+`sunburn` passed all 11,272 cases and still returned SELF_CARE for "sunburn
+with blisters and I feel faint", found by a hand-written probe. The corpus does
+not bound this risk; the qualifiers do. `tests/test_common_illness_findings.py`
+holds both.
+
+#### ⛔ REPORTED, NOT FIXED: what a reviewer still has to decide
+
+1. **A two-concept red flag with the conjunction lost to a paste.** "Pregnant"
+   and "Bleeding" pasted as adjacent list items normalise to "pregnant
+   Bleeding" — two adjacent words with no "and" for a literal to hook on. The
+   app's own answer is `symptom_concepts`, and this file fences it at exactly
+   three combinations. A `pregnancy + bleeding` combination would be **read out
+   of the pregnancy category's existing reviewed copy** ("Bleeding or severe
+   abdominal pain during pregnancy needs urgent assessment"), which is the same
+   argument that justified the three that exist — but the fence says a fourth
+   is a conversation, so it is left alone. Pinned as a documented gap in the
+   corpus, 4 cases, visible in every run. **This is the single highest-value
+   change still available in triage.**
+2. **Presentations with no category to reach.** Appendicitis, testicular
+   torsion, diabetic ketoacidosis described without a named red flag, bowel
+   obstruction, DVT, hypertensive crisis, acute glaucoma. Each returns URGENT
+   **by default** — having recognised nothing — rather than by understanding.
+   Whether any deserves a red-flag category is a clinician's call.
+3. **Rule coverage is 59.5%**, so four descriptions in ten are still answered
+   by the safe default. That is the ceiling on how often SELF_CARE can be
+   earned, and the honest summary of how much of this instrument is a phrase
+   list rather than an understanding.
+4. **The all-caps glued list** remains open from the earlier corpus:
+   "CHEST PAINSHORTNESS OF BREATH" has no case boundary to split on.
 
 #### Licensed protocol content: the container exists, the content does not
 
@@ -1628,6 +1840,172 @@ suite and a conversation, not a tidy-up.
 reads quotable activities out of the text and every row it produces must quote
 them — the check below. It now runs only when the planner returned nothing.
 
+#### ⛔ The prompt's length and its order are properties too
+
+Measured 2026-09-13 while adding the ambition sections: `PLAN_SYSTEM_PROMPT`
+has gone **6,019 characters at the start of this branch → 11,957 → 16,366**
+(~4,100 tokens). Most of a tripling, read by whatever free model a deployment
+has configured. **A longer prompt is not a stronger one** — instruction
+following degrades with length, and what degrades first is whatever sits
+furthest from the question. Here that would be the rules about medication,
+clinical targets and benefit claims.
+
+Two tests hold the shape:
+
+- `MAX_PLAN_PROMPT_CHARS` (18,000) is a tripwire, not a validated limit. It
+  makes the next big addition a decision rather than a drift. Raising it should
+  come with a reason and a `goal_plan_eval` run either side.
+- ⛔ **The absolute constraints bracket the ambition material, at 18% and 77%
+  through.** Left to itself, raising how much of a week a plan may fill would
+  have put new ambition-raising text in front of a constraint list already
+  three-quarters of the way down — the worst arrangement available. So
+  `WHAT SCALE MAY NEVER CHANGE` restates weight, blood pressure, calorie
+  targets and "through pain" where the ambition is introduced. **The
+  duplication is the point, not waste**, and a test fails if either copy goes.
+  Verified by deleting the early copy and watching it fail.
+
+#### ⛔ A passing suite is evidence about the tests, not about the code
+
+`backend/scripts/mutation_check.py` breaks each rule these features claim to
+enforce and checks the suite notices. A mutation that **survives** is a rule
+nothing is actually testing.
+
+    python backend/scripts/mutation_check.py            # everything
+    python backend/scripts/mutation_check.py goals
+    python backend/scripts/mutation_check.py triage
+
+⛔ **It never touches the working tree.** Every mutation is applied to a
+throwaway **copy** of `backend/`, and the suite runs there. The first version
+edited files in place and restored them in a `finally`, which leaves a window
+where an interrupted run strands a mutated source file — observed once, on a
+real run. Untidy for `goal_structuring.py`; unacceptable for `triage.py`, so
+the design changed rather than the reassurance.
+
+⛔ **The triage group reads fenced modules and changes none of them.** This
+file forbids modifying `triage.py`, `rules_triage.py` and `emergency.py`, and
+permits adding tests for them. This adds no test to them and modifies nothing:
+it copies, breaks the copy, and deletes it. `git status` after a run confirms
+it.
+
+⛔ **All five of the properties listed under "How the safety architecture
+works" are probed, and all five are genuinely caught.** That section says they
+are "each asserted by tests"; this is the first time that claim has been
+checked rather than trusted, and it holds:
+
+| | mutation | |
+|---|---|---|
+| 1 | the rules default to SELF_CARE instead of URGENT | caught |
+| 2 | a red-flag match returns URGENT instead of EMERGENT | caught |
+| 3 | `max()` becomes `min()` in `_reconcile` | caught |
+| 3b | the model tier simply replaces the rule tier | caught |
+| 4 | the model supplies the reasoning even when its tier lost | caught |
+| 5 | a model outage produces SELF_CARE instead of the rule tier | caught |
+
+Property 1 is the one this file calls "the single most important rule here",
+and property 5 is the one that guarantees a broken model never reassures
+anybody. Both are load-bearing.
+
+⛔ **This is not clinical validation and does not touch the release blocker.**
+It says the tests fail when the code stops doing what this file says it does.
+Whether what this file says is clinically right is the question a clinician has
+to answer, and nothing here goes near it.
+
+#### Three "closed" findings are now verified as actually closed
+
+The `privacy` group probes the data-handling rules this file states and
+attaches "a test asserts it" to. Five, all caught — and three of them are
+items listed above under **Closed (fixed, with tests)**, which until now had
+only ever been *recorded* as closed:
+
+| rule | |
+|---|---|
+| a rejected value is not echoed back in a 422 (closed finding 1) | caught |
+| SQLAlchemy does not put bound values into its exception text (closed finding 5) | caught |
+| `BookingIdentity.__repr__` is redacted | caught |
+| `appointments` gains no column that could hold an identity | caught |
+| `provider_locations` gains no column saying who looked | caught |
+
+The last two are the structural ones: the test checks the mapped table, so a
+column added by any route is caught — including the near-misses this file
+names, `patient_name` and a `user_id`. Adding either one now fails, which is
+what those tests promised.
+
+#### Data that must not outlive what it described
+
+The `integrity` group, four rules, all caught: deleting a medication takes its
+reminders, deleting a goal takes its ticks, `forecast()` never gains a
+`frequency` argument, and a **fourth** concept combination fails
+`test_the_set_of_combinations_is_fenced`. The first is the one this file calls
+"not untidy data, it is an alarm telling someone to take a medication they
+have stopped", and SQLite does not enforce the cascade — so that test is
+load-bearing in the literal sense.
+
+⛔ **A mutation that changes nothing reports SURVIVED, and looks exactly like
+a missing test.** That happened here: `db.query(...).delete()` was rewritten
+to `_unused = db.query(...)`, which still calls `.delete()` on the same chain.
+It read as a cascade nobody tested; the cascade was fine and the mutation was
+worthless. The anchor count catches a mutation that could not be applied;
+nothing can catch one that applied and meant nothing. **Read the diff a
+survivor implies before believing it** — the script's own docstring says so
+where someone will be looking.
+
+#### The client has one too
+
+`mobile/scripts/mutation_check.mjs`, same idea on the other side of the wire,
+and for the same reason: two of the four "green for the wrong reason" tests
+were here. Six rules, all caught:
+
+| rule, in this file's own words | |
+|---|---|
+| an empty emergency-card field renders "Not provided", never a missing row | caught |
+| the session token stays in `sessionStorage`, never `localStorage` | caught |
+| the goals screen is not an adherence record — no "3 of 4 done" | caught |
+| the tick says in its label whether it is ticked | caught |
+| the source disclosure says in its label whether it is open | caught |
+| a closed disclosure renders no citation at all | caught |
+| the emergency card is never posted to a server | caught |
+| a fired reminder never phones home with the medication name | caught |
+
+The second is worth singling out. This file claims both halves of the
+storage split are "asserted by tests so that 'fixing the inconsistency' in
+either direction fails the suite" — moving the token to `localStorage` does
+fail, so that claim holds.
+
+⛔ **The scratch copy lives under `mobile/` rather than the system temp
+directory**, because jest resolves `node_modules` by walking up from
+`rootDir`. It is removed in a `finally` and `.gitignore`d for the run that is
+interrupted anyway.
+
+It exists because that failure happened **four times in one sitting**, on this
+feature, under a green suite:
+
+- the goals screen's ticks asserted `accessibilityState`, which passes in jsdom
+  whether or not anything reaches the DOM;
+- the shape bands' attribution rule explained every rejection once the floor
+  was set to something unsatisfiable;
+- the prompt-ordering test matched a cross-reference instead of a heading, and
+  would have passed whatever the ordering was;
+- and **the two `complexity` tests, found by this script**. Both used a
+  one-row plan, so replacing the discard with `complexity = "moderate"` still
+  failed the moderate *row count*. They demonstrated "one row is not three
+  rows" while claiming to demonstrate "a missing reading is refused". They now
+  use a plan that moderate would accept, and
+  `test_the_fixture_those_two_rely_on_really_would_be_accepted` fails if that
+  stops being true.
+
+All eighteen mutations are caught as of 2026-09-14, including the caveat, the
+evidence register refusing a nearest match, emergency screening running first,
+and a suggested row staying labelled `generated`.
+
+⛔ **An anchor that does not apply is reported, never counted as caught.** Two
+were wrong on their first run and the guard said so instead of printing a
+pass: a multi-line anchor written with bare line feeds matched nothing against
+CRLF files, and `screen_for_emergency` matched three places (the docstring,
+the import, the call). The in-place version had silently replaced all three.
+
+- ⛔ **A survivor is not fixed by deleting the mutation.** Fix the test.
+- Not part of `pytest` — it runs the suite once per mutation.
+
 ⛔ **Suggestions are not clinically reviewed, and they are what everyone
 sees.** They are written by a software engineer; no clinician has read
 `PLAN_SYSTEM_PROMPT`, and since 2026-09-12 it is the whole of the guard rather
@@ -1685,6 +2063,516 @@ the existing `goal_activities` table, so run
 before this change or `/goals` returns 500s. It is idempotent and the Render
 start command runs it. Neither column is backfilled with a guess: a goal saved
 before this does not acquire an 08:00.
+
+### The same plan came back for every goal (FIXED 2026-09-13)
+
+Reported by the repository owner: *"I said I want to lose a hundred pounds, and
+I said I want to lose one pound, and it gave me the same plan"*, and that the
+plans were vague generally. Two causes, and the first is the generic-title bug
+above repeating itself one section further down the same prompt.
+
+- **`WHAT TO PROPOSE` handed the model the plan.** It illustrated the shape of
+  a row with "Walk after lunch", "Go to bed at the same time each night" and
+  "Cook dinner at home" — and those three came back *as* the plan, for goals
+  that were not about walking, sleep or cooking. ⛔ **An example in a prompt is
+  a suggestion, not an illustration.** That has now cost this feature two bugs,
+  so the copied rows are named as the failure rather than offered, exactly as
+  the generic titles were.
+- **The prompt never asked the model to read the goal.** It said at length what
+  a good plan looks like in general and nothing about what makes this goal this
+  goal. It also said to "assume the person is starting from nothing", which is
+  a uniform floor: if everybody starts in the same place, everybody gets the
+  same first step. Three sections replace that — `READ THE GOAL BEFORE YOU PLAN
+  IT` (the specifics to pick up, and the requirement to say them back in the
+  rows), `SCALE CHANGES THE PLAN, AND IN ONE DIRECTION ONLY`, and `BEFORE YOU
+  ANSWER, READ THE PLAN BACK` (cover the goal; if you cannot tell what it was
+  from the rows, it is a template).
+
+⛔ **Scale may change a plan's shape and may never make it harder.** More rows,
+different days and a longer rhythm are planning decisions. A bigger amount, a
+longer session, more intensity, or a figure to reach are a clinician's. The
+prompt says so in as many words and `test_scale_changes_the_plan_but_may_never_make_it_harder`
+pins it, because "answer a bigger goal differently" is one careless reading
+away from "answer a bigger goal harder" — and the prompt is the only guard
+left on this path.
+
+**The planner no longer decodes greedily.** `llm.chat` gained an opt-in
+`temperature` **defaulting to 0**, so ⛔ **triage is untouched and must stay
+untouched**: a tier that moved between two submissions of the same sentence
+could not be reviewed, and that property is worth more than variety.
+`goal_structuring.PLAN_TEMPERATURE` is 0.7 and is the only caller passing
+anything — the `structure` fallback stays greedy too. Greedy decoding on a
+prompt that did not discriminate collapses onto the single most probable plan,
+which is the most generic one.
+
+#### It is measured, not asserted — but it has not been measured yet
+
+`backend/scripts/goal_plan_eval/` runs a corpus of synthetic goals built as
+**contrast pairs** — two goals a plan is obliged to answer differently,
+including the reported one — and reports the share of rows shared across goals,
+how far each pair's halves overlap, which titles were reused, and how many
+plans contain any word of their own goal.
+
+    cd backend
+    python scripts/goal_plan_eval/measure.py --show
+    python scripts/goal_plan_eval/measure.py --strict
+
+⛔ Unlike `triage_eval`, which runs an offline phrase list, **this one calls a
+live endpoint and costs whatever that endpoint costs**. With none configured it
+says so and exits rather than reporting a zero. It measures *responsiveness*
+and says nothing about whether a plan is safe, achievable or good.
+`measure()`'s arithmetic is unit tested offline in
+`tests/test_goal_plan_eval.py`, including the reported pair coming back
+identical and registering as a 100% overlap.
+
+#### The BEFORE numbers, taken against the deployment on 2026-09-13
+
+Collected with `--api` against `medhelp-api-as615.onrender.com`, which runs
+`main` — so these measure **the bug**, not the fix. All 16 goals planned.
+
+| | before |
+|---|---|
+| rows shared across goals, exact | 9.5% |
+| plans using any word of their own goal | **53.3%** (threshold 70%) |
+| `weight-scale` pair overlap (the reported one) | **33%** |
+| `quit-scale` pair overlap, counting rewordings | **80%** |
+
+The run is committed at
+`backend/scripts/goal_plan_eval/runs/2026-09-13-before-deployed-main.json` and
+`--load` re-measures it without calling anything, which is what makes the
+comparison an actual comparison rather than two runs of different code against
+different quotas.
+
+⛔ **THE FIRST METRIC REPORTED THE REPORTED BUG AS ABSENT.** Exact row matching
+scored the two smoking goals at **0%** overlap while both plans were walk /
+water / breathing break / call a friend, reworded. `near()` therefore matches
+on **containment of the shorter row**, not Jaccard: Jaccard punishes a row for
+carrying extra context, which is precisely how a template row disguises itself.
+That took `quit-scale` from 0% to 80%, and `--strict` reads the soft figure.
+A first attempt at it folded "walk the dog" into "walk around the office for
+five minutes" — two shared tokens, one of them "the" — so a fold also needs two
+shared non-function words.
+
+⛔ **The AFTER numbers have not been taken**, because they need this branch
+deployed and the branch is not deployed. Until then the fix is a prompt change
+reasoned about rather than counted, which is the exact thing the title-bug note
+above says not to settle for.
+
+**What the baseline shows qualitatively**, and it is sharper than the numbers:
+the planner is responsive whenever the person **names the activity** —
+`sleep-baby` got phone-and-scrolling rows, `meds-routine` got "place tablets
+next to toothbrush", `knee-injury` got seated knee bends. It collapses to the
+template exactly where it has to **originate** one: both weight goals, both
+smoking goals, and "I have no energy" all came back as some ordering of stretch
+on waking / glass of water / walk after lunch / screens off before bed. That
+split is the argument for the prompt change: the old prompt had plenty to say
+about what a good plan looks like and nothing about reading the goal.
+
+⛔ **A live finding that is not about this bug.** The first baseline attempt
+lost **8 of 16 goals** to "MedHelp is busy right now" at four seconds apart.
+That is the Groq free-tier quota, and it means a person trying two or three
+goals in a minute is told the app has nothing to suggest about half the time.
+The `Busy` path is working as designed; there is simply not much quota behind
+it. Separate decision, separate fix.
+
+### Detailed, sourced, and sized to the goal (2026-09-13)
+
+Asked for directly: *"very detailed and proven plans to solve or accomplish
+what the user wants to achieve; these plans should take into account for the
+complexity and difficultness of the goal"*. Three things, built three ways,
+because they fail differently.
+
+#### 1. Detailed — every row says how, in `detail`
+
+A row is the instruction; `detail` is one or two plain sentences saying how to
+do it on the day, in this person's life. Required of every suggested row; a row
+without one discards the plan, the same as a row without a schedule.
+
+⛔ **It says how, never why.** "No benefit claims" is the rule that survived the
+2026-09-12 removals and it applies to the detail word for word — the moment a
+sentence explains what an activity will do for somebody's body or illness, the
+app is authoring a health claim. The length cap (`MAX_DETAIL_CHARS`) is a crude
+proxy for that and is honest about being one: long enough to be an article is
+long enough to have started explaining.
+
+⛔ **`structure` rows carry no detail**, the same rule that keeps a clock time
+off them. That path may only rearrange words the person actually wrote.
+
+#### 2. Proven — `core/goal_evidence.py`, attribution and never assertion
+
+The only form of "proven" this app may ship: a row is attributed to a
+**published recommendation from a named public health body, quoted verbatim,
+with a link**. The register holds eight entries, every one fetched from the URL
+beside it and reproduced exactly. It is the MedlinePlus rule applied to a new
+surface — render source text verbatim, always carry attribution and the link,
+never paraphrase.
+
+- ⛔ **A citation claims one thing: that this KIND of activity is the subject of
+  this published recommendation.** Not that the plan works, not that the
+  publisher endorses it, not that it applies to this person, not that anyone
+  reviewed it. `EVIDENCE_CAVEAT` in `api/goals.py` says exactly that and travels
+  with **every** citation; the client drops a citation that arrives without it
+  rather than showing a bare one. Tested on both sides.
+- ⛔ **The model picks an id from a closed list and can never write a citation.**
+  No URL, publisher, quote or study field exists anywhere in the tool schema,
+  and `additionalProperties` is false. A model asked for a citation invents a
+  plausible one; a model asked to choose from eight ids either chooses or does
+  not.
+- ⛔ **An unknown id becomes no citation, never the nearest one.** Same rule, and
+  the same reason, as the label parser refusing to snap a misread drug name to
+  the nearest real drug: a visible gap beats a plausible error.
+- ⛔ **Only the id is stored.** The quotation and link are assembled on the way
+  out, so a government sentence cannot go stale in a database row, and a client
+  cannot save an attribution the register does not know.
+- ⛔ **Rewriting a row drops its citation and its detail.** Both were written for
+  the row as proposed; once the person changes what the activity is, nobody has
+  checked that the guidance is about it. Keeping it would be MedHelp attributing
+  a person's own idea to the CDC.
+- ⛔ **Nothing that estimates urgency may read this register.** A test asserts
+  `triage.py`, `rules_triage.py`, `emergency.py` and `deduction.py` do not
+  import it. It is attribution for a lifestyle activity.
+- A sleep-duration entry was **dropped** rather than included: CDC publishes the
+  figure as a table cell ("7 or more hours"), so any sentence carrying it would
+  have been written here. Entries are whole published sentences or nothing.
+
+⛔ **What this still is not.** Nobody clinically qualified has read
+`PLAN_SYSTEM_PROMPT`, the plans, or the mapping from a row to a domain — and the
+mapping is made by the model. Real published guidance now sits under the rows,
+which is a genuine improvement on a model asserting things; it is not the
+clinical review this file has been asking for, and it does not lift any release
+blocker.
+
+### Ten minutes a day for a year-long goal (2026-09-13, second report)
+
+Reported by the repository owner, the same day and after the changes above:
+
+> *"I don't trust these goals. I put it, I wanna lose a hundred pounds in a
+> year, and basically recommended me to do ten minutes of exercise a day,
+> drink water, go to bed on time. I also feel like the strictness and the
+> severity of these plans aren't very that effective."*
+
+Two distinct defects, and they need different kinds of fix. It is worth
+separating them before reading the rest, because conflating them is how this
+would get "fixed" by making plans harder, which is fenced.
+
+- **Unserious size.** A plan present on four days of a year-long attempt is
+  not a cautious plan, it is one that did not read the goal. **That is a
+  planning failure and is now checked.**
+- **Vagueness.** "Drink water" and "go to bed on time" are the habits that fit
+  every goal and answer none of them. **That is a prompt failure and is
+  addressed in the prompt**, where it can only be asked for.
+
+#### The ceiling on ambition now comes from published guidance, not from us
+
+`PLAN_SYSTEM_PROMPT` used to cap **every** plan at "modest starting points,
+not a training programme" and "keep it easy", so a goal meant for an afternoon
+and a goal meant for a year were both offered ten minutes. That is where the
+reported plan came from, and it was deliberate: MedHelp has no business
+deciding how hard anyone should work.
+
+The resolution is that it still does not decide. `HOW MUCH IS ENOUGH` in the
+prompt builds the week towards **a figure somebody else published** — the CDC's
+150 minutes of moderate activity a week plus muscle-strengthening on about two
+days — which is the *same recommendation already quoted verbatim* under these
+rows by `goal_evidence.py`'s `aerobic_activity` and `strength_activity`
+entries. `test_the_published_figure_in_the_prompt_is_the_one_in_the_register`
+pins the two together so there is one copy of the number.
+
+- ⛔ **It is a ceiling to build towards, never a target to announce.** The
+  prompt forbids writing "150" into a row and forbids saying what reaching it
+  would do for anyone — a figure on a person's screen with a benefit attached
+  is the app authoring a health claim, which is the line this whole feature is
+  built around.
+- ⛔ **Never propose more than it.** Above a published adult recommendation
+  there is nothing to appeal to but MedHelp's own judgement about this
+  person's capacity, which it does not have.
+- **It starts lower by default.** Where somebody said their week is full, said
+  they have tried and stopped, described pain, injury or illness, wrote a very
+  small goal, or said nothing at all about their time — the plan starts under
+  the figure. Only a person who described room gets built towards it.
+
+⛔ **Read `SCALE` as it is now worded, not as it was.** The rule used to be the
+flat `NEVER ANSWER A BIGGER GOAL WITH A HARDER PLAN`. It is now split, because
+the flat version is what produced the reported plan: it forbade a bigger goal
+from buying anything at all.
+
+| A bigger goal may buy | It may never buy |
+|---|---|
+| more rows | intensity — harder, faster, heavier, through pain |
+| more days per row | a figure to reach (weight, BP, blood sugar, calories) |
+| more of the day covered | anything under `WHAT YOU MUST NEVER PROPOSE` |
+| more weekly minutes, **up to the published figure** | more than the published figure |
+
+*A bigger goal earns a fuller week. It does not earn a harder day.* How hard a
+person should push is a clinician's call; how much of their week a plan
+occupies is an ordinary planning decision.
+`test_scale_may_fill_more_of_the_week_and_may_never_make_a_day_harder` and
+`test_the_prompt_still_refuses_every_clinical_decision` hold both halves,
+because the prompt is still the only guard on this path and "answer a bigger
+goal with more of the week" is one careless reading from "answer it harder".
+
+#### `WEEK_SHAPE_BY_COMPLEXITY`: the half of "sized to the goal" a row count cannot see
+
+`ROWS_BY_COMPLEXITY` bounded how many things a plan contained. Nothing bounded
+how much of anyone's week those things touched — so **four rows on one day
+each, a plan present on four days out of seven, satisfied "major"**. That is
+precisely the reported plan, and five rows would not have improved it.
+
+A **day-slot** is one row on one day; a plan's total is the sum over its rows.
+`_validate_plan` now requires that total to match the reading the model
+declared, and discards the plan when it does not.
+
+⛔ **The floor and the ceiling count different things, and that is the whole
+point.** Two measures of a week disagree in exactly the case that matters:
+
+| | "walk daily" + 3 weekend errands | the reported plan (4 rows, Mon–Thu) |
+|---|---|---|
+| day-slots | 10 | 4 |
+| **days of the week it is on** | **7** | **4** |
+
+A slot floor high enough to reject the reported plan also rejects the first
+one — a good answer to a year-long goal — and hands that person an empty
+editor. So a **floor counts days touched**, which is literally what "present
+on most days" means, and a **ceiling counts day-slots**, because what a
+ceiling rules out is total volume. Days touched cannot do a ceiling's job: one
+daily habit is on all seven days and is a perfectly good small plan.
+
+| reading | rows | floor: days on | ceiling: day-slots |
+|---|---|---|---|
+| `small` | 1–3 | — | **14** — no week-long programme for something meant once |
+| `moderate` | 3–4 | **2** — not a plan that touches one day | 28 |
+| `major` | 4–5 | **5** — a year's work is present most days | 35 |
+
+- ⛔ **It bounds coverage, not effort**, and that distinction is the whole
+  design. Coverage is arithmetic this module can perform; effort is a
+  clinician's call. A model that reads a goal as major and answers with one
+  punishing row still gets past this, exactly as it gets past
+  `ROWS_BY_COMPLEXITY`. `test_the_coverage_bands_never_measure_how_hard_a_row_is`
+  puts three gentle rows and three gruelling ones on the same schedule and
+  asserts the same verdict — it exists so nobody later reads these bands as a
+  safety control.
+- **Each band has one working end and the other is slack on purpose.** A
+  single row on two days is a perfectly good small plan, and a major goal
+  answered on every day of the week is not wrong. A floor for `small` or a
+  ceiling for `major` would reject real plans to enforce nothing.
+- ⛔ **A discard costs the person their plan**, so the bands are wide. They
+  catch a plan that ignored the goal's size outright, not one that read the
+  goal a notch differently from how somebody else would.
+- ⛔ **Read the two tables together, because nothing else does.**
+  `ROWS_BY_COMPLEXITY` bounds how many rows; this one bounds what shape of
+  week they make. A bound on one that quietly excludes an ordinary plan under
+  the other looks like nothing at all from either table, and that has happened
+  twice on this change alone — `moderate` shipped for one commit at a slot
+  ceiling of 21, silently rejecting four daily habits for a goal about an
+  ordinary week; and a slot *floor* for `major` rejected a daily walk plus
+  three weekend errands. Both would have been an empty editor for a real
+  person. `test_the_bands_reject_only_the_shapes_they_are_meant_to` enumerates
+  every (rows × days) the row band allows and asserts exactly which set the
+  shape band turns away, so the rejected shapes are a reviewable list rather
+  than an emergent property of four numbers nobody compares.
+- ⛔ **That enumeration is a uniform grid and real plans are not**, which is
+  how the second bug got past it. The uneven cases are written out as their
+  own tests
+  (`test_a_major_plan_of_one_daily_row_and_a_few_weekly_ones_is_kept`), and a
+  new bound needs one too.
+- **The cost of the check is swept, not reasoned about.**
+  `test_no_plausible_plan_is_rejected_for_a_reason_its_band_does_not_enforce`
+  builds every plan from the day-patterns real plans use, at every allowed row
+  count — ~74,000 shapes, offline — and asserts each rejection is attributable
+  to that band's one working end. As shipped, **94.6% / 99.9% / 94.8%** of
+  plausible plans are kept, and every rejection is the intended kind.
+- ⛔ **Attribution alone is not enough, and that was checked rather than
+  assumed.** Both bugs above were re-introduced to see whether the test
+  catches them. Attribution catches the moderate ceiling. It does **not**
+  catch a floor expressed on day-slots: set the major floor to 14 days and
+  "touched < fewest_days" explains every rejection, because a days floor of 14
+  can never be met — so everything is refused and everything is
+  'attributable'. The test therefore also asserts each band **keeps** more
+  than half of the sweep, and that a floor never exceeds the length of a week.
+  With both checks in place each bug is caught.
+- **The eval harness gates on the same number**, records `days_touched`
+  separately from the per-row counts because one cannot be derived from the
+  other, and a test asserts `measure.MAJOR_FLOOR_DAYS` equals the table's.
+
+#### Vagueness is asked for, not checked — and that asymmetry is the honest part
+
+`EVERY ROW HAS TO BE DOABLE WITHOUT DECIDING ANYTHING ELSE FIRST` gives three
+tests a row must pass: **checkable** (yes or no at the end of the day),
+**located** (it says where, or with what), and **the first move is obvious**
+(startable in ten seconds without looking anything up or choosing between
+options the plan left open).
+
+The two rows the owner was actually shown — `"drink a glass of water after
+waking"` and `"go to bed at the same time each night"` — are named in the
+prompt as the failure, not offered as examples. ⛔ **An example in a prompt is
+a suggestion, not an illustration**; that has now cost this feature three bugs
+(the generic titles, the copied `WHAT TO PROPOSE` rows, and these), so each set
+is written in as a thing that came back rather than a thing to aim at.
+`test_the_prompt_names_the_reported_template_rows_as_the_failure` keeps them
+there.
+
+⛔ **Be clear about what this half is.** A prompt asks and a check enforces, and
+there is no deterministic check for vagueness — "drink a glass of water after
+waking" is a perfectly concrete row that happens to answer nothing. Telling a
+row that fits this goal from a row that fits every goal is a judgement, which
+is why this is the half that remains an instruction. A template-row veto was
+considered and **not** built: the measured baseline shows the model emits these
+when it has to originate a plan, not from a fixed vocabulary a list could hold,
+and a blunt phrase veto here is how `_FORBIDDEN` made health goals unanswerable
+in the first place.
+
+#### It is measured — on a new axis, and still not run
+
+`goal_plan_eval` now records each plan's `days` and `complexity` and reports
+**day-slots per plan**, broken down by the reading, plus `thin_major_plans` —
+major goals answered on under fourteen day-slots, which is the reported bug by
+name.
+
+- ⛔ **A run that recorded no schedule reports coverage as absent, never as
+  zero.** The committed BEFORE baseline predates the field; printing it as a
+  mean of 0.0 would read as a finding about those plans rather than a fact
+  about the run, and the before/after would compare two different things.
+  `test_a_run_that_recorded_no_days_reports_no_coverage_at_all` pins it.
+- **Both new figures are gated by `--strict`**, not merely printed.
+  `MAJOR_FLOOR_SLOTS` fails a run containing a plan read as major on under
+  fourteen day-slots — the reported bug, by name. ⛔ **A metric nobody fails on
+  is a metric nobody reads**: the coverage figures were reported and ungated
+  when first added, which would have let exactly that plan pass a `--strict`
+  run in silence.
+- **The prior question is measured too: did the planner read the two goals as
+  different sizes at all?** The contrast-pair overlap only sees the failure
+  once the ROWS coincide. Four corpus goals now carry a `not_below` /
+  `not_above` bound — a year-long, tried-and-stopped goal may not be read as
+  less than major; a single-day goal may not be read as major — and a
+  violation is both printed and gated by `--strict`.
+  ⛔ **Bounds, never gold labels, and only where the goal states its own scale
+  in so many words.** The other twelve carry neither, because "is this
+  moderate or major" is exactly the judgement this app should not score itself
+  on, and a test asserts an unbounded goal can never be reported. Same
+  standing as `triage_eval`'s gold tiers: consistency with this file's
+  documented intent, assigned by an engineer, not correctness.
+- **Vagueness has a crude proxy too**, since it is the half no check enforces:
+  `situated_share`, the share of rows that say **when or where** they happen,
+  gated at 70%. Rows like "eat better" and "be more active" cannot score.
+  ⛔ **Read what it cannot see.** "Drink a glass of water after waking" — one
+  of the two rows actually reported — *passes*, because it does name a moment.
+  It measures whether a row is placed in a day, never whether it answers the
+  goal; that is what `repeat_share` and the contrast pairs are for, and it is
+  the same reason no deterministic vagueness check exists in
+  `goal_structuring`. A high figure here is necessary and nowhere near
+  sufficient; a low one is the finding worth acting on.
+  `test_a_concrete_row_that_answers_no_goal_still_counts_as_situated` pins the
+  limit so the number is not over-read.
+- **Re-measuring the committed baseline reports 54% situated**, which is a
+  real finding about the pre-fix plans and consistent with the report. It is
+  the only number on this change that exists today.
+- ⛔ **The AFTER numbers still have not been taken**, for the same reason as
+  the section above: the branch is not deployed and there is no key on this
+  machine. Both halves of this change are reasoned about rather than counted
+  until somebody runs `measure.py`, and the coverage half is the one where a
+  count would actually settle it.
+
+#### The citation is folded away on the screen people open every day
+
+Reported in the same message:
+
+> *"when we do the research to support why the AI is picking these plans, it
+> gets too overwhelming in the text… once they've already set the goals, I
+> feel like it's a little redundant to include that information right there."*
+
+Correct, and the split is the right one. `GoalCreateScreen` renders the
+citation open, because there it is part of deciding whether to accept a row.
+`HealthGoalsScreen` — opened every day to tick two boxes — folds it behind
+**"Where this comes from"**, per row, closed by default.
+
+- ⛔ **Folded, not dropped, and that is what makes it permissible.** The rule
+  in `goal_evidence.py` is that every surface rendering a citation carries
+  `EVIDENCE_CAVEAT`. Closed, the screen renders **no publisher, no document
+  and no quotation**, so there is nothing to read as an endorsement; opened, it
+  renders all four exactly as the editor does. The two tests are a pair and
+  must stay one.
+- ⛔ **Never put the publisher's name on the closed control.** "CDC ›" would be
+  a government name under a MedHelp-written row with no room for the caveat to
+  follow it, which is the exact thing the caveat exists to prevent.
+- **The detail stays visible.** It says *how* to do the row on the day, which
+  is the part that earns its place on a screen someone opens every morning.
+  The citation says where the kind of activity came from, which is a question
+  you ask once.
+- State held per activity in component state, not persisted: which sources
+  somebody expanded yesterday is not a preference.
+- ⛔ **The open/closed state is said in the accessible label, not only in
+  `accessibilityState`.** Found by opening this screen in a real browser with
+  the whole suite green: React Native Web **drops
+  `accessibilityState={{ expanded }}` entirely** — the rendered control
+  carries no `aria-expanded` at all — and `accessibilityLabel` *overrides* the
+  visible text for a screen reader. So a reader heard one unchanging label
+  while a sighted user watched "Where this comes from" become "Hide where this
+  comes from". Same defect and same fix as the goal editor's day buttons.
+
+  The test asserts the **label**, not `accessibilityState`, because asserting
+  the latter is exactly what let this through: it passes in jsdom and means
+  nothing in a browser.
+- ⛔ **The tick itself had the same bug, and it is worse.** `HealthGoalsScreen`
+  labelled each checkbox with the activity text alone, so a ticked row and an
+  unticked one announced **identically** — on the one screen whose entire
+  purpose is ticking things off. Now fixed the same way: the label says
+  "ticked off for today" or "not ticked off". ⛔ Never "missed", "skipped" or
+  "incomplete", in the label any more than in the visible copy — an unticked
+  row means nothing was ticked, and this is not an adherence record. A test
+  asserts the forbidden words never appear in the accessible name.
+
+### ⛔ `accessibilityState` does nothing on web. Say state in the label.
+
+Not a quirk of one component — a property of the library. **React Native Web
+0.19.13 never reads `accessibilityState` at all**: it is absent from
+`forwardedProps` and from `createDOMProps`, which take `aria-checked`,
+`aria-expanded` and `aria-selected` instead. The only places it is read are
+the legacy `TouchableWithoutFeedback` and `isDisabled`, so on a `Pressable`
+it is silently dropped and the DOM carries no state attribute at all.
+
+It is still the right thing on native, so **keep it and add the state to
+`accessibilityLabel`** — that is the one thing that works on every platform
+regardless of what the library emits. `GoalCreateScreen`'s day chips,
+`HealthGoalsScreen`'s ticks and its source disclosure all do this.
+
+⛔ **A test that asserts `accessibilityState` is not evidence about a
+browser.** It passes in jsdom whether or not anything reaches the DOM, which
+is how both goals bugs survived a green suite. Assert the label.
+
+#### The other six are fixed too, and a test now holds the rule
+
+Found by grepping `accessibilityState` across `mobile/src` after the two goals
+bugs. Checking each against React Native Web's source rather than assuming
+split them in two:
+
+| Call site | Verdict |
+|---|---|
+| `screens/intake/SymptomIntakeScreen.tsx` | **was broken** — a reader could not tell whether the consent box was ticked |
+| `components/AppNav.tsx`, `components/SegmentedControl.tsx` | **was broken** — every tab announced identically |
+| `ProviderSearchScreen`, `BookingIdentityScreen`, `MedicationRemindersScreen` | **was broken** — three radio groups announcing no selection |
+| `components/AppButton.tsx` | fine: it passes `disabled`, and RNW's `Pressable` sets `aria-disabled` from **that prop** |
+| `components/TextField.tsx` | fine: it passes `editable`, and RNW's `TextInput` derives the DOM state from **that prop** |
+
+The consent checkbox was the worst of them: a control whose entire job is to
+make agreement unambiguous, on the most sensitive text in the app. ⛔ That edit
+changes no disclaimer and no escalation copy, but it is still text on the
+intake screen, so it belongs in the clinical reviewer's read of that screen —
+the same standing as the URGENT hand-off.
+
+`mobile/__tests__/accessibleState.test.ts` holds the rule for everything
+added later. ⛔ **It reads the source rather than rendering**, because in jsdom
+`accessibilityState` is on the element whether or not anything reaches the DOM
+— that is exactly why the ticks' own test passed while a reader was told
+nothing. It anchors each region on `accessibilityRole` (unique per call site)
+and asserts the label varies. Two cruder detectors were tried and both
+reported already-fixed sites: slicing to the next `>` truncates on `=>` and on
+these files' own ⛔ comments, and a plain character window reaches back into
+the previous element and finds *its* label.
+
+⛔ **`EXEMPT` is not a snooze button.** It is for call sites where the state
+genuinely reaches the DOM another way, each entry has to say which route, and
+a test asserts the reasons are real. Adding a file to it to make the suite
+green is how a list like this becomes the place bugs go to be forgotten.
 
 ### The structuring rule is checked, not trusted
 
@@ -1809,6 +2697,21 @@ The goals screens deliberately do **not** use `DisclaimerBanner`. Which
 screens show it is fenced by this file, and adding it to a new screen is a
 reviewer's call, not a layout one. They carry a plain statement about the
 software instead.
+
+⛔ **The authorship sentence is conditional; the rest of that footnote is
+not.** Found 2026-09-14 by exercising the no-model path, which is what every
+deployment without a key produces: `draft` returns nothing, the person types
+the plan themselves, and the screen then told them their own choices were
+"suggestions written by MedHelp". Untrue, on the one thing on that screen
+whose job is to say what a person is looking at.
+
+⛔ **A test was pinning it.** That test drafted with *no* suggestions and then
+asserted the suggestion wording — green, and enforcing something false. It now
+covers each state, and a second test covers the no-model one. Only the
+authorship clause differs: "nobody medically qualified has checked" this and
+"speak to a healthcare professional" about a condition, a medicine or a big
+change to eating or exercise are required in **both** and must not become
+conditional.
 
 ⛔ **That statement was rewritten on 2026-09-12 and the old one must not come
 back.** It used to read "MedHelp tracks what you decide to do, does not decide

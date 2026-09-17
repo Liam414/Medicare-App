@@ -47,7 +47,14 @@ const navigation = {
 };
 
 function emptyDraft(overrides: Partial<GoalDraft> = {}): GoalDraft {
-  return { title: null, activities: [], notice: null, emergency: null, ...overrides };
+  return {
+    title: null,
+    activities: [],
+    notice: null,
+    emergency: null,
+    complexity: null,
+    ...overrides,
+  };
 }
 
 function goal(overrides: Partial<HealthGoal> = {}): HealthGoal {
@@ -67,6 +74,8 @@ function goal(overrides: Partial<HealthGoal> = {}): HealthGoal {
         days: [...DAYS],
         timeOfDay: "08:00",
         completedToday: false,
+        detail: null,
+        evidence: null,
       },
     ],
     ...overrides,
@@ -86,6 +95,9 @@ describe("GoalCreateScreen", () => {
           {
             text: "Walk in the mornings",
             sourcePhrase: "walk in the mornings",
+            detail: null,
+            evidence: null,
+            evidenceDomain: null,
             cadence: "daily",
             timesPerWeek: null,
             quantityText: null,
@@ -121,6 +133,9 @@ describe("GoalCreateScreen", () => {
           {
             text: "Walk in the mornings",
             sourcePhrase: "walk in the mornings",
+            detail: null,
+            evidence: null,
+            evidenceDomain: null,
             cadence: "daily",
             timesPerWeek: null,
             quantityText: null,
@@ -214,6 +229,9 @@ describe("GoalCreateScreen", () => {
           {
             text: "Walk after lunch",
             sourcePhrase: null,
+            detail: null,
+            evidence: null,
+            evidenceDomain: null,
             cadence: "times_per_week",
             timesPerWeek: 3,
             quantityText: null,
@@ -254,6 +272,9 @@ describe("GoalCreateScreen", () => {
           {
             text: "Walk after lunch",
             sourcePhrase: null,
+            detail: null,
+            evidence: null,
+            evidenceDomain: null,
             cadence: "times_per_week",
             timesPerWeek: 3,
             quantityText: null,
@@ -306,6 +327,9 @@ describe("GoalCreateScreen", () => {
           {
             text: "Walk after lunch",
             sourcePhrase: null,
+            detail: null,
+            evidence: null,
+            evidenceDomain: null,
             cadence: "times_per_week",
             timesPerWeek: 2,
             quantityText: null,
@@ -414,10 +438,53 @@ describe("GoalCreateScreen", () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  it("says the plan was written by software and checked by nobody", async () => {
-    // ⛔ Since the medical-goal refusal was removed, this footnote is the
-    // only thing on the screen telling the person what they are looking at.
+  it("⛔ does not call the person's own rows suggestions when MedHelp had none", async () => {
+    // The no-model path, which is every deployment without a key: `draft`
+    // returns nothing, the person types the plan, and the screen must not
+    // then tell them MedHelp wrote it.
     mockDraft.mockResolvedValue(emptyDraft({ notice: "No suggestions." }));
+
+    render(
+      <GoalCreateScreen
+        navigation={navigation as never}
+        route={{ key: "k", name: "GoalCreate" }}
+      />
+    );
+    fireEvent.changeText(
+      screen.getByLabelText(/What would you like to work towards/i),
+      "I want to lose a hundred pounds in a year"
+    );
+    fireEvent.press(screen.getByText("Suggest a plan"));
+
+    await waitFor(() =>
+      expect(screen.getByText(/everything here is your own/i)).toBeTruthy()
+    );
+    expect(screen.queryByText(/These suggestions were written by MedHelp/i)).toBeNull();
+
+    // ⛔ The parts CLAUDE.md requires survive in this state too. The
+    // authorship clause is the only thing that may differ.
+    expect(screen.getByText(/Nobody medically qualified has checked it/i)).toBeTruthy();
+    expect(
+      screen.getByText(/speak to a healthcare professional/i)
+    ).toBeTruthy();
+  });
+
+  /*
+   * ⛔ THIS TEST USED TO PIN THE BUG.
+   *
+   * It drafted with NO suggestions and then asserted the screen said
+   * "These suggestions were written by MedHelp" — about rows the person
+   * had typed themselves, which is what every deployment without a model
+   * key produces. Green, and enforcing something untrue.
+   *
+   * ⛔ Since the medical-goal refusal was removed, this footnote is the
+   * only thing on the screen telling the person what they are looking at,
+   * which is exactly why it has to be true in both states.
+   */
+  it("says a suggested plan was written by software and checked by nobody", async () => {
+    mockDraft.mockResolvedValue(
+      emptyDraft({ title: "Walks", activities: [plannedRow()] })
+    );
 
     render(
       <GoalCreateScreen
@@ -435,6 +502,149 @@ describe("GoalCreateScreen", () => {
       expect(screen.getByText(/not by a doctor or nurse/i)).toBeTruthy()
     );
     expect(screen.getByText(/Nobody medically qualified has checked them/i)).toBeTruthy();
+  });
+});
+
+const CITATION = {
+  publisher: "Centers for Disease Control and Prevention",
+  document: "Adult Activity: An Overview",
+  url: "https://www.cdc.gov/physical-activity-basics/guidelines/adults.html",
+  quote: "Adults need 150 minutes of moderate-intensity physical activity a week.",
+  caveat:
+    "General guidance about this kind of activity. It is not advice about " +
+    "you, your goal, or this plan, and nobody medically qualified checked " +
+    "that it fits.",
+};
+
+function plannedRow(overrides = {}) {
+  return {
+    text: "Walk after lunch",
+    sourcePhrase: null,
+    detail: "Put your shoes by the door after breakfast.",
+    evidence: CITATION,
+    evidenceDomain: "aerobic_activity",
+    cadence: "daily" as const,
+    timesPerWeek: null,
+    quantityText: null,
+    preferredTime: "afternoon" as const,
+    generated: true,
+    days: [...DAYS],
+    timeOfDay: "13:00",
+    ...overrides,
+  };
+}
+
+describe("a planned row says how to do it, and where it came from", () => {
+  it("shows the detail under the row", async () => {
+    mockDraft.mockResolvedValue(
+      emptyDraft({ title: "Walks after lunch", activities: [plannedRow()] })
+    );
+
+    render(
+      <GoalCreateScreen
+        navigation={navigation as never}
+        route={{ key: "k", name: "GoalCreate" }}
+      />
+    );
+    fireEvent.changeText(
+      screen.getByLabelText(/What would you like to work towards/i),
+      "I want to walk more"
+    );
+    fireEvent.press(screen.getByText("Suggest a plan"));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Put your shoes by the door after breakfast.")
+      ).toBeTruthy()
+    );
+  });
+
+  it("⛔ never shows a citation without the sentence that stops it reading as approval", async () => {
+    mockDraft.mockResolvedValue(
+      emptyDraft({ title: "Walks after lunch", activities: [plannedRow()] })
+    );
+
+    render(
+      <GoalCreateScreen
+        navigation={navigation as never}
+        route={{ key: "k", name: "GoalCreate" }}
+      />
+    );
+    fireEvent.changeText(
+      screen.getByLabelText(/What would you like to work towards/i),
+      "I want to walk more"
+    );
+    fireEvent.press(screen.getByText("Suggest a plan"));
+
+    await waitFor(() => expect(screen.getByText(/150 minutes/)).toBeTruthy());
+
+    // The publisher is on screen, and so is the caveat. A government name
+    // under a MedHelp-written row reads as endorsement without it.
+    expect(screen.getByText(/Centers for Disease Control/)).toBeTruthy();
+    expect(screen.getByText(/not advice about you/)).toBeTruthy();
+  });
+
+  it("⛔ drops the citation when the person rewrites the row", async () => {
+    mockDraft.mockResolvedValue(
+      emptyDraft({ title: "Walks after lunch", activities: [plannedRow()] })
+    );
+
+    render(
+      <GoalCreateScreen
+        navigation={navigation as never}
+        route={{ key: "k", name: "GoalCreate" }}
+      />
+    );
+    fireEvent.changeText(
+      screen.getByLabelText(/What would you like to work towards/i),
+      "I want to walk more"
+    );
+    fireEvent.press(screen.getByText("Suggest a plan"));
+    await waitFor(() => expect(screen.getByText(/150 minutes/)).toBeTruthy());
+
+    // The row becomes the person's own idea. Nobody has checked that the
+    // guidance is about THIS activity any more, so the attribution goes.
+    fireEvent.changeText(
+      screen.getByDisplayValue("Walk after lunch"),
+      "Swim on Saturdays"
+    );
+
+    expect(screen.queryByText(/150 minutes/)).toBeNull();
+    expect(screen.queryByText(/Centers for Disease Control/)).toBeNull();
+    expect(
+      screen.queryByText("Put your shoes by the door after breakfast.")
+    ).toBeNull();
+  });
+
+  it("saves the id of the guidance and never a quotation of it", async () => {
+    mockDraft.mockResolvedValue(
+      emptyDraft({ title: "Walks after lunch", activities: [plannedRow()] })
+    );
+    mockCreate.mockResolvedValue(goal());
+
+    render(
+      <GoalCreateScreen
+        navigation={navigation as never}
+        route={{ key: "k", name: "GoalCreate" }}
+      />
+    );
+    fireEvent.changeText(
+      screen.getByLabelText(/What would you like to work towards/i),
+      "I want to walk more"
+    );
+    fireEvent.press(screen.getByText("Suggest a plan"));
+    await waitFor(() => expect(screen.getByText(/150 minutes/)).toBeTruthy());
+
+    fireEvent.press(screen.getByText("Save goal"));
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+
+    const saved = mockCreate.mock.calls[0][0].activities[0];
+    expect(saved.evidenceDomain).toBe("aerobic_activity");
+    expect(saved.detail).toBe("Put your shoes by the door after breakfast.");
+    // ⛔ Only the id travels. A quotation copied into our database is a
+    // government sentence that can go stale where nobody will see it.
+    expect(JSON.stringify(saved)).not.toContain("150 minutes");
+    expect(JSON.stringify(saved)).not.toContain("cdc.gov");
   });
 });
 
@@ -456,6 +666,8 @@ describe("HealthGoalsScreen", () => {
             days: [...DAYS],
             timeOfDay: "08:00",
             completedToday: true,
+            detail: null,
+            evidence: null,
           },
         ],
       })
@@ -464,7 +676,7 @@ describe("HealthGoalsScreen", () => {
     render(<HealthGoalsScreen navigation={navigation as never} route={route} />);
     await waitFor(() => expect(screen.getByText("Walk in the mornings")).toBeTruthy());
 
-    fireEvent.press(screen.getByLabelText("Walk in the mornings"));
+    fireEvent.press(screen.getByLabelText(/^Walk in the mornings,/));
     await waitFor(() =>
       expect(mockComplete).toHaveBeenCalledWith(
         "goal-1",
@@ -526,6 +738,8 @@ describe("HealthGoalsScreen", () => {
             days: [],
             timeOfDay: null,
             completedToday: false,
+            detail: null,
+            evidence: null,
           },
         ],
       }),
@@ -553,6 +767,8 @@ describe("HealthGoalsScreen", () => {
             days: ["monday", "wednesday", "friday"],
             timeOfDay: "13:00",
             completedToday: false,
+            detail: null,
+            evidence: null,
           },
         ],
       }),
@@ -592,6 +808,189 @@ describe("HealthGoalsScreen", () => {
 
     await waitFor(() => expect(screen.getByText("No goals yet")).toBeTruthy());
     expect(screen.queryByText(/has been saved/i)).toBeNull();
+  });
+
+  /*
+   * ⛔ A SCREEN READER HAS TO BE TOLD WHICH ROWS ARE TICKED.
+   *
+   * This version of React Native Web never reads `accessibilityState` — it is
+   * absent from the forwarded props and from `createDOMProps`, which take
+   * `aria-checked` instead — so every row rendered with `aria-checked` null.
+   * A ticked row and an unticked one announced identically, on the one screen
+   * whose entire purpose is ticking things off.
+   *
+   * The goal editor's day chips were fixed for exactly this in September and
+   * carry a comment saying so; the tick itself was missed, because the test
+   * asserted `accessibilityState` and that passes in jsdom either way.
+   *
+   * ⛔ So these assert the LABEL. A test that reads `accessibilityState` is
+   * not evidence about a browser.
+   */
+  describe("a reader is told which rows are ticked", () => {
+    it("⛔ says the tick state in the label, not only in accessibilityState", async () => {
+      mockList.mockResolvedValue([goal()]);
+
+      render(<HealthGoalsScreen navigation={navigation as never} route={route} />);
+      await waitFor(() =>
+        expect(screen.getByLabelText("Walk in the mornings, not ticked off")).toBeTruthy()
+      );
+
+      mockComplete.mockResolvedValue(
+        goal({
+          activities: [
+            {
+              id: "activity-1",
+              text: "Walk in the mornings",
+              cadence: "daily",
+              timesPerWeek: null,
+              quantityText: null,
+              preferredTime: "morning",
+              days: [...DAYS],
+              timeOfDay: "08:00",
+              completedToday: true,
+              detail: null,
+              evidence: null,
+            },
+          ],
+        })
+      );
+
+      fireEvent.press(screen.getByLabelText(/^Walk in the mornings,/));
+
+      await waitFor(() =>
+        expect(
+          screen.getByLabelText("Walk in the mornings, ticked off for today")
+        ).toBeTruthy()
+      );
+    });
+
+    it("⛔ never calls an unticked row missed, in the label either", async () => {
+      mockList.mockResolvedValue([goal()]);
+
+      render(<HealthGoalsScreen navigation={navigation as never} route={route} />);
+      const row = await screen.findByLabelText(/^Walk in the mornings,/);
+
+      // The visible copy is already held to this. The accessible name is read
+      // instead of the visible text, so it is a second place the same claim
+      // could be made — MedHelp has no idea whether anybody did anything.
+      const label = row.props.accessibilityLabel as string;
+      for (const forbidden of ["missed", "skipped", "forgot", "incomplete", "failed"]) {
+        expect(label.toLowerCase()).not.toContain(forbidden);
+      }
+      expect(label).toContain("not ticked off");
+    });
+  });
+
+  /*
+   * ⛔ The citation is folded away on the screen people open every day.
+   *
+   * Reported 2026-09-13: rendered in full under every row, four extra lines
+   * per activity turned the tick-off screen into a wall of text. The editor
+   * still shows it open, because that is where it is part of the decision.
+   *
+   * The two tests below are a pair and have to stay one: folding it is only
+   * allowed because nothing readable as an endorsement survives the fold.
+   */
+  describe("where a row comes from is one tap away, not four lines", () => {
+    const cited = () =>
+      goal({
+        activities: [
+          {
+            id: "activity-1",
+            text: "Walk in the mornings",
+            cadence: "daily",
+            timesPerWeek: null,
+            quantityText: null,
+            preferredTime: "morning",
+            days: [...DAYS],
+            timeOfDay: "08:00",
+            completedToday: false,
+            detail: "Put your shoes by the door the night before.",
+            evidence: CITATION,
+          },
+        ],
+      });
+
+    it("⛔ shows no publisher, document or quotation until it is opened", async () => {
+      mockList.mockResolvedValue([cited()]);
+
+      render(<HealthGoalsScreen navigation={navigation as never} route={route} />);
+      await waitFor(() => expect(screen.getByText("Walk in the mornings")).toBeTruthy());
+
+      // Closed, there is nothing on screen a reader could take as approval:
+      // no government name, no document title, no quoted sentence.
+      expect(screen.queryByText(/Centers for Disease Control/)).toBeNull();
+      expect(screen.queryByText(/Adult Activity/)).toBeNull();
+      expect(screen.queryByText(/150 minutes/)).toBeNull();
+
+      // The detail stays. It says how to do the row, which is the part that
+      // is useful on the day.
+      expect(
+        screen.getByText("Put your shoes by the door the night before.")
+      ).toBeTruthy();
+    });
+
+    it("⛔ shows the caveat with the citation once it is opened", async () => {
+      mockList.mockResolvedValue([cited()]);
+
+      render(<HealthGoalsScreen navigation={navigation as never} route={route} />);
+      await waitFor(() => expect(screen.getByText("Where this comes from")).toBeTruthy());
+
+      fireEvent.press(screen.getByText("Where this comes from"));
+
+      // Opened, it is the whole citation exactly as the editor renders it —
+      // the quotation, the publisher, and the sentence that stops the
+      // publisher's name reading as approval of a MedHelp-written row.
+      expect(screen.getByText(/150 minutes/)).toBeTruthy();
+      expect(screen.getByText(/Centers for Disease Control/)).toBeTruthy();
+      expect(screen.getByText(/not advice about you/)).toBeTruthy();
+    });
+
+    /*
+     * ⛔ A SCREEN READER HAS TO BE TOLD, IN WORDS, WHICH STATE THIS IS IN.
+     *
+     * Found by opening the screen in a real browser, with the whole suite
+     * green: React Native Web drops `accessibilityState={{ expanded }}` —
+     * the rendered button carries no `aria-expanded` at all — and
+     * `accessibilityLabel` overrides the visible text, so a reader heard one
+     * unchanging label while a sighted user watched "Where this comes from"
+     * become "Hide where this comes from".
+     *
+     * Same defect and same fix as the goal editor's day buttons. This test
+     * checks the LABEL rather than `accessibilityState`, because asserting
+     * the latter is what let the bug through: it passes in jsdom and means
+     * nothing in a browser.
+     */
+    it("⛔ says in the label whether the source is showing, not only in accessibilityState", async () => {
+      mockList.mockResolvedValue([cited()]);
+
+      render(<HealthGoalsScreen navigation={navigation as never} route={route} />);
+      await waitFor(() =>
+        expect(screen.getByLabelText(/^Show where this kind of activity comes from/)).toBeTruthy()
+      );
+
+      fireEvent.press(screen.getByText("Where this comes from"));
+
+      // The accessible name changed with the state, so a reader who cannot
+      // see the caret is told what pressing it just did.
+      expect(
+        screen.getByLabelText(/^Hide where this kind of activity comes from/)
+      ).toBeTruthy();
+      expect(
+        screen.queryByLabelText(/^Show where this kind of activity comes from/)
+      ).toBeNull();
+    });
+
+    it("offers nothing to open for a row with no citation", async () => {
+      mockList.mockResolvedValue([goal()]);
+
+      render(<HealthGoalsScreen navigation={navigation as never} route={route} />);
+      await waitFor(() => expect(screen.getByText("Walk in the mornings")).toBeTruthy());
+
+      // A row MedHelp could not attribute has no source, so there is no
+      // control promising one.
+      expect(screen.queryByText("Where this comes from")).toBeNull();
+    });
   });
 
   it("invites a first goal rather than showing an empty page", async () => {

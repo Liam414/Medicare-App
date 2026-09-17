@@ -1,5 +1,12 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -113,6 +120,24 @@ export function HealthGoalsScreen({ navigation, route }: Props) {
    * things that are not so.
    */
   const [savedFor, setSavedFor] = useState(route.params?.savedFor);
+
+  /*
+   * Which rows have their citation open.
+   *
+   * Per activity rather than per screen, so opening one source does not
+   * unfold four others, and closed by default so the everyday state of this
+   * screen is the short one. Held in component state and deliberately not
+   * persisted: which sources somebody expanded yesterday is not a preference,
+   * and this screen already reloads its goals on every focus.
+   */
+  const [openSources, setOpenSources] = useState<Set<string>>(new Set());
+
+  const toggleSource = (activityId: string) =>
+    setOpenSources((current) => {
+      const next = new Set(current);
+      if (!next.delete(activityId)) next.add(activityId);
+      return next;
+    });
 
   const today = localDay();
 
@@ -232,14 +257,44 @@ export function HealthGoalsScreen({ navigation, route }: Props) {
               </Text>
 
               {goal.activities.map((activity) => (
+                // ⛔ The detail and the citation sit OUTSIDE the tick target.
+                //
+                // The row is a checkbox, and a link inside a checkbox is a
+                // press that means two things. Keeping them siblings also
+                // means a reader can open the source without accidentally
+                // ticking off something they have not done.
+                <View key={activity.id}>
                 <Pressable
-                  key={activity.id}
                   style={styles.activity}
                   onPress={() => toggle(goal, activity)}
                   disabled={busy === activity.id}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: activity.completedToday }}
-                  accessibilityLabel={activity.text}
+                  /*
+                    ⛔ THE TICK IS IN THE LABEL AS WELL, FOR THE REASON THE
+                    GOAL EDITOR'S DAY CHIPS ALREADY RECORD.
+
+                    This version of React Native Web never reads
+                    `accessibilityState` at all — it is absent from the
+                    forwarded props and from `createDOMProps`, which take
+                    `aria-checked` instead — so every row rendered with
+                    `aria-checked` null. Verified in a browser, and then in
+                    the library's own source.
+
+                    A ticked box and an unticked one looked different and
+                    announced identically, on the one screen whose entire
+                    purpose is ticking things off. The editor's day chips were
+                    fixed for this in September; the tick itself was missed.
+
+                    ⛔ "not ticked off", never "missed" or "incomplete". An
+                    unticked row means nothing was ticked — MedHelp has no
+                    idea whether the person did it, and this is not an
+                    adherence record. Same rule as the visible copy.
+                  */
+                  accessibilityLabel={
+                    `${activity.text}, ` +
+                    (activity.completedToday ? "ticked off for today" : "not ticked off")
+                  }
                   accessibilityHint="Ticks this off for today"
                 >
                   <View
@@ -271,6 +326,94 @@ export function HealthGoalsScreen({ navigation, route }: Props) {
                     )}
                   </View>
                 </Pressable>
+
+                {/* How to do it. Never what it will do for them. */}
+                {activity.detail ? (
+                  <Text style={styles.detail}>{activity.detail}</Text>
+                ) : null}
+
+                {/*
+                  ⛔ THE CITATION IS FOLDED AWAY HERE, AND OPEN ON THE EDITOR.
+
+                  Reported 2026-09-13: rendered in full on every row this is
+                  four more lines under each of up to five activities, and the
+                  screen a person opens to tick two boxes became a wall of
+                  text. The editor is where the citation earns its place — it
+                  is part of deciding whether to accept a row — and this screen
+                  is what they see every day afterwards.
+
+                  ⛔ FOLDED, NOT DROPPED. The rule in core/goal_evidence.py is
+                  that every surface rendering a citation carries its caveat,
+                  and that still holds: closed, this renders no publisher, no
+                  document and no quote, so there is nothing to read as an
+                  endorsement; open, it renders all four exactly as the editor
+                  does. Never show the publisher's name on the closed control
+                  — a government name under a MedHelp-written row is the
+                  endorsement the caveat exists to prevent, and a control is
+                  not a place the caveat can follow it.
+                */}
+                {activity.evidence ? (
+                  <View style={styles.evidence}>
+                    {/*
+                      ⛔ THE STATE IS IN THE LABEL, NOT ONLY IN accessibilityState.
+
+                      Found by opening this screen in a real browser: React
+                      Native Web drops `accessibilityState={{ expanded }}`
+                      entirely — the rendered control carries no
+                      `aria-expanded` at all. And `accessibilityLabel`
+                      overrides the visible text for a screen reader, so with
+                      a fixed label a reader heard exactly the same thing
+                      whether the citation was open or closed, while a sighted
+                      user saw "Where this comes from" become "Hide where this
+                      comes from".
+
+                      This is the same defect, and the same fix, as the goal
+                      editor's day buttons: say the state in words rather than
+                      leaving it to something the platform may not render.
+                      `expanded` is kept as well, so the fix survives a
+                      platform that does honour it.
+                    */}
+                    <Pressable
+                      onPress={() => toggleSource(activity.id)}
+                      style={styles.sourceToggle}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: openSources.has(activity.id) }}
+                      accessibilityLabel={
+                        openSources.has(activity.id)
+                          ? `Hide where this kind of activity comes from: ${activity.text}`
+                          : `Show where this kind of activity comes from: ${activity.text}`
+                      }
+                    >
+                      <Text style={styles.sourceToggleText}>
+                        {openSources.has(activity.id)
+                          ? "Hide where this comes from"
+                          : "Where this comes from"}
+                      </Text>
+                    </Pressable>
+
+                    {openSources.has(activity.id) && (
+                      <View style={styles.evidenceBody}>
+                        <Text style={styles.evidenceQuote}>
+                          “{activity.evidence.quote}”
+                        </Text>
+                        <Text style={styles.evidenceSource}>
+                          {activity.evidence.publisher} — {activity.evidence.document}
+                        </Text>
+                        <Text
+                          style={styles.evidenceLink}
+                          accessibilityRole="link"
+                          onPress={() => Linking.openURL(activity.evidence!.url)}
+                        >
+                          Read it at the source
+                        </Text>
+                        <Text style={styles.evidenceCaveat}>
+                          {activity.evidence.caveat}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ) : null}
+                </View>
               ))}
 
               {/*
@@ -395,6 +538,43 @@ const styles = StyleSheet.create({
   action: { minHeight: MIN_TAP_TARGET, justifyContent: "center" },
   editText: { ...typography.body, color: colors.accent },
   // Quieter than Edit beside it: the destructive one does not get the accent.
+  detail: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginLeft: MIN_TAP_TARGET,
+  },
+  // Drawn as a quotation on purpose: a ruled block with a publisher under it
+  // reads as somebody else's words, which is what it is. Never styled to look
+  // like MedHelp speaking.
+  evidence: {
+    marginLeft: MIN_TAP_TARGET,
+    marginTop: 2,
+  },
+  // The closed control. A full tap target, because it is the only thing on
+  // this screen between a person and the source behind a row.
+  sourceToggle: { minHeight: MIN_TAP_TARGET, justifyContent: "center" },
+  sourceToggleText: {
+    ...typography.caption,
+    color: colors.accent,
+    textDecorationLine: "underline",
+  },
+  // The rule and the indent move onto the opened body, so a closed row leaves
+  // no quotation mark hanging under it.
+  evidenceBody: {
+    paddingLeft: spacing.sm,
+    paddingBottom: spacing.xs,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.border,
+    gap: 2,
+  },
+  evidenceQuote: { ...typography.bodyQuoted, color: colors.textSecondary },
+  evidenceSource: { ...typography.caption, color: colors.textSecondary },
+  evidenceLink: {
+    ...typography.caption,
+    color: colors.accent,
+    textDecorationLine: "underline",
+  },
+  evidenceCaveat: { ...typography.caption, color: colors.textSecondary },
   deleteText: { ...typography.body, color: colors.textSecondary },
   footnote: {
     ...typography.caption,

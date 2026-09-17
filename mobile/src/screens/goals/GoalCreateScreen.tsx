@@ -1,16 +1,8 @@
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { AppButton } from "@/components/AppButton";
-import {
-  GoalPlanEditor,
-  badTimes,
-  blankActivity,
-  filledActivities,
-  withDerivedCadence,
-  type EditableActivity,
-} from "@/components/GoalPlanEditor";
 import { AppNav } from "@/components/AppNav";
 import { EmergencyCallBar } from "@/components/EmergencyCallBar";
 import { ErrorNotice } from "@/components/ErrorNotice";
@@ -19,10 +11,14 @@ import { Screen } from "@/components/Screen";
 import { TextField } from "@/components/TextField";
 import { ApiError } from "@/services/apiClient";
 import {
+  DAYS,
   createGoal,
   draftGoal,
+  shortDay,
+  type ActivityInput,
   type Day,
   type EmergencyGuidance,
+  type Evidence,
 } from "@/services/goalService";
 import { MIN_TAP_TARGET, colors, radius, spacing, typography } from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
@@ -75,13 +71,30 @@ type Props = NativeStackScreenProps<RootStackParamList, "GoalCreate">;
 export function GoalCreateScreen({ navigation }: Props) {
   const [description, setDescription] = useState("");
   const [title, setTitle] = useState("");
-  const [activities, setActivities] = useState<EditableActivity[]>([]);
+  const [activities, setActivities] = useState<ActivityInput[]>([]);
+  const [sources, setSources] = useState<(string | null)[]>([]);
   // Which rows MedHelp proposed rather than read out of the person's text.
+  const [suggested, setSuggested] = useState<boolean[]>([]);
+  // The published guidance behind each row, for rendering only. The id that
+  // gets saved lives on the activity itself.
+  const [evidences, setEvidences] = useState<(Evidence | null)[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [emergency, setEmergency] = useState<EmergencyGuidance | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const blank = (): ActivityInput => ({
+    text: "",
+    cadence: "unspecified",
+    timesPerWeek: null,
+    quantityText: null,
+    preferredTime: "unspecified",
+    days: [],
+    timeOfDay: null,
+    detail: null,
+    evidenceDomain: null,
+  });
 
   const suggest = async () => {
     setError(null);
@@ -101,13 +114,25 @@ export function GoalCreateScreen({ navigation }: Props) {
               preferredTime: activity.preferredTime,
               days: activity.days,
               timeOfDay: activity.timeOfDay,
-              // Carried on the row itself rather than in a list beside it, so
-              // a removal cannot leave the "Suggested by MedHelp" label on
-              // somebody else's line.
-              source: activity.sourcePhrase,
-              suggested: activity.generated,
+              detail: activity.detail,
+              evidenceDomain: activity.evidenceDomain,
             }))
-          : [blankActivity()]
+          : [blank()]
+      );
+      setEvidences(
+        draft.activities.length > 0
+          ? draft.activities.map((activity) => activity.evidence)
+          : [null]
+      );
+      setSources(
+        draft.activities.length > 0
+          ? draft.activities.map((activity) => activity.sourcePhrase)
+          : [null]
+      );
+      setSuggested(
+        draft.activities.length > 0
+          ? draft.activities.map((activity) => activity.generated)
+          : [false]
       );
     } catch (caught) {
       // An outage is not a reason to block someone writing their own list.
@@ -116,17 +141,112 @@ export function GoalCreateScreen({ navigation }: Props) {
           ? caught.message
           : "We couldn't read that just now. You can add your activities below."
       );
-      setActivities([blankActivity()]);
+      setActivities([blank()]);
+      setSources([null]);
+      setSuggested([false]);
+      setEvidences([null]);
     } finally {
       setDrafting(false);
     }
   };
 
-  const filled = filledActivities(activities);
-  const bad = badTimes(activities);
+  const updateActivity = (index: number, text: string) => {
+    setActivities((current) =>
+      current.map((activity, at) =>
+        at === index
+          ? // ⛔ REWRITING A ROW DROPS ITS DETAIL AND ITS CITATION.
+            //
+            // Both were written for the row as MedHelp proposed it. A citation
+            // is a claim that published guidance is about THIS activity, and
+            // the moment the person changes what the activity is, nobody has
+            // checked that any more — the same reason `sources` and
+            // `suggested` are cleared one line below. Keeping a government
+            // quotation under a row somebody rewrote would be the app
+            // attributing a person's own idea to the CDC.
+            { ...activity, text, detail: null, evidenceDomain: null }
+          : activity
+      )
+    );
+    setEvidences((current) => current.map((was, at) => (at === index ? null : was)));
+    // Once edited it is the person's line, not a quote of anything.
+    setSources((current) => current.map((source, at) => (at === index ? null : source)));
+    // Edited by hand, so it is the person's line now and stops being labelled.
+    setSuggested((current) => current.map((was, at) => (at === index ? false : was)));
+  };
 
-  const canSave =
-    title.trim().length > 0 && filled.length > 0 && bad.length === 0 && !saving;
+  /**
+   * Add or remove one day from a row's schedule.
+   *
+   * Rebuilt from `DAYS` rather than pushed onto, so the list stays in week
+   * order however the chips were tapped and a schedule reads the same way
+   * every time.
+   */
+  const toggleDay = (index: number, day: Day) => {
+    setActivities((current) =>
+      current.map((activity, at) => {
+        if (at !== index) return activity;
+        const picked = new Set(activity.days);
+        if (picked.has(day)) picked.delete(day);
+        else picked.add(day);
+        return { ...activity, days: DAYS.filter((each) => picked.has(each)) };
+      })
+    );
+  };
+
+  const updateTime = (index: number, timeOfDay: string) => {
+    setActivities((current) =>
+      current.map((activity, at) =>
+        at === index ? { ...activity, timeOfDay: timeOfDay.trim() || null } : activity
+      )
+    );
+  };
+
+  const removeActivity = (index: number) => {
+    setActivities((current) => current.filter((_, at) => at !== index));
+    setSources((current) => current.filter((_, at) => at !== index));
+    setSuggested((current) => current.filter((_, at) => at !== index));
+    setEvidences((current) => current.filter((_, at) => at !== index));
+  };
+
+  const addActivity = () => {
+    setActivities((current) => [...current, blank()]);
+    setSources((current) => [...current, null]);
+    setSuggested((current) => [...current, false]);
+    setEvidences((current) => [...current, null]);
+  };
+
+  const filled = activities.filter((activity) => activity.text.trim().length > 0);
+
+  /**
+   * A time is either a 24-hour HH:MM or nothing at all.
+   *
+   * Checked here as well as on the server so someone who mistypes one is told
+   * on the screen they typed it on, rather than by a 422 after pressing save.
+   */
+  const badTimes = filled
+    .map((activity, index) => ({ activity, index }))
+    .filter(({ activity }) => activity.timeOfDay && !/^([01]\d|2[0-3]):[0-5]\d$/.test(activity.timeOfDay));
+
+  const canSave = title.trim().length > 0 && filled.length > 0 && badTimes.length === 0 && !saving;
+
+  /**
+   * Keep the cadence in step with the days that were ticked.
+   *
+   * The server derives these for a plan it proposed; a row the person typed
+   * or re-ticked has to have them worked out somewhere too, or the schedule
+   * line would say "whenever you choose" beside three ticked days.
+   */
+  const withDerivedCadence = (activity: ActivityInput): ActivityInput => {
+    if (activity.days.length === 0) return activity;
+    if (activity.days.length === DAYS.length) {
+      return { ...activity, cadence: "daily", timesPerWeek: null };
+    }
+    return {
+      ...activity,
+      cadence: "times_per_week",
+      timesPerWeek: activity.days.length,
+    };
+  };
 
   const save = async () => {
     setError(null);
@@ -190,13 +310,139 @@ export function GoalCreateScreen({ navigation }: Props) {
 
       {activities.length > 0 && (
         <View style={styles.editor}>
-          <GoalPlanEditor
-            title={title}
-            onTitleChange={setTitle}
-            activities={activities}
-            onActivitiesChange={setActivities}
-            disabled={saving}
+          <TextField
+            label="Goal name"
+            value={title}
+            onChangeText={setTitle}
+            placeholder="For example: Getting outdoors more"
           />
+
+          <Text style={styles.sectionLabel}>Activities to track</Text>
+          {activities.map((activity, index) => (
+            <View key={index} style={styles.activityRow}>
+              <TextField
+                label={`Activity ${index + 1}`}
+                value={activity.text}
+                onChangeText={(text) => updateActivity(index, text)}
+                placeholder="Something you plan to do"
+              />
+              {sources[index] ? (
+                <Text style={styles.source}>From your words: “{sources[index]}”</Text>
+              ) : suggested[index] ? (
+                <Text style={styles.suggested}>
+                  Suggested by MedHelp — edit it or remove it
+                </Text>
+              ) : null}
+
+              {/*
+                How to do it. Never why: a claim about what an activity does
+                for someone is a health claim MedHelp may not make, and the
+                planner is forbidden from writing one.
+              */}
+              {activity.detail ? (
+                <Text style={styles.detail}>{activity.detail}</Text>
+              ) : null}
+
+              {/*
+                ⛔ THE CITATION, AND THE SENTENCE THAT KEEPS IT A CITATION.
+
+                `caveat` comes from the server and is rendered every time. A
+                publisher's name under a MedHelp-written row reads as approval
+                of that row unless something says otherwise, and nothing here
+                has been approved by anybody. Never render the quote without
+                it, and never reword it locally.
+              */}
+              {evidences[index] ? (
+                <View style={styles.evidence}>
+                  <Text style={styles.evidenceQuote}>
+                    “{evidences[index]!.quote}”
+                  </Text>
+                  <Text style={styles.evidenceSource}>
+                    {evidences[index]!.publisher} — {evidences[index]!.document}
+                  </Text>
+                  <Text
+                    style={styles.evidenceLink}
+                    accessibilityRole="link"
+                    onPress={() => Linking.openURL(evidences[index]!.url)}
+                  >
+                    Read it at the source
+                  </Text>
+                  <Text style={styles.evidenceCaveat}>{evidences[index]!.caveat}</Text>
+                </View>
+              ) : null}
+
+              {/*
+                The daily schedule. Every day is a separate toggle rather than
+                a "weekdays" shortcut: a shortcut would be MedHelp deciding
+                which days someone's week is made of.
+              */}
+              <Text style={styles.scheduleLabel}>Which days?</Text>
+              <View style={styles.days}>
+                {DAYS.map((day) => {
+                  const picked = activity.days.includes(day);
+                  return (
+                    <Pressable
+                      key={day}
+                      onPress={() => toggleDay(index, day)}
+                      style={[styles.day, picked && styles.dayPicked]}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: picked }}
+                      // ⛔ THE STATE IS IN THE LABEL AS WELL AS IN
+                      // `accessibilityState`, AND BOTH ARE NEEDED.
+                      //
+                      // Checked against the deployed site on 2026-09-12:
+                      // every chip rendered with `aria-checked` null, because
+                      // this version of React Native Web does not map
+                      // `accessibilityState` onto the DOM. The days were
+                      // ticked correctly and looked right — filled in the
+                      // accent colour — but a screen reader was told nothing
+                      // at all about which days the plan had chosen.
+                      //
+                      // Putting it in the label is the one thing that works
+                      // on every platform without depending on what RNW
+                      // happens to emit. `accessibilityState` stays because
+                      // it is the right thing on native.
+                      accessibilityLabel={
+                        `${day} for activity ${index + 1}, ` +
+                        (picked ? "selected" : "not selected")
+                      }
+                    >
+                      <Text style={[styles.dayText, picked && styles.dayTextPicked]}>
+                        {shortDay(day)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <TextField
+                label="At what time?"
+                value={activity.timeOfDay ?? ""}
+                onChangeText={(time) => updateTime(index, time)}
+                placeholder="08:00"
+                hint="24-hour clock, like 08:00 or 18:30. Leave it blank for no set time."
+              />
+              {activity.timeOfDay &&
+                !/^([01]\d|2[0-3]):[0-5]\d$/.test(activity.timeOfDay) && (
+                  <Text style={styles.badTime}>
+                    Enter the time as HH:MM on a 24-hour clock, like 08:00.
+                  </Text>
+                )}
+
+              {activities.length > 1 && (
+                <Pressable
+                  onPress={() => removeActivity(index)}
+                  style={styles.remove}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove activity ${index + 1}`}
+                >
+                  <Text style={styles.removeText}>Remove</Text>
+                </Pressable>
+              )}
+            </View>
+          ))}
+
+          <AppButton label="Add another activity" onPress={addActivity} variant="secondary" />
 
           {error && <ErrorNotice message={error} />}
 
@@ -218,13 +464,36 @@ export function GoalCreateScreen({ navigation }: Props) {
             never carried — which screens show that is fenced in CLAUDE.md and
             is a reviewer's call, not a layout one.
           */}
+          {/*
+            ⛔ THE FIRST SENTENCE IS CONDITIONAL, AND THE REST IS NOT.
+
+            This block renders whenever there is any row at all, and a row
+            is not always MedHelp's. Where no model is configured — every
+            deployment without a key — `draft` returns nothing, the person
+            types the plan themselves, and the screen was then telling them
+            their own careful choices were "suggestions written by MedHelp".
+            Simply untrue, about the one thing on this screen whose job is
+            to say what a person is looking at.
+
+            ⛔ The remainder is NOT conditional and must not become so.
+            Nobody medically qualified has checked any of this either way,
+            and a goal about a condition, a medicine or a big change to
+            eating or exercise is worth a professional's view whoever wrote
+            the rows. CLAUDE.md requires all three of those statements.
+          */}
           <Text style={styles.footnote}>
-            These suggestions were written by MedHelp, not by a doctor or nurse.
-            Nobody medically qualified has checked them or knows anything about
-            your health. Change anything that does not suit you, and speak to a
-            healthcare professional before acting on a goal about a medical
-            condition, a medicine, or a big change to what you eat or how you
-            exercise.
+            {suggested.some(Boolean)
+              ? "These suggestions were written by MedHelp, not by a doctor or " +
+                "nurse. Nobody medically qualified has checked them or knows " +
+                "anything about your health. Change anything that does not suit " +
+                "you, and speak to a healthcare professional before acting on a " +
+                "goal about a medical condition, a medicine, or a big change to " +
+                "what you eat or how you exercise."
+              : "MedHelp had no suggestions for this goal, so everything here is " +
+                "your own. Nobody medically qualified has checked it or knows " +
+                "anything about your health. Speak to a healthcare professional " +
+                "before acting on a goal about a medical condition, a medicine, " +
+                "or a big change to what you eat or how you exercise."}
           </Text>
         </View>
       )}
@@ -249,6 +518,62 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   editor: { marginTop: spacing.lg, gap: spacing.md },
+  sectionLabel: { ...typography.titleSmall, color: colors.textPrimary },
+  activityRow: { gap: spacing.xs },
+  source: { ...typography.caption, color: colors.textSecondary },
+  suggested: { ...typography.caption, color: colors.accent },
+  // How to do it, set close under the row it belongs to.
+  detail: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  // ⛔ The citation is drawn as a quotation, deliberately: a ruled block with
+  // the publisher under it reads as somebody else's words, which is exactly
+  // what it is. It must never be styled to look like MedHelp speaking.
+  evidence: {
+    marginTop: spacing.xs,
+    paddingLeft: spacing.sm,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.border,
+    gap: 2,
+  },
+  evidenceQuote: { ...typography.bodyQuoted, color: colors.textSecondary },
+  evidenceSource: { ...typography.caption, color: colors.textSecondary },
+  evidenceLink: {
+    ...typography.caption,
+    color: colors.accent,
+    textDecorationLine: "underline",
+    minHeight: MIN_TAP_TARGET / 2,
+  },
+  // The sentence that stops the block above reading as an endorsement. Same
+  // size as the rest rather than shrunk into a footnote.
+  evidenceCaveat: { ...typography.caption, color: colors.textSecondary },
+  scheduleLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  days: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  day: {
+    minWidth: MIN_TAP_TARGET,
+    minHeight: MIN_TAP_TARGET,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayPicked: { backgroundColor: colors.accent, borderColor: colors.accent },
+  dayText: { ...typography.caption, color: colors.textSecondary },
+  dayTextPicked: { color: colors.surface },
+  badTime: { ...typography.caption, color: colors.errorText },
+  remove: {
+    minHeight: MIN_TAP_TARGET,
+    justifyContent: "center",
+  },
+  removeText: { ...typography.body, color: colors.textSecondary },
   footnote: {
     ...typography.caption,
     color: colors.textSecondary,

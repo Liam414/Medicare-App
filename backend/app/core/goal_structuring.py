@@ -78,6 +78,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from app.core import goal_evidence
 from app.services import llm
 from app.services.llm import LLMRateLimited, LLMUnavailable
 
@@ -344,6 +345,15 @@ class Activity:
     days: tuple[str, ...] = ()
     # Local wall clock "HH:MM", or None for no particular time.
     time_of_day: str | None = None
+    # One or two concrete sentences saying how to do this, added 2026-09-13
+    # because "very detailed" was asked for and a four-word row is not it.
+    # Suggested rows only: a `structure` row may not gain sentences nobody
+    # wrote, the same rule that keeps a clock time off it.
+    detail: str | None = None
+    # An id from `core/goal_evidence.py`, or None when the row could not be
+    # attributed. ⛔ None is a normal outcome and must render as no citation -
+    # never as the nearest-looking one. See that module.
+    evidence_domain: str | None = None
 
 
 @dataclass(frozen=True)
@@ -358,6 +368,11 @@ class GoalDraft:
 
     title: str
     activities: list[Activity]
+    # "small" | "moderate" | "major", or None on the `structure` path, which
+    # may not judge anything about the goal. Recorded so a reviewer can ask
+    # whether the reading was right; NOT rendered to the person as a verdict on
+    # their goal - the shape of the plan is how it shows.
+    complexity: str | None = None
 
 
 @dataclass(frozen=True)
@@ -601,7 +616,120 @@ def _validate_activity(
 # out keeps to fifteen new habits.
 MAX_SUGGESTED = 5
 
-PLAN_SYSTEM_PROMPT = """\
+# How many rows a plan may have for each reading of the goal's size, added
+# 2026-09-13 when the owner asked for plans that "take into account the
+# complexity and difficultness of the goal".
+#
+# THIS BOUNDS SHAPE, NOT EFFORT. It says how many things a plan may contain,
+# which is a planning decision. It says nothing about how hard any one of them
+# is, because that is a clinician's call - see the prompt's "NEVER ANSWER A
+# BIGGER GOAL WITH A HARDER PLAN". A model that reads a goal as major and
+# answers with one punishing row is not caught here and cannot be: this check
+# is deliberately about arithmetic it can actually perform.
+ROWS_BY_COMPLEXITY = {
+    # One row is a real answer to a small goal. A floor of two would make the
+    # app pad a plan to look like a plan, which is the failure this whole
+    # change is against, only in the other direction.
+    "small": (1, 3),
+    "moderate": (3, 4),
+    "major": (4, 5),
+}
+
+# How much of the week a plan may occupy, for each reading of the goal's size,
+# added 2026-09-13 after the owner reported that "lose a hundred pounds in a
+# year" came back as ten minutes of exercise, water and an early night.
+#
+# A slot is one row on one day: a row on all seven days is seven slots, and a
+# plan's total is the sum over its rows. It is the only measure of a plan's
+# size that this module can actually compute, and it is deliberately a measure
+# of COVERAGE rather than of effort.
+#
+# ⛔ WHY COVERAGE AND NOT EFFORT. `ROWS_BY_COMPLEXITY` bounds how many things
+# a plan contains; nothing bounded how much of anyone's week those things
+# touched, so four rows each on one day - a plan present on four days out of
+# seven - satisfied "major" and read as the token plan it was. Coverage is an
+# ordinary planning decision and is checkable arithmetic. How hard any one row
+# is remains a clinician's call, is not checked here, and cannot be: see the
+# prompt's "WHAT SCALE MAY NEVER CHANGE". A model that answers a major goal
+# with one punishing row still gets past this, exactly as it gets past
+# `ROWS_BY_COMPLEXITY`.
+#
+# The bands overlap on purpose. They are meant to catch a plan that did not
+# take the goal's size into account at all - a seven-day programme for
+# something meant once, or a four-day gesture at a year's work - and not to
+# adjudicate between two reasonable readings of the same goal.
+# ⛔ EACH READING IS BOUNDED AT ONE END, AND THE TWO ENDS MEASURE DIFFERENT
+# THINGS. That is not an inconsistency; it is the only way either end says what
+# it means.
+#
+# Two measures of a week, and they disagree in exactly the case that matters:
+#
+#   DAYS TOUCHED  how many distinct days of the week the plan appears on.
+#   DAY-SLOTS     one row on one day, summed over the rows.
+#
+# A plan of "walk every day" plus three weekend errands touches all 7 days and
+# fills 10 slots. The reported plan - four rows on Monday to Thursday - touches
+# 4 days and fills 4 slots. The first is a good answer to a year-long goal and
+# the second is the bug, and only DAYS TOUCHED tells them apart: a slot floor
+# high enough to reject the bug also rejects the good plan, which would hand
+# that person an empty editor.
+#
+# So:
+#
+#   "major"'s FLOOR is DAYS TOUCHED, because the sentence it is enforcing is
+#   "present on most days of the week", and that is literally what it counts.
+#
+#   "moderate"'s FLOOR is DAYS TOUCHED, for the same reason, one day being the
+#   thing it rules out.
+#
+#   "small"'s CEILING is DAY-SLOTS, because what it rules out is total volume -
+#   a whole week's programme for something meant once. Days touched cannot do
+#   this job: one daily habit touches all 7 days and is a fine small plan.
+#
+# The unbounded end of each is slack on purpose. A floor for "small" and a
+# ceiling for "major" would reject real plans in order to enforce nothing.
+#
+# ⛔ `test_the_bands_reject_only_the_shapes_they_are_meant_to` enumerates what
+# each pair actually turns away. Read it before changing a number here: the two
+# tables are read in different places, and a bound that quietly excludes an
+# ordinary plan looks like nothing at all from either one. That has already
+# happened once - see the moderate ceiling note in CLAUDE.md.
+#
+# (fewest distinct days the plan appears on, most day-slots it may fill)
+WEEK_SHAPE_BY_COMPLEXITY = {
+    "small": (1, 14),
+    "moderate": (2, 28),
+    "major": (5, 35),
+}
+
+# The reading is required, so a plan cannot come back without the model having
+# committed to one. An unrecognised value is a discard rather than a default:
+# silently treating an unknown reading as "moderate" would make the whole
+# feature look like it was working.
+COMPLEXITIES = tuple(ROWS_BY_COMPLEXITY)
+
+# A detail is a prompt on a card, not an article.
+MAX_DETAIL_CHARS = 400
+
+# ⛔ THE PLANNER IS THE ONE CALLER THAT DOES NOT DECODE GREEDILY, AND TRIAGE
+# MUST NOT FOLLOW IT. `llm.chat` still defaults to 0 and triage still takes
+# that default, because a tier that changed between two submissions of the
+# same sentence could not be reviewed.
+#
+# Here the opposite is true, and it was a reported bug rather than a theory:
+# every goal came back with the same three or four rows. Greedy decoding on a
+# prompt that did not discriminate collapses onto the single most probable
+# plan, which is the most generic one - so a goal about one pound and a goal
+# about a hundred pounds arrived at the same answer. The prompt is the real
+# fix; this stops the decoder pulling back toward the modal plan underneath
+# it.
+#
+# It is a draft a person edits before anything is saved, so re-submitting the
+# same goal and getting a differently-worded plan costs nothing. Nothing
+# downstream compares two plans for equality.
+PLAN_TEMPERATURE = 0.7
+
+_PLAN_PROMPT_TEMPLATE = """\
 You are proposing a plan inside a health application. A person has written
 down a goal, and your job is to turn it into something they can actually do:
 a few small everyday activities, and a daily schedule saying which days of the
@@ -610,7 +738,7 @@ week each one happens and at what time.
 This is your plan, not a re-reading of their sentence. If they already named
 some activities you may keep the ones that fit, but do not simply hand their
 own words back as a list - propose the plan you would actually suggest to
-someone starting out. They edit every row before anything is saved.
+THIS person for THIS goal. They edit every row before anything is saved.
 
 ANY GOAL GETS A PLAN
 
@@ -619,6 +747,89 @@ fitness, food, stress, energy, a long-term condition, a measurement their
 doctor mentioned - these are ordinary goals here and each gets a practical
 plan of everyday activities. Do not refuse a goal for being about health, and
 do not quietly answer a different, safer goal than the one they wrote.
+
+READ THE GOAL BEFORE YOU PLAN IT
+
+The plan has to come out of THIS goal and no other one. Read what the person
+wrote for every specific in it, and let each specific change what you propose:
+
+- The thing they named. Walking, sleep, smoking, a knee, their mornings,
+  their evenings, a habit they want to drop.
+- How much, how many, how far, how often, how long.
+- By when. A date, a month, a season, a holiday, an appointment, "this week",
+  "eventually".
+- What they said about their life: the work they do, the hours they keep, who
+  they look after, what they have already tried, what they cannot do.
+- Where and when they said it would happen.
+
+Say those specifics back in the rows. If they wrote "walk the dog before
+work", the plan names the dog and sits in the morning. If they wrote "I sit at
+a desk for nine hours", the plan happens inside a working day. If they wrote
+that the evenings are the hard part, something in the plan is in the evening.
+
+A row you could paste onto a stranger's plan is a row you have not written
+yet.
+
+SCALE CHANGES THE PLAN: MORE OF THE WEEK, NEVER A HARDER DAY
+
+A small, near goal and a large, far-off one are not the same goal and must not
+come back with the same plan.
+
+- Small and near: fewer rows, on fewer days, one or two things done properly.
+  Do not hand somebody a seven-day programme for something they meant to do
+  once.
+- Large and far off: a plan that fills a real week and is built to still be
+  there in a few months rather than a push. More rows, on more days, across
+  more of the day - the morning, the working day and the evening, not three
+  things all at 09:00 - and rows that do not need enthusiasm to survive.
+
+WHAT SCALE MAY CHANGE, exactly:
+
+- How many rows there are.
+- How many days of the week each row sits on.
+- How much of the day the plan covers.
+- How many minutes of ordinary walking-pace activity the WEEK adds up to, up
+  to the published figure under HOW MUCH IS ENOUGH below and no further.
+
+WHAT SCALE MAY NEVER CHANGE:
+
+- Intensity. Never harder, faster, heavier, longer-per-session-than-ordinary,
+  never "push", "challenge yourself", "no excuses", never through pain.
+- A figure to reach. No weight, blood pressure, blood sugar, cholesterol or
+  calorie target, at any size of goal.
+- The rules under WHAT YOU MUST NEVER PROPOSE, which hold whatever size of
+  goal you were given.
+
+A bigger goal earns a fuller week. It does not earn a harder day. How hard a
+person should push is a clinician's call and not yours; how much of their week
+a plan occupies is an ordinary planning decision and is yours.
+
+HOW MUCH IS ENOUGH: THE PUBLISHED FIGURE, NOT ONE OF YOURS
+
+Where a goal is about moving more - weight, fitness, energy, stamina, sitting
+too much, getting outdoors - do not propose a token amount. A plan of ten
+minutes a day for a goal the person described as a year's work is not a
+cautious plan, it is an unserious one, and they can see that.
+
+Build the week towards what is already published for adults, and no further:
+
+- About 150 minutes of moderate, walking-pace activity across the week,
+  spread over most days rather than stacked into one.
+- Activity that works the muscles on about 2 days of the week - carrying,
+  hills, stairs, bodyweight movements at an ordinary effort.
+
+That is a WEEKLY total reached by ordinary activity spread across ordinary
+days. It is a ceiling on what you may build up to, not a target to announce:
+never write the figure "150" into a row, never say "you need", and never say
+what reaching it will do for them.
+
+Start lower than it where the person said their week is full, where they said
+they have tried and not kept it up, where they described pain, an injury, an
+illness, a very small goal, or where they said nothing at all about how much
+time they have. Where they described more room than that, build towards it.
+
+Never propose more than it. Above that figure you would be making a judgement
+about how hard this person should work, and that is not yours to make.
 
 THE DAILY SCHEDULE
 
@@ -629,30 +840,148 @@ came for: a plan with no schedule is a list.
   friday, saturday, sunday. Give every day the activity happens on. All seven
   for something daily.
 - `time_of_day` is a 24-hour local clock time, "HH:MM" - "07:30", "13:00",
-  "21:15". Pick an hour the activity plausibly fits: a walk after lunch is
-  early afternoon, winding down is late evening, stretching on waking is
-  early morning.
-- Spread the week out and stagger the times. Two or three things on a steady
-  rhythm at sensible hours is a better plan than five things every day at
-  09:00, which nobody keeps up.
+  "21:15". Pick an hour the activity plausibly fits: something done after
+  lunch is early afternoon, winding down is late evening, something done on
+  waking is early morning.
+- Spread the week out and stagger the times. A plan on a steady rhythm at
+  sensible hours across the day beats the same number of rows all stacked at
+  09:00, which nobody keeps up. This is about WHEN things sit, not how many
+  there are - see SCALE for that.
 - Waking hours only, and keep them ordinary: nothing before 06:00 or after
   22:00 unless the goal is itself about sleep or shift work.
 
 Do not set `cadence` or `times_per_week`. The application works those out
 from the days you give, so they can never disagree with the schedule.
 
+HOW BIG IS THIS GOAL? DECIDE BEFORE YOU WRITE A ROW
+
+Call `complexity` with one of these, and let it shape both how many rows the
+plan has and how much of the week they fill.
+
+Count the week as you write, in two ways, because the application checks
+both against the reading you declare:
+
+- HOW MANY DAYS OF THE WEEK the plan appears on at all. A row on all seven
+  days puts the plan on seven days by itself.
+- HOW MUCH the plan adds up to: over all your rows, the number of days each
+  row happens on, summed.
+
+- "small"    - one thing, soon, or a habit with a single moving part.
+               One to three rows, adding up to at most 14. Do not hand
+               somebody a whole programme for something they meant to do
+               once.
+- "moderate" - a change to an ordinary week, over weeks rather than days.
+               Three or four rows, appearing on at least 2 days of the week.
+- "major"    - a long, hard change with more than one part to it, or one the
+               person says they have tried before and not kept up. Four or
+               five rows, appearing on AT LEAST 5 DAYS of the week: a plan
+               that is there on most days, spread across the week rather than
+               stacked on one day, and built to still be there in a few
+               months.
+
+One row on every day plus a few weekly ones is a perfectly good major plan -
+it is on the person's week every day. Four rows on four days is not, however
+many rows it has.
+
+A goal is major because it is LONG AND COMPLICATED, never because it is
+dangerous or because of anything about the person. Reread SCALE above: a
+bigger goal gets more parts, more days and a longer rhythm, and never a
+harder day.
+
 WHAT TO PROPOSE
 
-- Between two and five small, ordinary, everyday activities.
+- Between two and five ordinary, everyday activities, sized to the goal by
+  SCALE above.
 - Things a person can do without equipment, a gym, a subscription or money.
 - Plain movement, rest, routine, food habits, time outdoors, time with
   people, and simple daily habits.
-- Modest starting points, not a training programme. Assume the person is
-  starting from nothing and has little spare time.
-- Write each one as a short plain instruction: "Walk after lunch", "Go to bed
-  at the same time each night", "Cook dinner at home".
-- You may give a small, gentle amount of time where it helps - "ten minutes",
-  "a short walk". Keep it easy.
+- Not a training programme, and not a token either. Where the person said
+  nothing about their week, assume they have little spare time; where they
+  did say something about it, believe them and plan around it.
+- Write each one as a short plain instruction naming the thing they will
+  actually do, built out of the goal in front of you.
+- Say the amount out loud where the row has one - "walk 30 minutes", "take
+  the stairs up four floors", "one bowl of vegetables at dinner". A row with
+  no amount is a row a person cannot tell they have finished. Keep every
+  amount ordinary and walking-pace, and keep the week inside HOW MUCH IS
+  ENOUGH above.
+
+EVERY ROW HAS TO BE DOABLE WITHOUT DECIDING ANYTHING ELSE FIRST
+
+A vague row is not a cautious row. It is a row that gets skipped, because the
+person has to work out what it actually means before they can start, and that
+is the work they came here to have done.
+
+Three tests. A row that fails any of them is not finished:
+
+1. CHECKABLE. At the end of the day they can answer yes or no. "Eat better",
+   "be more active", "manage stress", "drink more water" and "get more sleep"
+   are not activities, they are the goal restated. "Put a bowl of vegetables
+   on the plate at dinner" and "get off the bus one stop early" are
+   activities.
+2. LOCATED. It says where it happens or what it happens with - the stairs at
+   work, the block around the house, the pan already in the cupboard, the
+   walk home from the bus. Not "somewhere convenient".
+3. THE FIRST MOVE IS OBVIOUS. Somebody could start it in the next ten
+   seconds without looking anything up, buying anything, or choosing between
+   options you left open.
+
+Two rows this application has actually produced, for a goal about losing a
+hundred pounds in a year:
+"drink a glass of water after waking", and
+"go to bed at the same time each night".
+Both pass the first test and fail the other two. They are the habits that fit
+every goal and answer none of them, and a person reading them under a year-long
+goal can see that nothing read what they wrote. If a row of that kind genuinely
+belongs in THIS plan, it has to carry this person's own week - which bed time,
+which part of their evening, what is happening instead.
+
+SAY HOW, NOT JUST WHAT
+
+Every row also carries `detail`: one or two plain sentences saying how the
+person actually does that row, on the day, in their own life. A row is the
+instruction; the detail is what makes it possible to follow without deciding
+anything else first.
+
+- Name the concrete step. Where it happens, what they need to hand, what the
+  first move is, what to do when it is awkward.
+- Build it out of THIS goal, exactly as the row is. The detail on a row for
+  somebody with a nine-hour desk job is different from the same row for
+  somebody at home.
+- Keep it to two sentences. This is a prompt on a card, not an article.
+- ⛔ NEVER say what it will do for them. No "this helps your heart", no
+  "this will bring your weight down", no "studies show". The detail explains
+  the DOING and stops. Everything under WHAT YOU MUST NEVER PROPOSE applies
+  to it word for word.
+
+WHERE THE ROW COMES FROM
+
+Each row also carries `evidence_domain`: the id of the published guidance
+that this KIND of activity belongs to, chosen from this fixed list and no
+other.
+
+{evidence_domains}
+
+- Choose the one that genuinely matches the activity. A walk is
+  aerobic_activity; standing up hourly at a desk is sit_less.
+- ⛔ If none of them matches, leave it out. Leaving it out is normal and
+  costs nothing. Picking the closest-looking one attaches a real government
+  document to a row it is not about, which is worse than no citation at all.
+- ⛔ You are choosing an ID, not writing a citation. Never write a
+  publisher, a URL, a quote, a study, a statistic or a date anywhere in a row
+  or its detail. The application holds the wording and the link.
+
+NO EXAMPLE IN THIS PROMPT IS A ROW TO COPY
+
+An example is a suggestion, not an illustration. The previous version of this
+section offered "Walk after lunch", "Go to bed at the same time each night"
+and "Cook dinner at home" to show the shape of a row, and those three came
+back as the whole plan for goals that were not about walking, sleep or
+cooking - the same plan for a goal about a single pound and a goal about a
+hundred of them. If one of those rows genuinely belongs in the plan you are
+writing, it still has to be made specific to this goal: which walk, which
+meal, which part of this person's day, and why it is on the days you put it
+on.
 
 WHAT YOU MUST NEVER PROPOSE
 
@@ -709,6 +1038,16 @@ noticing, both are wrong.
 A person reads the title first and it is the part they will repeat to
 themselves. It is the last place to be loose about either rule.
 
+BEFORE YOU ANSWER, READ THE PLAN BACK
+
+Cover the goal and read only the rows you have written. If you could not say
+from them what the person asked for, you have produced a template rather than
+a plan: go back and build it out of what they wrote. The title is held to the
+same test.
+
+Two people who wrote different goals must not be able to receive the same
+plan.
+
 WHEN TO REFUSE
 
 Refusing is a last resort here, not a safe default. The person came for a
@@ -722,6 +1061,16 @@ cannot_structure instead of suggest_plan only when:
 There is no refusal code for "this goal is about health". That is not a
 reason to refuse.\
 """
+
+# The domain list is spliced in from the register rather than written out a
+# second time, so a domain cannot appear in the prompt without a source
+# behind it. Nothing else in this prompt is assembled at runtime.
+#
+# Substitution, not str.format: this prompt is prose, and a stray brace
+# anywhere in it would make format() raise at import time.
+PLAN_SYSTEM_PROMPT = _PLAN_PROMPT_TEMPLATE.replace(
+    "{evidence_domains}", goal_evidence.prompt_vocabulary()
+)
 
 SUGGEST_PLAN = {
     "type": "function",
@@ -774,13 +1123,41 @@ SUGGEST_PLAN = {
                                     "'07:30' or '18:00'."
                                 ),
                             },
+                            "detail": {
+                                "type": "string",
+                                "description": (
+                                    "One or two plain sentences saying how to "
+                                    "do this on the day. Never what it will "
+                                    "do for them."
+                                ),
+                            },
+                            # ⛔ An enum, so a model cannot name a source that
+                            # does not exist. It may still choose the wrong
+                            # one, which is why `resolve` never guesses and an
+                            # unknown id becomes no citation.
+                            "evidence_domain": {
+                                "type": "string",
+                                "enum": list(goal_evidence.DOMAINS),
+                                "description": (
+                                    "Published guidance this kind of activity "
+                                    "belongs to. Omit if none matches."
+                                ),
+                            },
                         },
-                        "required": ["text", "days", "time_of_day"],
+                        "required": ["text", "days", "time_of_day", "detail"],
                         "additionalProperties": False,
                     },
                 },
+                "complexity": {
+                    "type": "string",
+                    "enum": ["small", "moderate", "major"],
+                    "description": (
+                        "How long and how complicated this goal is, which "
+                        "decides how many rows the plan has."
+                    ),
+                },
             },
-            "required": ["title", "activities"],
+            "required": ["title", "activities", "complexity"],
             "additionalProperties": False,
         },
     },
@@ -845,6 +1222,8 @@ def suggest_plan(description: str) -> GoalDraft | Refusal | Busy | None:
             ],
             tools=[SUGGEST_PLAN, CANNOT_STRUCTURE],
             endpoint=llm.goals_endpoint(),
+            # See `PLAN_TEMPERATURE`. Triage passes nothing and stays at 0.
+            temperature=PLAN_TEMPERATURE,
             # Absorb the burst a real person makes. See `Busy` above and the
             # note on `llm.chat`: a 429 is the one model failure that fixes
             # itself, and this is the path with no rule layer underneath it.
@@ -942,8 +1321,13 @@ def _validate_plan(arguments: dict[str, Any]) -> GoalDraft | None:
     ⛔ THIS NO LONGER VETOES ON CONTENT. The `_FORBIDDEN` phrase list that used
     to discard a whole plan on one match was removed on 2026-09-12 — see the
     note above it. What is left checks shape only: that there is a title, that
-    there are not too many rows, and that every row carries a schedule this
-    app can actually render.
+    there are not too many rows, that every row carries a schedule this app can
+    actually render, and that the week those schedules add up to matches the
+    size the model said the goal was (`WEEK_SHAPE_BY_COMPLEXITY`).
+
+    The last of those is arithmetic over the plan, not a reading of it. It
+    catches a plan that ignored the size of the goal; it cannot catch one that
+    is the wrong plan, and nothing here looks at what any row says.
 
     A row without a usable day list or a usable "HH:MM" discards the whole
     plan rather than being kept with a blank schedule. A plan the person asked
@@ -958,6 +1342,21 @@ def _validate_plan(arguments: dict[str, Any]) -> GoalDraft | None:
         return _discard("plan: no activities")
     if len(raw_activities) > MAX_SUGGESTED:
         return _discard("plan: more activities than MAX_SUGGESTED")
+
+    # The reading of how big the goal is, and the row count it implies. This
+    # is the only structural difference between a plan for "lose one pound"
+    # and a plan for "lose a hundred", so it is required rather than
+    # defaulted - a missing reading means the model never made one.
+    complexity = arguments.get("complexity")
+    if not isinstance(complexity, str) or complexity.strip().lower() not in COMPLEXITIES:
+        return _discard("plan: no recognised reading of the goal's complexity")
+    complexity = complexity.strip().lower()
+
+    fewest, most = ROWS_BY_COMPLEXITY[complexity]
+    if not fewest <= len(raw_activities) <= most:
+        # A model that calls a goal major and then writes two rows has not
+        # taken the size of the goal into account, whatever it declared.
+        return _discard(f"plan: row count does not match complexity {complexity!r}")
 
     activities: list[Activity] = []
     for raw in raw_activities:
@@ -974,6 +1373,21 @@ def _validate_plan(arguments: dict[str, Any]) -> GoalDraft | None:
         if time_of_day is None:
             return _discard("plan: an activity had no usable HH:MM time")
 
+        detail = raw.get("detail")
+        if not isinstance(detail, str) or not detail.strip():
+            return _discard("plan: an activity had no detail")
+        detail = re.sub(r"\s+", " ", detail).strip()
+        if len(detail) > MAX_DETAIL_CHARS:
+            # Long enough to be an essay is long enough to have started
+            # explaining what the activity does for them, which is the one
+            # thing the detail may never do.
+            return _discard("plan: an activity's detail was longer than the cap")
+
+        # An unknown or absent id is NOT an error and NOT a nearest match: it
+        # is a row with no citation, which is the honest rendering of a row
+        # this app cannot attribute. See core/goal_evidence.py.
+        source = goal_evidence.resolve(raw.get("evidence_domain"))
+
         # Derived, never asked for: a plan cannot say "three times a week"
         # beside four days, because nothing separately reports the count.
         cadence = "daily" if len(days) == len(DAYS) else "times_per_week"
@@ -988,10 +1402,38 @@ def _validate_plan(arguments: dict[str, Any]) -> GoalDraft | None:
                 generated=True,
                 days=days,
                 time_of_day=time_of_day,
+                detail=detail,
+                evidence_domain=source.domain if source else None,
             )
         )
 
-    return GoalDraft(title=title.strip(), activities=activities)
+    # How much of the week the plan actually occupies, now that every row's
+    # days are known. Checked last because it is a property of the whole plan
+    # rather than of any one row.
+    #
+    # ⛔ A DISCARD HERE COSTS THE PERSON THEIR PLAN, so both bounds are wide
+    # and each reading is held at one end only. The failure this exists to
+    # catch is a plan that ignored the size of the goal outright - the reported
+    # one was four rows over four days answering "lose a hundred pounds in a
+    # year" - and not a plan that read the goal one notch differently from how
+    # someone else would. See WEEK_SHAPE_BY_COMPLEXITY for why the floor and
+    # the ceiling count different things.
+    days_touched = len({day for activity in activities for day in activity.days})
+    slots = sum(len(activity.days) for activity in activities)
+    fewest_days, most_slots = WEEK_SHAPE_BY_COMPLEXITY[complexity]
+    if days_touched < fewest_days:
+        return _discard(
+            f"plan: on {days_touched} days of the week, too few for "
+            f"complexity {complexity!r}"
+        )
+    if slots > most_slots:
+        return _discard(
+            f"plan: {slots} day-slots, too much week for complexity {complexity!r}"
+        )
+
+    return GoalDraft(
+        title=title.strip(), activities=activities, complexity=complexity
+    )
 
 
 def _comparable(value: str) -> str:
