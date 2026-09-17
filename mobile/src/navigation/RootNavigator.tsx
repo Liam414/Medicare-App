@@ -11,6 +11,7 @@ import { TodayScreen } from "@/screens/TodayScreen";
 import { EmergencyCardEditScreen } from "@/screens/emergency/EmergencyCardEditScreen";
 import { EmergencyCardScreen } from "@/screens/emergency/EmergencyCardScreen";
 import { GoalCreateScreen } from "@/screens/goals/GoalCreateScreen";
+import { GoalEditScreen } from "@/screens/goals/GoalEditScreen";
 import { HealthGoalsScreen } from "@/screens/goals/HealthGoalsScreen";
 import { IntakeFollowUpScreen } from "@/screens/intake/IntakeFollowUpScreen";
 import { IntakeResultScreen } from "@/screens/intake/IntakeResultScreen";
@@ -25,6 +26,7 @@ import { ProviderSearchScreen } from "@/screens/appointments/ProviderSearchScree
 import { SignupScreen } from "@/screens/auth/SignupScreen";
 import { SymptomIntakeScreen } from "@/screens/intake/SymptomIntakeScreen";
 import { restoreSession } from "@/services/authService";
+import { rearm } from "@/services/reminderArming";
 import { colors, typography } from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
 
@@ -74,6 +76,30 @@ export function RootNavigator() {
       active = false;
     };
   }, []);
+
+  /*
+   * Arm reminders as soon as there is a session, not when the reminders screen
+   * happens to be opened.
+   *
+   * Playtesting found reminders that were saved, listed correctly, and never
+   * delivered. Arming lived in `MedicationRemindersScreen`'s focus effect, so
+   * anyone who set their times and then opened the app on another tab had
+   * nothing armed — invisible on native, where the OS keeps yesterday's daily
+   * triggers, and total on the web, where the timers are `setTimeout` handles
+   * that a reload throws away.
+   *
+   * ⛔ `rearm` is still the only thing that calls `scheduleAll`, and it always
+   * arms the complete set. That is the rule CLAUDE.md's single-caller note
+   * exists to protect; the number of callers was never the point.
+   *
+   * It is deliberately not awaited and never surfaces an error. Nothing here is
+   * something the person asked for, and a notification that could not be armed
+   * must not hold up or break the first screen of the app.
+   */
+  useEffect(() => {
+    if (session !== "signed-in") return;
+    void rearm();
+  }, [session]);
 
   if (session === "checking") {
     return (
@@ -204,6 +230,11 @@ export function RootNavigator() {
           name="GoalCreate"
           component={GoalCreateScreen}
           options={{ title: "Add a goal" }}
+        />
+        <Stack.Screen
+          name="GoalEdit"
+          component={GoalEditScreen}
+          options={{ title: "Edit goal" }}
         />
         {/*
           The emergency card draws its own red header and its own "‹ Back",

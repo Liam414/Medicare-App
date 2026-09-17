@@ -416,15 +416,32 @@ export function HealthGoalsScreen({ navigation, route }: Props) {
                 </View>
               ))}
 
-              <Pressable
-                onPress={() => remove(goal)}
-                disabled={busy === goal.id}
-                style={styles.delete}
-                accessibilityRole="button"
-                accessibilityLabel={`Delete ${goal.title}`}
-              >
-                <Text style={styles.deleteText}>Delete goal</Text>
-              </Pressable>
+              {/*
+                Edit sits before Delete and reads in the accent colour, because
+                it is what someone actually wants when a goal is wrong. Before
+                this screen had it, changing one word meant deleting the goal
+                and writing it again — which threw away every tick with it.
+              */}
+              <View style={styles.goalActions}>
+                <Pressable
+                  onPress={() => navigation.navigate("GoalEdit", { goalId: goal.id })}
+                  disabled={busy === goal.id}
+                  style={styles.action}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${goal.title}`}
+                >
+                  <Text style={styles.editText}>Edit goal</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => remove(goal)}
+                  disabled={busy === goal.id}
+                  style={styles.action}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete ${goal.title}`}
+                >
+                  <Text style={styles.deleteText}>Delete goal</Text>
+                </Pressable>
+              </View>
             </View>
           ))}
 
@@ -517,6 +534,10 @@ const styles = StyleSheet.create({
   activityLabel: { ...typography.body, color: colors.textPrimary },
   activityMeta: { ...typography.caption, color: colors.textSecondary },
   dueToday: { ...typography.caption, color: colors.accent },
+  goalActions: { flexDirection: "row", gap: spacing.lg, alignItems: "center" },
+  action: { minHeight: MIN_TAP_TARGET, justifyContent: "center" },
+  editText: { ...typography.body, color: colors.accent },
+  // Quieter than Edit beside it: the destructive one does not get the accent.
   detail: {
     ...typography.caption,
     color: colors.textSecondary,
@@ -554,7 +575,6 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
   },
   evidenceCaveat: { ...typography.caption, color: colors.textSecondary },
-  delete: { minHeight: MIN_TAP_TARGET, justifyContent: "center" },
   deleteText: { ...typography.body, color: colors.textSecondary },
   footnote: {
     ...typography.caption,

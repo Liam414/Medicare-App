@@ -227,3 +227,67 @@ describe("times already saved", () => {
     expect(screen.queryByText(/These are suggestions/i)).toBeNull();
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// Prominence. Playtesting read this screen the wrong way round: the control
+// for taking a reminder away looked like the one for setting it up.
+// ---------------------------------------------------------------------------
+
+describe("which control looks like the point of the screen", () => {
+  it("⛔ does not offer to turn off reminders that were never set", async () => {
+    // The save button used to read "Turn reminders off" whenever the list was
+    // empty, so a medication with no reminders offered to remove reminders it
+    // did not have — as the one filled action on a screen for setting them up.
+    reminderService.listSchedules.mockResolvedValue([]);
+    reminderService.getSuggestion.mockResolvedValue({
+      recognised: false,
+      times: [],
+      dosesPerDay: null,
+      reason: "MedHelp could not read a daily rhythm from the directions.",
+      frequency: "TAKE AS NEEDED",
+    });
+
+    renderScreen();
+
+    await waitFor(() => expect(screen.getByText(/No reminder times yet/i)).toBeTruthy());
+    const button = screen.getByLabelText("Turn reminders off");
+    expect(button.props.accessibilityState?.disabled).toBe(true);
+  });
+
+  it("offers to turn them off only when there are some saved", async () => {
+    reminderService.listSchedules.mockResolvedValue([
+      {
+        medicationId: "m1",
+        medicationName: "Synthetic Tablet",
+        dosage: "10 mg",
+        frequency: "TAKE 1 TABLET BY MOUTH TWICE DAILY",
+        reminders: [
+          { id: "r1", medicationId: "m1", timeOfDay: "07:00", enabled: true },
+        ],
+      },
+    ]);
+    reminderService.getSuggestion.mockResolvedValue({
+      recognised: false,
+      times: [],
+      dosesPerDay: null,
+      reason: null,
+      frequency: "TAKE 1 TABLET BY MOUTH TWICE DAILY",
+    });
+
+    renderScreen();
+
+    // The row renders through `formatTimeOfDay`, so match the control rather
+    // than the literal "07:00".
+    await waitFor(() => expect(screen.getByText(/1 reminder a day/i)).toBeTruthy());
+    // Saving is the filled action while there are times.
+    expect(screen.getByLabelText("Save reminders")).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText(/^Remove /));
+
+    await waitFor(() => expect(screen.getByLabelText("Turn reminders off")).toBeTruthy());
+    const button = screen.getByLabelText("Turn reminders off");
+    // Real, and pressable — just not dressed as the point of the screen.
+    expect(button.props.accessibilityState?.disabled).toBeFalsy();
+  });
+});

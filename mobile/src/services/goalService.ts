@@ -376,6 +376,48 @@ export async function createGoal(input: {
   return toGoal(body);
 }
 
+/**
+ * Save an edit to a goal that already exists.
+ *
+ * ⛔ **Send the `id` of every row that is staying.** A row that keeps its id is
+ * edited in place and keeps the person's ticks; one that arrives without an id
+ * is a new row, and one that is left out is deleted along with its ticks. So
+ * dropping an id does not merely rewrite a row — it silently throws away
+ * whatever had been ticked off against it. The server refuses an id that is not
+ * on this goal rather than guessing, which is what turns a client bug here into
+ * a 400 instead of lost history.
+ *
+ * `description` is not sent: it is the text the person originally wrote, and
+ * the server has no field for editing it.
+ */
+export async function updateGoal(
+  goalId: string,
+  input: { title: string; activities: (ActivityInput & { id?: string })[] }
+): Promise<HealthGoal> {
+  const body = (await apiRequest(`/goals/${goalId}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      title: input.title,
+      activities: input.activities.map((activity) => ({
+        // Omitted rather than sent as null for a new row: the server tells the
+        // two apart by presence.
+        ...(activity.id ? { id: activity.id } : {}),
+        text: activity.text,
+        cadence: activity.cadence,
+        times_per_week:
+          activity.cadence === "times_per_week" ? activity.timesPerWeek : null,
+        quantity_text: activity.quantityText,
+        preferred_time: activity.preferredTime,
+        days: activity.days,
+        // "" would fail the server's HH:MM check; no time is null.
+        time_of_day: activity.timeOfDay || null,
+      })),
+    }),
+    fallbackMessage: "We couldn't save your changes. Please try again.",
+  })) as ApiGoal;
+  return toGoal(body);
+}
+
 export async function listGoals(on: string = localDay()): Promise<HealthGoal[]> {
   const body = (await apiRequest(`/goals?on=${encodeURIComponent(on)}`, {
     method: "GET",

@@ -114,6 +114,38 @@ class GoalCreateIn(BaseModel):
     activities: list[ActivityIn] = Field(..., min_length=1, max_length=MAX_ACTIVITIES)
 
 
+class ActivityUpdateIn(ActivityIn):
+    """
+    One row of an edited goal, carrying its id when it already exists.
+
+    `id` is what distinguishes editing a row from replacing it, and the
+    difference is the person's ticks: a completion points at an activity id, so
+    a row that keeps its id keeps its history, and a row that arrives without
+    one is genuinely new. Rewriting every row on every save would silently
+    erase what somebody had already ticked off this week.
+
+    An unknown or another goal's id is rejected rather than treated as new -
+    see `update_goal`.
+    """
+
+    id: str | None = Field(None, max_length=64)
+
+
+class GoalUpdateIn(BaseModel):
+    """
+    An edit to a goal the person already saved.
+
+    ⛔ `description` is deliberately absent and must not be added. It is the
+    text the person originally typed, and it is what `structure`'s quoting
+    check was run against - the record of what was asked for, not a field. The
+    title and the activities are the editable surface.
+    """
+
+    title: str = Field(..., min_length=1, max_length=200)
+    activities: list[ActivityUpdateIn] = Field(
+        ..., min_length=1, max_length=MAX_ACTIVITIES
+    )
+
 class EvidenceOut(BaseModel):
     """
     The published guidance a row is attributed to, ready to render.
@@ -215,6 +247,18 @@ class ActivityOut(BaseModel):
     time_of_day: str | None = None
     detail: str | None = None
     evidence: EvidenceOut | None = None
+    # The id behind `evidence`, so an edit can send the row back unchanged.
+    #
+    # `evidence` above is the resolved citation and is rebuilt server-side on
+    # every read, which is what keeps one copy of every quotation in this app.
+    # It cannot be turned back into an id, so without this an editor had no way
+    # to say "this row is the same as you sent me" and `update_goal` would
+    # clear the citation off every row of every edited goal.
+    #
+    # ⛔ Still only the id in either direction. The publisher, quotation and
+    # link remain the server's, so this app never stores or returns a stale
+    # copy of a government sentence.
+    evidence_domain: str | None = None
     # Whether the person ticked this on the date they asked about. Not an
     # adherence figure - see the note in `models/goal.py`.
     completed_today: bool

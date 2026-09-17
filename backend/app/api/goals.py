@@ -66,6 +66,7 @@ from app.schemas.goal import (
     CompletionIn,
     EvidenceOut,
     GoalCreateIn,
+    GoalUpdateIn,
     GoalDraftIn,
     GoalDraftOut,
     GoalOut,
@@ -440,6 +441,116 @@ def set_completion(
 
     db.refresh(goal)
     return _to_out(goal, on=payload.completed_on, db=db)
+
+
+@router.put("/{goal_id}", response_model=GoalOut)
+def update_goal(
+    goal_id: str,
+    payload: GoalUpdateIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> GoalOut:
+    """
+    Edit a saved goal: its title, and its activities and their schedules.
+
+    Before this existed the only way to change a goal was to delete it and
+    write it again, which threw away every tick along with it. Playtesting
+    reported it as the obvious missing thing, and it was.
+
+    ## Rows are matched by id, and that is the whole design
+
+    A `GoalCompletion` points at an activity id. Replacing the activity rows on
+    every save - the easy implementation - would silently discard the person's
+    ticks for every goal they ever edited, including ticks from today.
+
+    So each incoming row either carries the `id` of a row already on this goal,
+    in which case it is edited in place and keeps its history, or carries none
+    and is created. Rows the payload leaves out are removed, along with their
+    completions: SQLite does not enforce the cascade, which is why
+    `delete_goal` deletes them explicitly and why this does too.
+
+    ⛔ An `id` that is not on this goal is a 400, never a new row. Treating it
+    as new would let a typo or a stale client quietly detach a row from its
+    ticks, which is the failure this whole function is shaped to avoid, and
+    accepting another goal's id would let one goal's edit reach into another.
+
+    ## What it may not do
+
+    ⛔ It writes no activity text of its own and proposes nothing. Everything
+    here was typed or confirmed by the person on the editor screen - the same
+    read-then-confirm shape as saving in the first place. `generated` is not a
+    column, so nothing has to be cleared: a row the person has edited is simply
+    a row they are now saving as their own.
+
+    ⛔ `cadence` and `times_per_week` are derived from `days` rather than
+    trusted from the client, exactly as `_validate_plan` derives them, so a
+    goal cannot end up saying "three times a week" beside four ticked days.
+    """
+    goal = _get_owned_goal_or_404(goal_id, user, db)
+
+    existing = {activity.id: activity for activity in goal.activities}
+
+    unknown = [
+        row.id for row in payload.activities if row.id is not None and row.id not in existing
+    ]
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail="That edit refers to an activity that is not on this goal.",
+        )
+
+    # A row may not be sent twice: two rows claiming one id would both write to
+    # the same activity and the loser would vanish without saying so.
+    claimed = [row.id for row in payload.activities if row.id is not None]
+    if len(claimed) != len(set(claimed)):
+        raise HTTPException(
+            status_code=400, detail="That edit lists the same activity twice."
+        )
+
+    goal.title = payload.title.strip()
+
+    kept: list[GoalActivity] = []
+    for position, row in enumerate(payload.activities):
+        days = ",".join(row.days)
+        # Derived here, never taken from the client - see the docstring.
+        cadence = "daily" if len(row.days) == 7 else (
+            "times_per_week" if row.days else "unspecified"
+        )
+        times_per_week = len(row.days) if cadence == "times_per_week" else None
+
+        activity = existing.get(row.id) if row.id is not None else None
+        if activity is None:
+            activity = GoalActivity(goal_id=goal.id)
+            goal.activities.append(activity)
+
+        activity.text = row.text.strip()
+        activity.cadence = cadence
+        activity.times_per_week = times_per_week
+        activity.quantity_text = (
+            row.quantity_text.strip() if row.quantity_text else None
+        )
+        activity.preferred_time = row.preferred_time
+        activity.days = days
+        activity.time_of_day = row.time_of_day
+        activity.position = position
+        kept.append(activity)
+
+    kept_ids = {activity.id for activity in kept if activity.id is not None}
+    removed = [
+        activity
+        for activity in list(goal.activities)
+        if activity.id is not None and activity.id not in kept_ids
+    ]
+    if removed:
+        db.query(GoalCompletion).filter(
+            GoalCompletion.activity_id.in_([a.id for a in removed])
+        ).delete(synchronize_session=False)
+        for activity in removed:
+            goal.activities.remove(activity)
+
+    db.commit()
+    db.refresh(goal)
+    return _to_out(goal, on=date.today(), db=db)
 
 
 @router.delete("/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
