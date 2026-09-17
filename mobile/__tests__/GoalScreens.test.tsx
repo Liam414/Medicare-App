@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 
 import { GoalCreateScreen } from "@/screens/goals/GoalCreateScreen";
+import { GoalEditScreen } from "@/screens/goals/GoalEditScreen";
 import { HealthGoalsScreen } from "@/screens/goals/HealthGoalsScreen";
 import {
   DAYS,
@@ -9,6 +10,7 @@ import {
   draftGoal,
   listGoals,
   setCompletion,
+  updateGoal,
   type GoalDraft,
   type HealthGoal,
 } from "@/services/goalService";
@@ -20,6 +22,7 @@ jest.mock("@/services/goalService", () => ({
   listGoals: jest.fn(),
   setCompletion: jest.fn(),
   deleteGoal: jest.fn(),
+  updateGoal: jest.fn(),
 }));
 
 // Same stand-in as the appointment list test — see the note there.
@@ -35,6 +38,7 @@ const mockCreate = createGoal as jest.MockedFunction<typeof createGoal>;
 const mockList = listGoals as jest.MockedFunction<typeof listGoals>;
 const mockComplete = setCompletion as jest.MockedFunction<typeof setCompletion>;
 const mockDelete = deleteGoal as jest.MockedFunction<typeof deleteGoal>;
+const mockUpdate = updateGoal as jest.MockedFunction<typeof updateGoal>;
 
 const navigation = {
   navigate: jest.fn(),
@@ -598,5 +602,125 @@ describe("HealthGoalsScreen", () => {
 
     fireEvent.press(screen.getByText("Add a goal"));
     expect(navigation.navigate).toHaveBeenCalledWith("GoalCreate");
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// Editing a saved goal.
+//
+// Playtesting reported that changing a goal meant deleting it and writing it
+// again — which threw away every tick along with it.
+// ---------------------------------------------------------------------------
+
+describe("editing a goal", () => {
+  it("offers an edit route from the list", async () => {
+    mockList.mockResolvedValue([goal()]);
+    render(<HealthGoalsScreen navigation={navigation as never} route={{ params: {} } as never} />);
+
+    await waitFor(() => expect(screen.getByText("Edit goal")).toBeTruthy());
+    fireEvent.press(screen.getByLabelText("Edit Getting outdoors"));
+
+    expect(navigation.navigate).toHaveBeenCalledWith("GoalEdit", { goalId: "goal-1" });
+  });
+
+  it("loads the saved plan into the editor", async () => {
+    mockList.mockResolvedValue([goal()]);
+    render(
+      <GoalEditScreen
+        navigation={navigation as never}
+        route={{ params: { goalId: "goal-1" } } as never}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByDisplayValue("Getting outdoors")).toBeTruthy());
+    expect(screen.getByDisplayValue("Walk in the mornings")).toBeTruthy();
+    expect(screen.getByDisplayValue("08:00")).toBeTruthy();
+  });
+
+  it("⛔ sends every row back with the id it arrived with", async () => {
+    // The property the whole endpoint is shaped around: a row that keeps its
+    // id is edited in place and keeps the person's ticks. A client that
+    // dropped the id would silently delete the row and its history.
+    mockList.mockResolvedValue([goal()]);
+    mockUpdate.mockResolvedValue(goal());
+    render(
+      <GoalEditScreen
+        navigation={navigation as never}
+        route={{ params: { goalId: "goal-1" } } as never}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByDisplayValue("Walk in the mornings")).toBeTruthy());
+    fireEvent.changeText(screen.getByDisplayValue("Walk in the mornings"), "Walk after lunch");
+    fireEvent.press(screen.getByText("Save changes"));
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+    const [goalId, payload] = mockUpdate.mock.calls[0];
+    expect(goalId).toBe("goal-1");
+    expect(payload.activities[0].id).toBe("activity-1");
+    expect(payload.activities[0].text).toBe("Walk after lunch");
+  });
+
+  it("⛔ never relabels a saved row as MedHelp's suggestion", async () => {
+    // "Suggested by MedHelp — edit it or remove it" means the app wrote this
+    // line and nobody has confirmed it. Every row here was confirmed by the
+    // person when they pressed save, so the label would be a lie.
+    mockList.mockResolvedValue([goal()]);
+    render(
+      <GoalEditScreen
+        navigation={navigation as never}
+        route={{ params: { goalId: "goal-1" } } as never}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByDisplayValue("Walk in the mornings")).toBeTruthy());
+    expect(screen.queryByText(/Suggested by MedHelp/i)).toBeNull();
+  });
+
+  it("⛔ proposes nothing: the model is never consulted from the editor", async () => {
+    // Editing is not an occasion for MedHelp to write more health content.
+    mockList.mockResolvedValue([goal()]);
+    render(
+      <GoalEditScreen
+        navigation={navigation as never}
+        route={{ params: { goalId: "goal-1" } } as never}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByDisplayValue("Walk in the mornings")).toBeTruthy());
+    expect(mockDraft).not.toHaveBeenCalled();
+    expect(screen.queryByText("Suggest a plan")).toBeNull();
+  });
+
+  it("refuses to save a time it cannot read", async () => {
+    mockList.mockResolvedValue([goal()]);
+    render(
+      <GoalEditScreen
+        navigation={navigation as never}
+        route={{ params: { goalId: "goal-1" } } as never}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByDisplayValue("08:00")).toBeTruthy());
+    fireEvent.changeText(screen.getByDisplayValue("08:00"), "8am");
+
+    await waitFor(() =>
+      expect(screen.getByText(/Enter the time as HH:MM/i)).toBeTruthy()
+    );
+    fireEvent.press(screen.getByText("Save changes"));
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("says so when the goal is gone rather than showing an empty editor", async () => {
+    mockList.mockResolvedValue([]);
+    render(
+      <GoalEditScreen
+        navigation={navigation as never}
+        route={{ params: { goalId: "goal-1" } } as never}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText(/no longer there/i)).toBeTruthy());
   });
 });

@@ -951,8 +951,8 @@ medication list and the reminders screen flagging the same medications.
 
 #### Both kinds of notification are armed in one call
 
-`scheduleAll(reminders, { refillAlerts })`, from `MedicationRemindersScreen`
-and nowhere else.
+`scheduleAll(reminders, { refillAlerts })`, from
+`mobile/src/services/reminderArming.ts` and nowhere else.
 
 ⛔ They cannot be armed separately. `cancelAll()` clears everything — on native
 it calls `cancelAllScheduledNotificationsAsync`, which does not distinguish
@@ -960,6 +960,39 @@ between them — so two arming functions would take turns cancelling each
 other's work. The symptom would be a notification type that silently stopped
 firing depending on which screen was opened last. A test asserts both survive
 one call.
+
+#### ⛔ One arming *function*, not one caller (fixed 2026-09-16)
+
+This used to say `MedicationRemindersScreen` **and nowhere else**, and that
+was the wrong half of the rule to enforce. Arming happened in that screen's
+focus effect, so notifications existed only if you visited it: a person who set
+their times and then opened the app on any other tab had nothing armed at all.
+
+Invisible on iOS and Android, where the OS keeps yesterday's daily triggers —
+and **total on the web**, where the timers are `setTimeout` handles in a module
+array that every reload throws away. Playtesting found it as reminders that
+were saved, listed correctly on screen, and never delivered.
+
+`rearm()` now runs at app start too, from `RootNavigator` as soon as there is a
+session. What the rule actually protects is that **every arm sends the complete
+set** — the danger is two functions each arming a subset. More callers are fine;
+a partial arm is not. Two properties hold, both tested in
+`__tests__/reminderArming.test.ts`:
+
+- **`reminderArming` is the only module that calls `scheduleAll`.** ⛔ Do not
+  import it anywhere else, and do not add a second arming function.
+- **Runs are serialised.** App start and a focus effect really do overlap when
+  the app opens on Medications, and two overlapping runs would interleave one's
+  `cancelAll` with the other's scheduling — exactly the silent-stop this rule
+  exists to prevent.
+
+`rearmFrom(state)` arms from a set the caller already loaded, so the reminders
+screen does not fetch everything twice on every visit. Same queue, same
+whole-set rule.
+
+Arming is best-effort and never surfaces an error: an app start with no network
+returns `null` having cancelled nothing, so whatever the OS already holds
+survives.
 
 | | Trigger | Repeats |
 |---|---|---|
@@ -1707,6 +1740,45 @@ Rules for anyone extending this:
 - Deleting a goal deletes its activities and every tick, in the endpoint as
   well as by foreign key. SQLite does not enforce the cascade, so the test
   asserts against the table.
+
+### A saved goal can be edited (2026-09-16)
+
+`PUT /goals/{goal_id}` and `GoalEditScreen`. Before this the only way to change
+a goal was to delete it and write it again, which threw away every tick along
+with it — playtesting reported it as the obvious missing thing.
+
+⛔ **Rows are matched by `id`, and that is the whole design.** A
+`GoalCompletion` points at an activity id, so replacing the activity rows on
+every save — the easy implementation — would silently discard the person's
+ticks for every goal they ever edited, including today's. A row that keeps its
+id is edited in place and keeps its history; a row with no id is new; a row the
+payload leaves out is deleted along with its completions, explicitly, because
+SQLite does not enforce the cascade.
+
+⛔ **An id that is not on this goal is a 400, never a new row.** Treating it as
+new would let a stale client detach a row from its ticks with nothing appearing
+to go wrong. Sending one id twice is refused for the same reason: the loser
+would vanish in silence.
+
+⛔ **The editor proposes nothing.** There is no description box and no call to
+`draftGoal` — the model is not consulted from that screen at all. Editing is
+not an occasion for MedHelp to write more health content, which keeps
+origination to the one screen this file describes. A test asserts it, and
+another asserts a saved row is never relabelled "Suggested by MedHelp": the
+person confirmed every row when they pressed save, so the label would be false.
+
+⛔ **`description` is not editable and must not become so.** It is the text the
+person originally wrote and what `structure`'s quoting check ran against — the
+record of what was asked for, not a field.
+
+`cadence` and `times_per_week` are derived from `days` server-side, exactly as
+`_validate_plan` derives them, so an edit cannot produce "three times a week"
+beside four ticked days whatever the client sends.
+
+`GoalPlanEditor` is the editor both screens share. Its rows carry their own
+`source` and `suggested` labels rather than parallel arrays indexed by
+position, which is what stops a "Suggested by MedHelp" label landing on the
+wrong line after a removal — a correctness question, not a cosmetic one.
 
 **Not built, deliberately:** reminders for a goal, and any weekly review.
 Neither is hard — a reminder would reuse the local-only `notificationService`

@@ -109,6 +109,39 @@ class GoalCreateIn(BaseModel):
     activities: list[ActivityIn] = Field(..., min_length=1, max_length=MAX_ACTIVITIES)
 
 
+class ActivityUpdateIn(ActivityIn):
+    """
+    One row of an edited goal, carrying its id when it already exists.
+
+    `id` is what distinguishes editing a row from replacing it, and the
+    difference is the person's ticks: a completion points at an activity id, so
+    a row that keeps its id keeps its history, and a row that arrives without
+    one is genuinely new. Rewriting every row on every save would silently
+    erase what somebody had already ticked off this week.
+
+    An unknown or another goal's id is rejected rather than treated as new -
+    see `update_goal`.
+    """
+
+    id: str | None = Field(None, max_length=64)
+
+
+class GoalUpdateIn(BaseModel):
+    """
+    An edit to a goal the person already saved.
+
+    ⛔ `description` is deliberately absent and must not be added. It is the
+    text the person originally typed, and it is what `structure`'s quoting
+    check was run against - the record of what was asked for, not a field. The
+    title and the activities are the editable surface.
+    """
+
+    title: str = Field(..., min_length=1, max_length=200)
+    activities: list[ActivityUpdateIn] = Field(
+        ..., min_length=1, max_length=MAX_ACTIVITIES
+    )
+
+
 class ActivityDraftOut(BaseModel):
     """
     A proposed activity.

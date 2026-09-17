@@ -108,4 +108,14 @@ export type RootStackParamList = {
 
   /** Writing a goal and confirming the activities read out of it. */
   GoalCreate: undefined;
+
+  /**
+   * Editing a goal that is already saved.
+   *
+   * Takes an id and nothing else. The goal's title and activities are health
+   * text about an identified person, and route state is serialisable and
+   * persisted by dev tooling — the same rule, and the same reason, as
+   * `BookingIdentity` and `EmergencyCard` taking no payload.
+   */
+  GoalEdit: { goalId: string };
 };

@@ -553,6 +553,287 @@ def test_one_person_cannot_see_or_touch_another_persons_goals(
     )
 
 
+def test_editing_a_goal_keeps_the_ticks_on_rows_that_stayed(
+    client, auth_headers, db_session
+):
+    """
+    The reason rows are matched by id rather than rewritten.
+
+    Editing used to mean deleting the goal and writing it again, which threw
+    away every completion with it. An edit that renamed one activity and left
+    the other alone must not cost the person a tick they made today.
+    """
+    goal = _save_walking_goal(client, auth_headers)
+    first, second = goal["activities"]
+    client.post(
+        f"/goals/{goal['id']}/activities/{first['id']}/completion",
+        json={"completed_on": date.today().isoformat(), "completed": True},
+        headers=auth_headers,
+    )
+    assert db_session.query(GoalCompletion).count() == 1
+
+    response = client.put(
+        f"/goals/{goal['id']}",
+        json={
+            "title": "Getting out more",
+            "activities": [
+                {
+                    "id": first["id"],
+                    "text": "Walk after lunch",
+                    "cadence": "daily",
+                    "preferred_time": "afternoon",
+                    "days": ["monday", "wednesday", "friday"],
+                    "time_of_day": "13:00",
+                },
+                {
+                    "id": second["id"],
+                    "text": "Swim at the weekend",
+                    "cadence": "times_per_week",
+                    "times_per_week": 1,
+                    "preferred_time": "unspecified",
+                },
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+
+    assert body["title"] == "Getting out more"
+    assert [a["text"] for a in body["activities"]] == [
+        "Walk after lunch",
+        "Swim at the weekend",
+    ]
+    # Same rows, so the same ids - and therefore the same history.
+    assert [a["id"] for a in body["activities"]] == [first["id"], second["id"]]
+    assert body["activities"][0]["completed_today"] is True
+    assert db_session.query(GoalCompletion).count() == 1
+
+    # The schedule came across.
+    assert body["activities"][0]["days"] == ["monday", "wednesday", "friday"]
+    assert body["activities"][0]["time_of_day"] == "13:00"
+
+
+def test_an_edit_derives_cadence_from_the_days_rather_than_trusting_it(
+    client, auth_headers
+):
+    """
+    ⛔ Same rule as `_validate_plan`, and for the same reason.
+
+    A goal may never say "three times a week" beside four ticked days. The
+    client's `cadence` and `times_per_week` are deliberately ignored - here the
+    payload claims a weekly cadence of 3 while listing all seven days, and the
+    answer is "daily".
+    """
+    goal = _save_walking_goal(client, auth_headers)
+    body = client.put(
+        f"/goals/{goal['id']}",
+        json={
+            "title": "Walking",
+            "activities": [
+                {
+                    "id": goal["activities"][0]["id"],
+                    "text": "Walk in the mornings",
+                    "cadence": "times_per_week",
+                    "times_per_week": 3,
+                    "preferred_time": "morning",
+                    "days": list(goal_structuring.DAYS),
+                }
+            ],
+        },
+        headers=auth_headers,
+    ).json()
+
+    assert body["activities"][0]["cadence"] == "daily"
+    assert body["activities"][0]["times_per_week"] is None
+
+
+def test_a_row_dropped_from_an_edit_takes_its_ticks_with_it(
+    client, auth_headers, db_session
+):
+    """
+    Asserted against the table, for the same reason `delete_goal`'s test is.
+
+    SQLite does not enforce the cascade, so a listing that stopped showing the
+    row is not evidence its completions are gone.
+    """
+    goal = _save_walking_goal(client, auth_headers)
+    first, second = goal["activities"]
+    for activity in (first, second):
+        client.post(
+            f"/goals/{goal['id']}/activities/{activity['id']}/completion",
+            json={"completed_on": date.today().isoformat(), "completed": True},
+            headers=auth_headers,
+        )
+    assert db_session.query(GoalCompletion).count() == 2
+
+    body = client.put(
+        f"/goals/{goal['id']}",
+        json={
+            "title": "Walking",
+            "activities": [
+                {
+                    "id": first["id"],
+                    "text": "Walk in the mornings",
+                    "cadence": "daily",
+                    "preferred_time": "morning",
+                }
+            ],
+        },
+        headers=auth_headers,
+    ).json()
+
+    assert [a["id"] for a in body["activities"]] == [first["id"]]
+    assert db_session.query(GoalCompletion).count() == 1
+    assert (
+        db_session.query(GoalCompletion)
+        .filter(GoalCompletion.activity_id == second["id"])
+        .count()
+        == 0
+    )
+
+
+def test_an_edit_can_add_a_row(client, auth_headers):
+    """A new row arrives without an id, and gets one."""
+    goal = _save_walking_goal(client, auth_headers)
+    body = client.put(
+        f"/goals/{goal['id']}",
+        json={
+            "title": "Walking",
+            "activities": [
+                {
+                    "id": goal["activities"][0]["id"],
+                    "text": "Walk in the mornings",
+                    "cadence": "daily",
+                    "preferred_time": "morning",
+                },
+                {
+                    "text": "Read before bed",
+                    "cadence": "daily",
+                    "preferred_time": "evening",
+                    "days": list(goal_structuring.DAYS),
+                    "time_of_day": "21:30",
+                },
+            ],
+        },
+        headers=auth_headers,
+    ).json()
+
+    assert [a["text"] for a in body["activities"]] == [
+        "Walk in the mornings",
+        "Read before bed",
+    ]
+    added = body["activities"][1]
+    assert added["id"] and added["id"] != goal["activities"][0]["id"]
+    assert added["time_of_day"] == "21:30"
+
+
+def test_an_edit_naming_an_activity_that_is_not_on_this_goal_is_refused(
+    client, auth_headers
+):
+    """
+    ⛔ Never silently treated as a new row.
+
+    Accepting an unknown id as "new" would let a stale client detach a row from
+    its ticks without anything appearing to go wrong, which is the exact
+    failure matching by id exists to prevent.
+    """
+    goal = _save_walking_goal(client, auth_headers)
+    response = client.put(
+        f"/goals/{goal['id']}",
+        json={
+            "title": "Walking",
+            "activities": [
+                {
+                    "id": "not-an-activity-on-this-goal",
+                    "text": "Walk in the mornings",
+                    "cadence": "daily",
+                    "preferred_time": "morning",
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+
+
+def test_an_edit_listing_one_activity_twice_is_refused(client, auth_headers):
+    """Two rows writing to one activity would lose one of them in silence."""
+    goal = _save_walking_goal(client, auth_headers)
+    activity_id = goal["activities"][0]["id"]
+    response = client.put(
+        f"/goals/{goal['id']}",
+        json={
+            "title": "Walking",
+            "activities": [
+                {
+                    "id": activity_id,
+                    "text": "Walk in the mornings",
+                    "cadence": "daily",
+                    "preferred_time": "morning",
+                },
+                {
+                    "id": activity_id,
+                    "text": "Walk in the evenings",
+                    "cadence": "daily",
+                    "preferred_time": "evening",
+                },
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+
+
+def test_an_edit_refuses_a_time_it_cannot_read(client, auth_headers):
+    """
+    ⛔ A time is refused, never guessed - the same rule as `dose_schedule.py`.
+
+    "8" could be either end of the day, so an edit may not quietly resolve it.
+    """
+    goal = _save_walking_goal(client, auth_headers)
+    response = client.put(
+        f"/goals/{goal['id']}",
+        json={
+            "title": "Walking",
+            "activities": [
+                {
+                    "id": goal["activities"][0]["id"],
+                    "text": "Walk in the mornings",
+                    "cadence": "daily",
+                    "preferred_time": "morning",
+                    "days": ["monday"],
+                    "time_of_day": "8am",
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
+def test_one_person_cannot_edit_another_persons_goal(
+    client, auth_headers, other_user_headers
+):
+    """Same 404 as reading it, so an id cannot be probed for existence."""
+    goal = _save_walking_goal(client, auth_headers)
+    response = client.put(
+        f"/goals/{goal['id']}",
+        json={
+            "title": "Mine now",
+            "activities": [
+                {
+                    "text": "Walk in the mornings",
+                    "cadence": "daily",
+                    "preferred_time": "morning",
+                }
+            ],
+        },
+        headers=other_user_headers,
+    )
+    assert response.status_code == 404
+
+
 def test_deleting_a_goal_removes_its_ticks(client, auth_headers, db_session):
     """
     Asserted against the table, not the listing.

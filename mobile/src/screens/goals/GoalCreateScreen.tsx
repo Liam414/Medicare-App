@@ -1,8 +1,16 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { AppButton } from "@/components/AppButton";
+import {
+  GoalPlanEditor,
+  badTimes,
+  blankActivity,
+  filledActivities,
+  withDerivedCadence,
+  type EditableActivity,
+} from "@/components/GoalPlanEditor";
 import { AppNav } from "@/components/AppNav";
 import { EmergencyCallBar } from "@/components/EmergencyCallBar";
 import { ErrorNotice } from "@/components/ErrorNotice";
@@ -11,11 +19,8 @@ import { Screen } from "@/components/Screen";
 import { TextField } from "@/components/TextField";
 import { ApiError } from "@/services/apiClient";
 import {
-  DAYS,
   createGoal,
   draftGoal,
-  shortDay,
-  type ActivityInput,
   type Day,
   type EmergencyGuidance,
 } from "@/services/goalService";
@@ -70,25 +75,13 @@ type Props = NativeStackScreenProps<RootStackParamList, "GoalCreate">;
 export function GoalCreateScreen({ navigation }: Props) {
   const [description, setDescription] = useState("");
   const [title, setTitle] = useState("");
-  const [activities, setActivities] = useState<ActivityInput[]>([]);
-  const [sources, setSources] = useState<(string | null)[]>([]);
+  const [activities, setActivities] = useState<EditableActivity[]>([]);
   // Which rows MedHelp proposed rather than read out of the person's text.
-  const [suggested, setSuggested] = useState<boolean[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [emergency, setEmergency] = useState<EmergencyGuidance | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  const blank = (): ActivityInput => ({
-    text: "",
-    cadence: "unspecified",
-    timesPerWeek: null,
-    quantityText: null,
-    preferredTime: "unspecified",
-    days: [],
-    timeOfDay: null,
-  });
 
   const suggest = async () => {
     setError(null);
@@ -108,18 +101,13 @@ export function GoalCreateScreen({ navigation }: Props) {
               preferredTime: activity.preferredTime,
               days: activity.days,
               timeOfDay: activity.timeOfDay,
+              // Carried on the row itself rather than in a list beside it, so
+              // a removal cannot leave the "Suggested by MedHelp" label on
+              // somebody else's line.
+              source: activity.sourcePhrase,
+              suggested: activity.generated,
             }))
-          : [blank()]
-      );
-      setSources(
-        draft.activities.length > 0
-          ? draft.activities.map((activity) => activity.sourcePhrase)
-          : [null]
-      );
-      setSuggested(
-        draft.activities.length > 0
-          ? draft.activities.map((activity) => activity.generated)
-          : [false]
+          : [blankActivity()]
       );
     } catch (caught) {
       // An outage is not a reason to block someone writing their own list.
@@ -128,95 +116,17 @@ export function GoalCreateScreen({ navigation }: Props) {
           ? caught.message
           : "We couldn't read that just now. You can add your activities below."
       );
-      setActivities([blank()]);
-      setSources([null]);
-      setSuggested([false]);
+      setActivities([blankActivity()]);
     } finally {
       setDrafting(false);
     }
   };
 
-  const updateActivity = (index: number, text: string) => {
-    setActivities((current) =>
-      current.map((activity, at) => (at === index ? { ...activity, text } : activity))
-    );
-    // Once edited it is the person's line, not a quote of anything.
-    setSources((current) => current.map((source, at) => (at === index ? null : source)));
-    // Edited by hand, so it is the person's line now and stops being labelled.
-    setSuggested((current) => current.map((was, at) => (at === index ? false : was)));
-  };
+  const filled = filledActivities(activities);
+  const bad = badTimes(activities);
 
-  /**
-   * Add or remove one day from a row's schedule.
-   *
-   * Rebuilt from `DAYS` rather than pushed onto, so the list stays in week
-   * order however the chips were tapped and a schedule reads the same way
-   * every time.
-   */
-  const toggleDay = (index: number, day: Day) => {
-    setActivities((current) =>
-      current.map((activity, at) => {
-        if (at !== index) return activity;
-        const picked = new Set(activity.days);
-        if (picked.has(day)) picked.delete(day);
-        else picked.add(day);
-        return { ...activity, days: DAYS.filter((each) => picked.has(each)) };
-      })
-    );
-  };
-
-  const updateTime = (index: number, timeOfDay: string) => {
-    setActivities((current) =>
-      current.map((activity, at) =>
-        at === index ? { ...activity, timeOfDay: timeOfDay.trim() || null } : activity
-      )
-    );
-  };
-
-  const removeActivity = (index: number) => {
-    setActivities((current) => current.filter((_, at) => at !== index));
-    setSources((current) => current.filter((_, at) => at !== index));
-    setSuggested((current) => current.filter((_, at) => at !== index));
-  };
-
-  const addActivity = () => {
-    setActivities((current) => [...current, blank()]);
-    setSources((current) => [...current, null]);
-    setSuggested((current) => [...current, false]);
-  };
-
-  const filled = activities.filter((activity) => activity.text.trim().length > 0);
-
-  /**
-   * A time is either a 24-hour HH:MM or nothing at all.
-   *
-   * Checked here as well as on the server so someone who mistypes one is told
-   * on the screen they typed it on, rather than by a 422 after pressing save.
-   */
-  const badTimes = filled
-    .map((activity, index) => ({ activity, index }))
-    .filter(({ activity }) => activity.timeOfDay && !/^([01]\d|2[0-3]):[0-5]\d$/.test(activity.timeOfDay));
-
-  const canSave = title.trim().length > 0 && filled.length > 0 && badTimes.length === 0 && !saving;
-
-  /**
-   * Keep the cadence in step with the days that were ticked.
-   *
-   * The server derives these for a plan it proposed; a row the person typed
-   * or re-ticked has to have them worked out somewhere too, or the schedule
-   * line would say "whenever you choose" beside three ticked days.
-   */
-  const withDerivedCadence = (activity: ActivityInput): ActivityInput => {
-    if (activity.days.length === 0) return activity;
-    if (activity.days.length === DAYS.length) {
-      return { ...activity, cadence: "daily", timesPerWeek: null };
-    }
-    return {
-      ...activity,
-      cadence: "times_per_week",
-      timesPerWeek: activity.days.length,
-    };
-  };
+  const canSave =
+    title.trim().length > 0 && filled.length > 0 && bad.length === 0 && !saving;
 
   const save = async () => {
     setError(null);
@@ -280,102 +190,13 @@ export function GoalCreateScreen({ navigation }: Props) {
 
       {activities.length > 0 && (
         <View style={styles.editor}>
-          <TextField
-            label="Goal name"
-            value={title}
-            onChangeText={setTitle}
-            placeholder="For example: Getting outdoors more"
+          <GoalPlanEditor
+            title={title}
+            onTitleChange={setTitle}
+            activities={activities}
+            onActivitiesChange={setActivities}
+            disabled={saving}
           />
-
-          <Text style={styles.sectionLabel}>Activities to track</Text>
-          {activities.map((activity, index) => (
-            <View key={index} style={styles.activityRow}>
-              <TextField
-                label={`Activity ${index + 1}`}
-                value={activity.text}
-                onChangeText={(text) => updateActivity(index, text)}
-                placeholder="Something you plan to do"
-              />
-              {sources[index] ? (
-                <Text style={styles.source}>From your words: “{sources[index]}”</Text>
-              ) : suggested[index] ? (
-                <Text style={styles.suggested}>
-                  Suggested by MedHelp — edit it or remove it
-                </Text>
-              ) : null}
-
-              {/*
-                The daily schedule. Every day is a separate toggle rather than
-                a "weekdays" shortcut: a shortcut would be MedHelp deciding
-                which days someone's week is made of.
-              */}
-              <Text style={styles.scheduleLabel}>Which days?</Text>
-              <View style={styles.days}>
-                {DAYS.map((day) => {
-                  const picked = activity.days.includes(day);
-                  return (
-                    <Pressable
-                      key={day}
-                      onPress={() => toggleDay(index, day)}
-                      style={[styles.day, picked && styles.dayPicked]}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: picked }}
-                      // ⛔ THE STATE IS IN THE LABEL AS WELL AS IN
-                      // `accessibilityState`, AND BOTH ARE NEEDED.
-                      //
-                      // Checked against the deployed site on 2026-09-12:
-                      // every chip rendered with `aria-checked` null, because
-                      // this version of React Native Web does not map
-                      // `accessibilityState` onto the DOM. The days were
-                      // ticked correctly and looked right — filled in the
-                      // accent colour — but a screen reader was told nothing
-                      // at all about which days the plan had chosen.
-                      //
-                      // Putting it in the label is the one thing that works
-                      // on every platform without depending on what RNW
-                      // happens to emit. `accessibilityState` stays because
-                      // it is the right thing on native.
-                      accessibilityLabel={
-                        `${day} for activity ${index + 1}, ` +
-                        (picked ? "selected" : "not selected")
-                      }
-                    >
-                      <Text style={[styles.dayText, picked && styles.dayTextPicked]}>
-                        {shortDay(day)}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <TextField
-                label="At what time?"
-                value={activity.timeOfDay ?? ""}
-                onChangeText={(time) => updateTime(index, time)}
-                placeholder="08:00"
-                hint="24-hour clock, like 08:00 or 18:30. Leave it blank for no set time."
-              />
-              {activity.timeOfDay &&
-                !/^([01]\d|2[0-3]):[0-5]\d$/.test(activity.timeOfDay) && (
-                  <Text style={styles.badTime}>
-                    Enter the time as HH:MM on a 24-hour clock, like 08:00.
-                  </Text>
-                )}
-
-              {activities.length > 1 && (
-                <Pressable
-                  onPress={() => removeActivity(index)}
-                  style={styles.remove}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove activity ${index + 1}`}
-                >
-                  <Text style={styles.removeText}>Remove</Text>
-                </Pressable>
-              )}
-            </View>
-          ))}
-
-          <AppButton label="Add another activity" onPress={addActivity} variant="secondary" />
 
           {error && <ErrorNotice message={error} />}
 
@@ -428,35 +249,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   editor: { marginTop: spacing.lg, gap: spacing.md },
-  sectionLabel: { ...typography.titleSmall, color: colors.textPrimary },
-  activityRow: { gap: spacing.xs },
-  source: { ...typography.caption, color: colors.textSecondary },
-  suggested: { ...typography.caption, color: colors.accent },
-  scheduleLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  days: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-  day: {
-    minWidth: MIN_TAP_TARGET,
-    minHeight: MIN_TAP_TARGET,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dayPicked: { backgroundColor: colors.accent, borderColor: colors.accent },
-  dayText: { ...typography.caption, color: colors.textSecondary },
-  dayTextPicked: { color: colors.surface },
-  badTime: { ...typography.caption, color: colors.errorText },
-  remove: {
-    minHeight: MIN_TAP_TARGET,
-    justifyContent: "center",
-  },
-  removeText: { ...typography.body, color: colors.textSecondary },
   footnote: {
     ...typography.caption,
     color: colors.textSecondary,

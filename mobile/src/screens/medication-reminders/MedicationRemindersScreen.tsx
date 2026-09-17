@@ -23,17 +23,19 @@ import { toRefillAlerts, type RefillAlert } from "@/services/refillAlerts";
 import {
   ApiError,
   listSchedules,
-  toDueReminders,
   type MedicationSchedule,
 } from "@/services/reminderService";
 import {
   getPermission,
   refreshPermission,
   requestPermission,
-  scheduleAll,
   supportsBackgroundDelivery,
   type ReminderPermission,
 } from "@/services/notificationService";
+// ⛔ `scheduleAll` is deliberately not imported here any more. Arming goes
+// through `reminderArming`, which is the one place that calls it and the one
+// place that knows the complete set — see the note at the top of that file.
+import { rearmFrom } from "@/services/reminderArming";
 import { dueState, formatTimeOfDay, sortByTime } from "@/services/reminderTiming";
 import { MIN_TAP_TARGET, colors, elevation, fonts, radius, spacing, typography } from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
@@ -142,10 +144,16 @@ export function MedicationRemindersScreen({ navigation, route }: Props) {
       const alerts = toRefillAlerts(medications, days);
       setRefillAlerts(alerts);
 
-      // Re-arm from what is actually saved, every time. This is the only
-      // place notifications are scheduled, so an edit elsewhere takes effect
-      // by coming back here.
-      await scheduleAll(toDueReminders(loaded), { refillAlerts: alerts });
+      // Re-arm from what is actually saved, every time — an edit takes effect
+      // on the way back here. Arming also happens at app start now (see
+      // `RootNavigator`), because this screen being the only place that armed
+      // was the reason saved reminders could silently never fire.
+      //
+      // `rearmFrom` rather than `rearm`: everything it needs is already loaded
+      // above, and re-reading it would double this screen's requests on every
+      // visit. Both go through the same serialised queue, so the focus effect
+      // and app start cannot interleave a cancel with the other's scheduling.
+      await rearmFrom({ schedules: loaded, refillAlerts: alerts, leadDays: days });
     } catch (caught) {
       const message =
         caught instanceof ApiError
@@ -183,10 +191,13 @@ export function MedicationRemindersScreen({ navigation, route }: Props) {
   const ask = useCallback(async () => {
     const result = await requestPermission();
     setPermission(result);
+    // `scheduleAll` returns without arming anything while permission is not
+    // granted, so the grant is the moment everything saved has to be armed
+    // again — including whatever app start could not arm a moment ago.
     if (result === "granted" && schedules) {
-      await scheduleAll(toDueReminders(schedules), { refillAlerts });
+      await rearmFrom({ schedules, refillAlerts, leadDays });
     }
-  }, [schedules, refillAlerts]);
+  }, [schedules, refillAlerts, leadDays]);
 
   /**
    * Change how far ahead a refill alert fires, and re-derive from it.

@@ -47,6 +47,15 @@ export function ReminderEditScreen({ navigation, route }: Props) {
   const [frequency, setFrequency] = useState<string | null>(null);
   const [suggestionReason, setSuggestionReason] = useState<string | null>(null);
   const [suggested, setSuggested] = useState(false);
+  /*
+   * Whether this medication had saved reminders when the screen opened.
+   *
+   * The save button used to read "Turn reminders off" whenever the list was
+   * empty, which said the wrong thing twice: it offered to remove reminders
+   * that had never existed, and it put a destructive verb on the one filled
+   * button of a screen whose purpose is setting reminders up.
+   */
+  const [hadSaved, setHadSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +79,7 @@ export function ReminderEditScreen({ navigation, route }: Props) {
         setFrequency(proposal.frequency ?? mine?.frequency ?? null);
 
         if (existing.length > 0) {
+          setHadSaved(true);
           setTimes(sortByTime(existing.map((t) => ({ timeOfDay: t }))).map((t) => t.timeOfDay));
         } else if (proposal.recognised) {
           setTimes(proposal.times);
@@ -226,15 +236,31 @@ export function ReminderEditScreen({ navigation, route }: Props) {
         />
       </View>
 
+      {/*
+        ⛔ Setting reminders up is the filled action; taking them away is not.
+
+        This button used to be filled whatever it said, so an empty list put
+        "Turn reminders off" in the one slot the prominence ladder reserves for
+        what the screen is *for*. With nothing saved it also offered to remove
+        reminders that had never existed.
+
+        Three states now, and only the first is filled:
+          times          → "Save reminders", filled, the point of the screen
+          none, had some → "Turn reminders off", outline: real, and quiet
+          none, had none → disabled; there is nothing to save or remove
+      */}
       <AppButton
-        label={times.length === 0 ? "Turn reminders off" : "Save reminders"}
+        label={times.length > 0 ? "Save reminders" : "Turn reminders off"}
+        variant={times.length > 0 ? "primary" : "secondary"}
         onPress={() => void save()}
         loading={saving}
-        disabled={saving}
+        disabled={saving || (times.length === 0 && !hadSaved)}
         accessibilityHint={
-          times.length === 0
-            ? "Removes every reminder for this medication"
-            : "Saves these times and starts reminding you"
+          times.length > 0
+            ? "Saves these times and starts reminding you"
+            : hadSaved
+              ? "Removes every reminder for this medication"
+              : "Add a time first"
         }
       />
 
@@ -292,7 +318,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   removePressed: { opacity: 0.6 },
-  removeText: { ...typography.caption, color: colors.accent, fontFamily: fonts.sansSemibold },
+  /*
+   * ⛔ Quieter than the thing it sits beside, deliberately.
+   *
+   * This was `colors.accent` in `fonts.sansSemibold`, which made "Remove" the
+   * boldest, most saturated text on the row — louder than "Add this time"
+   * beside it, which is only an outline button. Playtesting read the screen
+   * exactly that way round: the control for taking a reminder away looked like
+   * the one for setting it up.
+   *
+   * The prominence ladder wants the destructive action at the bottom of the
+   * screen's four levels, not competing with the action above it. Regular
+   * weight in `textSecondary` still clears 6.9:1 and still has a full tap
+   * target — this is about what the eye reaches for first, not about hiding it.
+   */
+  removeText: { ...typography.caption, color: colors.textSecondary },
   loading: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   loadingText: { ...typography.body, color: colors.textSecondary },
   footnote: { ...typography.caption, color: colors.textSecondary },
