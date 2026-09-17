@@ -1,10 +1,15 @@
 import {
+  AREAS_IN_BROWSE_ORDER,
   AREA_LABELS,
+  PHRASE_SEPARATOR,
   SYMPTOMS,
+  browsableAreas,
+  composeDescription,
   labelsFor,
   matchSymptoms,
   relatedByArea,
   symptomById,
+  symptomsInArea,
   type Area,
 } from "@/services/symptomVocabulary";
 
@@ -229,5 +234,99 @@ describe("turning a selection into text", () => {
     // somebody's mouth.
     const [label] = labelsFor(["chest-pressure"]);
     expect(label).toBe(symptomById("chest-pressure")?.label);
+  });
+});
+
+describe("browsing instead of typing", () => {
+  it("offers every area that holds a phrase", () => {
+    const areas = browsableAreas();
+
+    expect(areas.length).toBeGreaterThan(0);
+    for (const area of areas) {
+      expect(symptomsInArea(area).length).toBeGreaterThan(0);
+      // Every browsable area needs a name to show on its button.
+      expect(AREA_LABELS[area]).toBeTruthy();
+    }
+  });
+
+  it("names every area the vocabulary actually uses", () => {
+    /*
+      ⛔ A PHRASE IN AN UNLISTED AREA IS UNREACHABLE BY BROWSING.
+
+      `AREAS_IN_BROWSE_ORDER` is written by hand, so adding an area to the
+      `Area` union and to some entries without adding it here would file those
+      phrases somewhere no button opens — invisible to exactly the person who
+      cannot type, with nothing failing anywhere.
+    */
+    const used = new Set(SYMPTOMS.map((symptom) => symptom.area));
+    const browsable = new Set(browsableAreas());
+
+    for (const area of used) {
+      expect(browsable.has(area)).toBe(true);
+    }
+  });
+
+  it("returns a whole area rather than a capped handful", () => {
+    /*
+      `matchSymptoms` caps at eight because it is answering a half-typed word.
+      Browsing is answering "show me everything about my chest", and truncating
+      that would hide phrases from the person who came looking for them.
+    */
+    const chest = symptomsInArea("chest");
+    const everyChestPhrase = SYMPTOMS.filter((symptom) => symptom.area === "chest");
+
+    expect(chest).toHaveLength(everyChestPhrase.length);
+    expect(chest.length).toBeGreaterThan(5);
+  });
+
+  it("does not offer something already added", () => {
+    const [first] = symptomsInArea("chest");
+    const rest = symptomsInArea("chest", [first.id]);
+
+    expect(rest.map((symptom) => symptom.id)).not.toContain(first.id);
+  });
+
+  it("needs no typed text at all", () => {
+    // The whole point: with an empty box there is still something to tap.
+    expect(matchSymptoms("")).toHaveLength(0);
+    expect(symptomsInArea("head").length).toBeGreaterThan(0);
+  });
+
+  it("orders areas the same way every time, and never by seriousness", () => {
+    expect(browsableAreas()).toEqual(browsableAreas());
+    // If this were a ranking, the frightening areas would lead. They do not.
+    expect(browsableAreas()[0]).toBe("head");
+    expect(AREAS_IN_BROWSE_ORDER.length).toBeGreaterThanOrEqual(
+      browsableAreas().length
+    );
+  });
+});
+
+describe("assembling what gets submitted", () => {
+  it("joins typed text and picked phrases with the server's separator", () => {
+    /*
+      ⛔ PINNED AGAINST THE SERVER. `merge_selected_symptoms` in
+      `app/api/intake.py` joins with ". " because phrases run together match no
+      word-boundary rule — the glued-list bug this repository already shipped
+      once. If these two ever disagree, the app shows a person one sentence and
+      assesses a different one.
+    */
+    expect(PHRASE_SEPARATOR).toBe(". ");
+    expect(composeDescription("it started today", ["fever"])).toBe(
+      "it started today. a fever"
+    );
+  });
+
+  it("is just the picked phrases when nothing was typed", () => {
+    // Vocabulary order, not tap order — chest comes before whole-body.
+    expect(composeDescription("", ["fever", "chest-pain"])).toBe(
+      "chest pain. a fever"
+    );
+  });
+
+  it("leaves no stray separator at either end", () => {
+    expect(composeDescription("   ", ["fever"])).toBe("a fever");
+    expect(composeDescription("my head hurts", [])).toBe("my head hurts");
+    expect(composeDescription("", [])).toBe("");
   });
 });

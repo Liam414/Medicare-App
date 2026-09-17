@@ -114,4 +114,102 @@ describe("accessibility", () => {
     expect(screen.getByLabelText(/a sore throat, added\. activate to remove\./i)).toBeTruthy();
     expect(screen.getByLabelText(/an earache, not added\. activate to add\./i)).toBeTruthy();
   });
+
+  it("says whether a body area is open in the label, not only in accessibilityState", () => {
+    // Same rule, same reason, on the control added for browsing.
+    renderPicker("");
+
+    expect(
+      screen.getByLabelText(/chest, \d+ phrases\. activate to show them\./i)
+    ).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("symptom-area-chest"));
+
+    expect(
+      screen.getByLabelText(/chest, showing \d+ phrases\. activate to hide them\./i)
+    ).toBeTruthy();
+  });
+});
+
+describe("browsing with nothing typed", () => {
+  /*
+    ⛔ THE COMPONENT USED TO RENDER NOTHING HERE, AND THAT WAS THE PROBLEM.
+
+    `matchSymptoms` needs three characters before it offers anything, so on an
+    empty screen there was nothing to show and the picker returned null. The
+    only way to reach the vocabulary was to start writing — which is precisely
+    what the person this was built for does not want to do.
+  */
+
+  it("shows the list even when nothing has been typed or picked", () => {
+    renderPicker("");
+
+    expect(screen.getByText("Or pick from a list")).toBeTruthy();
+    expect(screen.getByTestId("symptom-area-chest")).toBeTruthy();
+    expect(screen.getByTestId("symptom-area-skin")).toBeTruthy();
+  });
+
+  it("opens one area at a time and offers its phrases", () => {
+    renderPicker("");
+
+    // Closed to begin with: the phrases are behind the area button.
+    expect(screen.queryByTestId("symptom-browse-chest-pain")).toBeNull();
+
+    fireEvent.press(screen.getByTestId("symptom-area-chest"));
+
+    expect(screen.getByTestId("symptom-browse-chest-pain")).toBeTruthy();
+  });
+
+  it("adds a phrase picked by browsing, with nothing typed", () => {
+    const { onChange } = renderPicker("");
+
+    fireEvent.press(screen.getByTestId("symptom-area-chest"));
+    fireEvent.press(screen.getByTestId("symptom-browse-chest-pain"));
+
+    expect(onChange).toHaveBeenCalledWith(["chest-pain"]);
+  });
+
+  it("closes an open area when its button is pressed again", () => {
+    renderPicker("");
+
+    fireEvent.press(screen.getByTestId("symptom-area-chest"));
+    expect(screen.getByTestId("symptom-browse-chest-pain")).toBeTruthy();
+
+    fireEvent.press(screen.getByTestId("symptom-area-chest"));
+    expect(screen.queryByTestId("symptom-browse-chest-pain")).toBeNull();
+  });
+
+  it("switches areas rather than stacking them open", () => {
+    // Two hundred phrases at once is not a list anybody reads.
+    renderPicker("");
+
+    fireEvent.press(screen.getByTestId("symptom-area-chest"));
+    fireEvent.press(screen.getByTestId("symptom-area-skin"));
+
+    expect(screen.queryByTestId("symptom-browse-chest-pain")).toBeNull();
+    expect(screen.getByTestId("symptom-browse-rash")).toBeTruthy();
+  });
+
+  it("does not offer a phrase that has already been added", () => {
+    renderPicker("", ["chest-pain"]);
+
+    fireEvent.press(screen.getByTestId("symptom-area-chest"));
+
+    expect(screen.queryByTestId("symptom-browse-chest-pain")).toBeNull();
+    expect(screen.getByTestId("symptom-browse-heart-racing")).toBeTruthy();
+  });
+
+  it("describes the list as a way in, never as a set of suggestions about you", () => {
+    /*
+      The browse list is the whole vocabulary filed by body part. It is not
+      matched to anything the person said, and must not read as though MedHelp
+      picked it for them — the same rule the related-phrases heading carries.
+    */
+    renderPicker("");
+
+    expect(screen.queryByText(/we think/i)).toBeNull();
+    expect(screen.queryByText(/based on/i)).toBeNull();
+    expect(screen.queryByText(/likely/i)).toBeNull();
+    expect(screen.getByText(/without typing anything/i)).toBeTruthy();
+  });
 });
