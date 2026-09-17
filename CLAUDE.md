@@ -285,6 +285,69 @@ carrying free-text health input written by the user.
 - Validation errors are stripped of the submitted value before being
   returned (`app/main.py`), so a rejected query is not echoed back.
 
+## The symptom picker (implemented 2026-09-16)
+
+A dropdown suggests lay symptom phrases while somebody types, collects the ones
+they pick into a list, and sends that list alongside their own words to the
+existing classifier. Full reasoning: `docs/symptom-picker.md`.
+
+⛔ **THIS MAKES MEDHELP THE AUTHOR OF A CLINICAL VOCABULARY**, which this file
+refuses twice elsewhere — the emergency card has no picker of conditions for
+exactly this reason, and MedlinePlus reading is gated off because content shown
+under someone's description reads as a suggested diagnosis. The repository
+owner asked for it in conversation on **2026-09-16**, was shown both precedents
+and the standing release blocker, and chose to have it reachable by default
+rather than behind a flag. That is the approval this rests on, and this
+paragraph is the record of it, not the authorisation. **No clinician has read
+the vocabulary**, which is now the largest body of app-authored clinical
+language in the app, and it belongs in the same review as `followup.py` and
+`dose_schedule.py`.
+
+Four rules, in `mobile/src/services/symptomVocabulary.ts`, each tested:
+
+1. ⛔ **Symptoms only, never conditions.** A menu naming diseases would have
+   the user pick the one they think they have — the app diagnosing by proxy.
+2. ⛔ **No severity on any entry, ever.** A symptom shown as "mild" is
+   app-authored reassurance and would invert the rule that nothing may lower a
+   tier. The whole field set is pinned by a test so one cannot be added
+   quietly. Urgency is decided once, downstream, from the whole description.
+3. ⛔ **Relatedness is anatomical, never clinical.** `area` says which part of
+   the body a phrase is about; it never says which symptoms occur together.
+   Suggesting "pain spreading to my arm" to someone who typed "chest pain"
+   would be prompting for a red flag — a screening question dressed as an
+   autocomplete. The heading must keep saying the list is about a body area and
+   not a connection MedHelp has inferred.
+4. ⛔ **Never ranked by seriousness.** Vocabulary order only — the same rule
+   that stops the app reordering MedlinePlus topics or ranking providers.
+
+⛔ **It runs on the device and makes no network call.** A partially typed
+symptom is health text, and an autocomplete is the canonical shape of a GET
+with the user's text in a query string — which this file forbids for intake.
+The consequence is that the vocabulary lives in the mobile bundle rather than
+the backend, so a clinical reviewer has to be pointed at it.
+
+⛔ **Picked phrases are joined with a separator, and that is a safety
+property.** `merge_selected_symptoms` in `app/api/intake.py` uses ". ", because
+phrases run together match no word-boundary rule at all — the glued-list bug
+this file already records. A feature whose job is to assemble a list must not
+manufacture the glue. Tests assert the separator, and that a picked red-flag
+phrase still reaches emergency screening.
+
+⛔ **A picked phrase escalates exactly as a typed one does**, which is intended
+and is why rule 3 matters. This is the "follow-up questions can manufacture an
+escalation" problem at full size, and a reviewer should rule on it directly.
+
+⛔ **"Align with the three levels of severity" was built as the assembled list
+being classified into one of the three tiers, not as a severity per symptom.**
+The second reading is a per-symptom clinical claim and was deliberately not
+built; it is a separate decision, not an oversight.
+
+The hint under the symptom field changed and ⛔ **the old wording must not come
+back**: "Nothing here is rewritten before it is assessed" became false once the
+app began offering phrases of its own. A test pins the old sentence as
+forbidden. It is copy on the intake screen, so it belongs in the clinical
+reviewer's read of that screen.
+
 ## ⛔ BLOCKING: symptom intake requires clinical and legal sign-off
 
 The symptom-intake feature (`backend/app/core/triage.py`) estimates how soon a

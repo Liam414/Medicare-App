@@ -139,7 +139,16 @@ function readDetail(body: unknown): string | null {
 export async function submitIntake(
   description: string,
   consentToStore: boolean,
-  followUpAnswers?: Record<string, string>
+  followUpAnswers?: Record<string, string>,
+  /**
+   * Phrases picked from the on-device symptom list, as text.
+   *
+   * Sent beside the description rather than pasted into it, so the user's own
+   * words stay identifiable as theirs. The server joins them with an explicit
+   * separator — see `merge_selected_symptoms` — because two phrases run
+   * together match no red-flag rule at all.
+   */
+  selectedSymptoms?: string[]
 ): Promise<IntakeAssessment | FollowUpRequest> {
   assertSecureBaseUrl();
 
@@ -164,6 +173,9 @@ export async function submitIntake(
         description,
         consent_to_store: consentToStore,
         ...(followUpAnswers ? { follow_up_answers: followUpAnswers } : {}),
+        ...(selectedSymptoms && selectedSymptoms.length > 0
+          ? { selected_symptoms: selectedSymptoms }
+          : {}),
       }),
     });
   } catch {

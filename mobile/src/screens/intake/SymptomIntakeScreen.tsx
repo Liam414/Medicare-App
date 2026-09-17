@@ -8,9 +8,11 @@ import { ErrorNotice } from "@/components/ErrorNotice";
 import { AppNav } from "@/components/AppNav";
 import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
+import { SymptomPicker } from "@/components/SymptomPicker";
 import { TextField } from "@/components/TextField";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { IntakeError, submitIntake } from "@/services/intakeService";
+import { labelsFor } from "@/services/symptomVocabulary";
 import { MIN_TAP_TARGET, colors, fonts, radius, spacing, typography } from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
 
@@ -19,6 +21,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "SymptomIntake">;
 export function SymptomIntakeScreen({ navigation, route }: Props) {
   const [description, setDescription] = useState("");
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
+  const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
@@ -47,6 +50,10 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
 
     setDescription("");
     setDescriptionError(null);
+    // The picked symptoms go with the description they were picked for.
+    // Carrying them onto a second complaint would silently attach the first
+    // complaint's symptoms to it.
+    setSelectedSymptoms([]);
     setConsent(false);
     setError(null);
     setIsOffline(false);
@@ -62,6 +69,17 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
     if (submitting) return;
 
     const trimmed = description.trim();
+    const picked = labelsFor(selectedSymptoms);
+
+    /*
+      A picked symptom is not a substitute for a description.
+
+      The list is an aid to someone who is already writing, not a form to fill
+      in instead. Letting it stand alone would send the classifier a bag of
+      app-authored phrases with nothing of the person's own in it — and the
+      follow-up questions, which are what recover detail when the rules
+      recognise nothing, are written to elicit prose rather than tags.
+    */
     if (!trimmed) {
       setDescriptionError("Describe what's going on so we can estimate how soon you may need care.");
       return;
@@ -73,7 +91,7 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
     setSubmitting(true);
 
     try {
-      const result = await submitIntake(trimmed, consent);
+      const result = await submitIntake(trimmed, consent, undefined, picked);
       if (result.status === "needs_detail") {
         // The server could not make sense of this and is asking rather than
         // guessing. A red-flag description never lands here — it comes back
@@ -141,10 +159,37 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
         value={description}
         onChangeText={setDescription}
         error={descriptionError}
-        hint="Your own words. Nothing here is rewritten before it is assessed."
+        /*
+          ⛔ THIS SENTENCE CHANGED WHEN THE SYMPTOM LIST WAS ADDED, AND THE OLD
+          ONE MUST NOT COME BACK.
+
+          It used to read "Your own words. Nothing here is rewritten before it
+          is assessed." That was true of a screen where the only input was
+          prose the user typed. It stopped being true the moment MedHelp began
+          offering phrases of its own to add.
+
+          What is still true, and what this says instead: the text the person
+          types is never altered, and anything the app contributed is visible
+          as a separate chip they can remove. Do not restore a claim that the
+          app adds nothing — it does now.
+        */
+        hint="Your own words — what you type is never rewritten. Anything you add from the list below is shown separately, and you can remove it."
         multiline
         autoCapitalize="sentences"
         editable={!submitting}
+      />
+
+      {/*
+        The list sits under the field rather than over it: it reacts to what
+        has been typed, and a panel that opened on top of the input would
+        cover the words it is reacting to. It renders nothing until there is
+        something to offer, so an empty screen stays empty.
+      */}
+      <SymptomPicker
+        description={description}
+        selectedIds={selectedSymptoms}
+        onChange={setSelectedSymptoms}
+        disabled={submitting}
       />
 
       <View style={styles.dictationRow}>
