@@ -23,6 +23,19 @@ class IntakeRequest(BaseModel):
     # which round this is from the ids present, so the cap on asking cannot be
     # talked past by a client that reports its own round number.
     follow_up_answers: dict[str, str] | None = None
+    # Symptom phrases the user picked from the on-device list, as text.
+    #
+    # THE PHRASES TRAVEL, NOT IDS, AND THAT IS DELIBERATE. The vocabulary lives
+    # in the mobile bundle (mobile/src/services/symptomVocabulary.ts) so that a
+    # partially typed symptom never leaves the device. Sending ids would mean a
+    # second copy of a clinical vocabulary here to resolve them, and two copies
+    # drift — one of them would eventually be offering a phrase the other had
+    # removed. The server treats these as what they are: plain text the user
+    # endorsed, merged into the description and screened with it.
+    #
+    # They are capped rather than trusted. A client can put anything here, but
+    # it could put the same thing in `description`, so this opens no new door.
+    selected_symptoms: list[str] | None = Field(default=None, max_length=40)
 
 
 class FollowUpQuestionOut(BaseModel):

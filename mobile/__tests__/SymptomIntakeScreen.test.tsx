@@ -58,18 +58,33 @@ describe("SymptomIntakeScreen", () => {
     expect(screen.getByText("Call 911")).toBeTruthy();
   });
 
-  it("says the description is not rewritten before it is assessed", () => {
-    // The description reaches the classifier as the person wrote it — the
-    // keyword extraction in `search_terms.py` only chooses which article to
-    // look up and never alters the text. Saying so under the field is the
-    // point at which it is worth knowing, and it is a claim the code has to
-    // keep true: if anything ever paraphrases the description on the way in,
-    // this line has to go with it.
+  it("says what the person typed is not rewritten, and that added phrases are separate", () => {
+    // The typed description reaches the classifier as the person wrote it —
+    // the keyword extraction in `search_terms.py` only chooses which article
+    // to look up and never alters the text. It is a claim the code has to keep
+    // true: if anything ever paraphrases the description on the way in, this
+    // line has to go with it.
+    //
+    // ⛔ THE OLD WORDING WAS "Nothing here is rewritten before it is assessed"
+    // AND IT MUST NOT COME BACK. Once MedHelp began offering symptom phrases
+    // of its own, a flat claim that the app adds nothing became false. The
+    // sentence now separates the two halves: what you typed is untouched, and
+    // what the app contributed is visible and removable.
     renderScreen();
 
     expect(
-      screen.getByText("Your own words. Nothing here is rewritten before it is assessed.")
+      screen.getByText(
+        "Your own words — what you type is never rewritten. Anything you add from the list below is shown separately, and you can remove it."
+      )
     ).toBeTruthy();
+  });
+
+  it("never claims the app adds nothing to the description", () => {
+    // The specific false sentence, pinned so a revert fails rather than
+    // quietly restoring a claim the symptom picker disproves.
+    renderScreen();
+
+    expect(screen.queryByText(/Nothing here is rewritten/)).toBeNull();
   });
 
   it("requires a description before calling the API", () => {
@@ -103,7 +118,10 @@ describe("SymptomIntakeScreen", () => {
 
     await describeSymptoms();
 
-    expect(mockedSubmit).toHaveBeenCalledWith("sore throat for two days", false);
+    // The last two arguments are the follow-up answers (none on a first
+    // submission) and the phrases picked from the symptom list (none, because
+    // this test does not touch it).
+    expect(mockedSubmit).toHaveBeenCalledWith("sore throat for two days", false, undefined, []);
   });
 
   it("passes consent through when the user opts in", async () => {
@@ -115,7 +133,50 @@ describe("SymptomIntakeScreen", () => {
     );
     await describeSymptoms();
 
-    expect(mockedSubmit).toHaveBeenCalledWith("sore throat for two days", true);
+    expect(mockedSubmit).toHaveBeenCalledWith("sore throat for two days", true, undefined, []);
+  });
+
+  it("sends phrases picked from the symptom list alongside the description", async () => {
+    mockedSubmit.mockResolvedValueOnce(ASSESSMENT);
+    renderScreen();
+
+    fireEvent.changeText(
+      screen.getByLabelText("Describe your symptoms"),
+      "my throat is really sore"
+    );
+    fireEvent.press(screen.getByTestId("symptom-matched-sore-throat"));
+
+    await act(async () => {
+      fireEvent.press(screen.getByText("Get an urgency estimate"));
+    });
+
+    // The typed text is unchanged, and the picked phrase travels beside it
+    // rather than being spliced into it. The server does the joining, with a
+    // separator, because two phrases run together match no red-flag rule.
+    expect(mockedSubmit).toHaveBeenCalledWith(
+      "my throat is really sore",
+      false,
+      undefined,
+      ["a sore throat"]
+    );
+  });
+
+  it("will not submit a picked symptom with no description of its own", async () => {
+    // The list is an aid to someone already writing, not a form to fill in
+    // instead. A bag of app-authored phrases with nothing of the person's own
+    // in it is not a description.
+    renderScreen();
+
+    fireEvent.changeText(screen.getByLabelText("Describe your symptoms"), "sore throat");
+    fireEvent.press(screen.getByTestId("symptom-matched-sore-throat"));
+    fireEvent.changeText(screen.getByLabelText("Describe your symptoms"), "");
+
+    await act(async () => {
+      fireEvent.press(screen.getByText("Get an urgency estimate"));
+    });
+
+    expect(mockedSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText(/describe what's going on/i)).toBeTruthy();
   });
 
   it("shows a failure as a failure, never as reassurance", async () => {
