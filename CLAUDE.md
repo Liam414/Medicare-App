@@ -1455,6 +1455,64 @@ third-party service to be named rather than assumed handled.**
   live directory, because secure-context rules and permission prompts cannot be
   observed in jsdom or in devtools' responsive mode. Not part of `npm test`.
 
+### Booking by tapping, and the call that is left (2026-09-17)
+
+Asked for directly: make scheduling easy, because "you still have to type in
+the information and make the call yourself".
+
+**The typing is gone.** `QuickFillChips` fills both free-text fields by tap —
+seven visit types for the reason, eight preference phrases for the time.
+
+- ⛔ **The reason chips are visit types, never symptoms.** "Follow-up visit",
+  "Prescription refill", "Test results". They name no condition, which is what
+  keeps this administrative vocabulary rather than a second app-authored
+  clinical one on a screen that never had the symptom picker's review. A test
+  asserts no clinical word appears in the list.
+- ⛔ **The time chips are not a slot picker**, and that distinction is this
+  file's own fence. A slot picker offers times the app says are *available*;
+  MedHelp has no availability source, so any such time would be invented and
+  somebody would turn up for it. These are words for a preference the person
+  reads out themselves — `preferred_time` is still the free text it always
+  was. A test rejects any option containing a clock time, and
+  `QuickFillChips` carries no hidden value: what the chip says is what the
+  field contains and what travels.
+- Reason chips are **hidden when the reason came from the symptom check**.
+  Tapping one replaces the field, and that carried-over description is the one
+  thing on the screen the person did not have to write twice.
+
+**The call remains, because it cannot be removed here** — see the vendor note
+below. What changed is its length: `AppointmentConfirmationScreen` now shows a
+"What to tell them" card beside the Call button, and one "I've arranged a time"
+press marks the appointment scheduled. That replaced four navigations after a
+call the person had just finished.
+
+- ⛔ **That card is read while a receptionist is on the line.** Every line is
+  either what the user already wrote or an administrative question — the
+  soonest appointment, what to bring, insurance. Nothing on it may suggest a
+  question about their condition; a test asserts it names none.
+- ⛔ **Marking scheduled records that a time was agreed, never what it is.**
+  `appointments` has no scheduled datetime and must not gain one.
+- The update carries `preferredTime` and `notes` through explicitly, because
+  `updateAppointment` sends null for anything omitted — a convenience button
+  that silently erased the user's own note would be the opposite of the point.
+
+#### Third-party vendor: Zocdoc Care Access Network — status
+
+⛔ **`docs/appointment-booking.md` was wrong and is corrected.** It recorded
+that consumer apps are generally not approved for Zocdoc's API, which is what
+made real booking read as unavailable to this project. Zocdoc's **Care Access
+Network** now lists eligible partners as "search engines, AI experiences,
+health plans, **consumer apps**, and more", and offers either a native booking
+flow or a hand-off to Zocdoc.
+
+**Nothing was integrated, and nothing may be without the usual answers.** It is
+still partner-gated, still needs provider opt-in, and the native flow still
+transmits legal name, date of birth, sex assigned at birth, phone, email and
+address — squarely PHI, to a vendor this project has no BAA with. No pricing,
+approval criteria or BAA terms are published; the only available action is a
+contact form. `delivery_available()` is untouched and still returns False, and
+⛔ it is still not a feature flag.
+
 ### The URGENT tier routes here
 
 `IntakeResultScreen` previously sent URGENT users to their maps app. It now
