@@ -1,12 +1,26 @@
 # The symptom picker
 
-A dropdown that suggests lay symptom phrases while somebody describes what is
-wrong, collects the ones they pick into a list, and sends that list alongside
-their own words to the existing urgency classifier.
+A list of lay symptom phrases somebody can search by typing or browse by body
+area, which collects what they pick and sends it to the existing urgency
+classifier — alongside their own words, or instead of them.
 
 Built 2026-09-16 at the repository owner's direct request and with their
 explicit approval, recorded in CLAUDE.md. **This file is the reasoning; the
 rules in CLAUDE.md are what bind.**
+
+> **Updated 2026-09-17**, again at the owner's request: typing became optional,
+> browsing was added, and the vocabulary went from 69 phrases to 202. Two
+> things in the original design were *reversed* rather than extended — the
+> requirement to type, and the sentence below describing the list as "an aid to
+> someone who is already writing". Both are recorded in CLAUDE.md under
+> "Typing is optional, and the list is browsable".
+>
+> That update also found **ten phrases the picker offered that emergency
+> screening could not read at all**, seven of them already shipped. The fix and
+> the guard that stops them returning — `scripts/check_picker_coverage.py`,
+> which parses this TypeScript from Python precisely because nothing else could
+> see both halves of the seam — are described there too. If you read only one
+> thing from that update, read that part.
 
 ## ⛔ What this feature is, stated honestly
 

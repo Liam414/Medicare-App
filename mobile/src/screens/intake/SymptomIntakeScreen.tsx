@@ -12,7 +12,7 @@ import { SymptomPicker } from "@/components/SymptomPicker";
 import { TextField } from "@/components/TextField";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { IntakeError, submitIntake } from "@/services/intakeService";
-import { labelsFor } from "@/services/symptomVocabulary";
+import { composeDescription, labelsFor } from "@/services/symptomVocabulary";
 import { MIN_TAP_TARGET, colors, fonts, radius, spacing, typography } from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
 
@@ -72,18 +72,45 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
     const picked = labelsFor(selectedSymptoms);
 
     /*
-      A picked symptom is not a substitute for a description.
+      ⛔ TYPING IS OPTIONAL. EITHER INPUT IS ENOUGH; NEITHER IS NOT.
 
-      The list is an aid to someone who is already writing, not a form to fill
-      in instead. Letting it stand alone would send the classifier a bag of
-      app-authored phrases with nothing of the person's own in it — and the
-      follow-up questions, which are what recover detail when the rules
-      recognise nothing, are written to elicit prose rather than tags.
+      This used to require typed prose, on the reasoning that "a picked symptom
+      is not a substitute for a description" — the list was built as an aid to
+      someone already writing. The repository owner asked on 2026-09-17 for the
+      opposite: that a person be able to answer entirely by tapping, "so you can
+      only use that if you want to". CLAUDE.md records that reversal and the
+      reasoning on both sides.
+
+      What the old comment got right, and what had to be handled rather than
+      waved away: the follow-up questions are written to elicit prose, so a
+      tap-only submission that the rules do not recognise lands on a
+      questionnaire asking where it is and how long it has been going on. That
+      still works — those questions are answerable by someone who never typed
+      anything, and two of the four are already multiple choice — but it is the
+      reason this is a reversal with a consequence rather than a free one.
+
+      What is NOT relaxed: something has to be said. An empty submission would
+      be asking the classifier to estimate urgency from nothing at all, and the
+      safe default would hand back URGENT with no basis whatsoever.
     */
-    if (!trimmed) {
-      setDescriptionError("Describe what's going on so we can estimate how soon you may need care.");
+    if (!trimmed && picked.length === 0) {
+      setDescriptionError(
+        "Tell us what's going on — type a description, or pick from the list below. Either is enough."
+      );
       return;
     }
+
+    /*
+      What the server will actually assess: the typed text and the picked
+      phrases joined the way `merge_selected_symptoms` joins them.
+
+      The server composes this itself and is authoritative. This copy exists
+      because the screens downstream need a description to carry — and when
+      somebody typed nothing, the picked phrases are the only description
+      there is. Passing `trimmed` here would hand the appointment flow an empty
+      reason for visit and the follow-up screen an empty complaint.
+    */
+    const composed = composeDescription(trimmed, selectedSymptoms);
 
     setDescriptionError(null);
     setError(null);
@@ -98,14 +125,14 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
         // as an assessment with its emergency guidance already attached.
         navigation.navigate("IntakeFollowUp", {
           followUp: result,
-          description: trimmed,
+          description: composed,
           consent,
         });
       } else {
         navigation.navigate("IntakeResult", {
           assessment: result,
           // Carried so the appointment flow can prefill the reason for visit.
-          description: trimmed,
+          description: composed,
         });
       }
     } catch (caught) {
@@ -131,7 +158,16 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
       <PageHeader
         icon="symptom"
         title="What's going on?"
-        subtitle="Describe how you're feeling in your own words. Include when it started and anything that's changed."
+        /*
+          ⛔ THIS SAYS BOTH WAYS IN, AND IT HAS TO.
+
+          It used to read "Describe how you're feeling in your own words",
+          which was the only way in when it was written. Typing is optional
+          now, and a screen that opens by telling someone to describe things in
+          their own words has already turned away the person who came here
+          because they did not want to write anything.
+        */
+        subtitle="Type it in your own words, tap it from a list, or do both. Include when it started and anything that's changed."
       />
 
       {/*
@@ -154,7 +190,9 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
       )}
 
       <TextField
-        label="Describe your symptoms"
+        // Says optional, because it is. A required-looking field is the thing
+        // that stops somebody scrolling to the list underneath it.
+        label="Describe your symptoms (optional)"
         placeholder="e.g. I've had a headache for two days and light hurts my eyes"
         value={description}
         onChangeText={setDescription}

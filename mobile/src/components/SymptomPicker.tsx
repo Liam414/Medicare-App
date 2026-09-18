@@ -1,11 +1,14 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import {
   AREA_LABELS,
+  browsableAreas,
   matchSymptoms,
   relatedByArea,
   symptomById,
+  symptomsInArea,
+  type Area,
   type Symptom,
 } from "@/services/symptomVocabulary";
 import { MIN_TAP_TARGET, colors, fonts, radius, spacing, typography } from "@/theme";
@@ -89,9 +92,26 @@ export function SymptomPicker({
     return [...areas];
   }, [related]);
 
-  const nothingToShow =
-    suggestions.length === 0 && related.length === 0 && selected.length === 0;
-  if (nothingToShow) return null;
+  /*
+    Browsing, which is what makes typing optional.
+
+    ⛔ THIS COMPONENT NO LONGER RETURNS NULL WHEN NOTHING IS TYPED, and that is
+    the point rather than an oversight. It used to: `matchSymptoms` needs three
+    characters before it offers anything, so on an empty screen there was
+    nothing to show and nothing to tap, and the only way to reach the
+    vocabulary was to start writing. Someone who cannot easily type — which
+    includes a lot of people who are unwell — had no way in at all.
+
+    One area is open at a time. A list of two hundred phrases is not a list
+    anybody reads; a list of twenty body areas is.
+  */
+  const areas = useMemo(() => browsableAreas(), []);
+  const [openArea, setOpenArea] = useState<Area | null>(null);
+
+  const browseList = useMemo(
+    () => (openArea ? symptomsInArea(openArea, selectedIds) : []),
+    [openArea, selectedIds]
+  );
 
   return (
     <View style={styles.wrap}>
@@ -156,6 +176,77 @@ export function SymptomPicker({
           />
         </View>
       )}
+
+      <View style={styles.block}>
+        <Text style={styles.heading}>Or pick from a list</Text>
+        <Text style={styles.note}>
+          Choose a part of the body to see the things people describe about
+          it. You can build your whole answer this way without typing
+          anything.
+        </Text>
+
+        <View style={styles.chipRow}>
+          {areas.map((area) => {
+            const open = openArea === area;
+            const count = symptomsInArea(area).length;
+            return (
+              <Pressable
+                key={area}
+                testID={`symptom-area-${area}`}
+                onPress={() => setOpenArea(open ? null : area)}
+                disabled={disabled}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: open }}
+                /*
+                  ⛔ THE STATE IS IN THE LABEL. React Native Web 0.19.13 drops
+                  `accessibilityState` entirely — this repository found that
+                  twice already, on the goals ticks and the source disclosure —
+                  so on the web a reader gets the label and nothing else. It
+                  must say whether this area is open.
+                */
+                accessibilityLabel={
+                  open
+                    ? `${AREA_LABELS[area]}, showing ${count} phrases. Activate to hide them.`
+                    : `${AREA_LABELS[area]}, ${count} phrases. Activate to show them.`
+                }
+                style={[
+                  styles.chip,
+                  open && styles.areaChipOpen,
+                  disabled && styles.chipDisabled,
+                ]}
+              >
+                <Text style={open ? styles.chipSelectedText : styles.chipText}>
+                  {AREA_LABELS[area]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {openArea && (
+          <View style={styles.browseOpen}>
+            {browseList.length > 0 ? (
+              <View style={styles.chipRow}>
+                {browseList.map((symptom) => (
+                  <SymptomChip
+                    key={symptom.id}
+                    symptom={symptom}
+                    added={false}
+                    onPress={() => add(symptom.id)}
+                    disabled={disabled}
+                    testGroup="browse"
+                  />
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.note}>
+                You have already added everything listed under{" "}
+                {AREA_LABELS[openArea]}.
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -281,6 +372,13 @@ const styles = StyleSheet.create({
     meaning about urgency, and a symptom chip asserts nothing about urgency.
   */
   chipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+  /*
+    An open body area uses the same accent as an added chip. ⛔ Never a safety
+    family here either — an area is a place on the body and asserts nothing
+    about urgency, and "chest" must not be drawn more alarmingly than "skin".
+  */
+  areaChipOpen: { backgroundColor: colors.accent, borderColor: colors.accent },
+  browseOpen: { paddingTop: spacing.xs },
   chipDisabled: { opacity: 0.5 },
   chipText: { ...typography.caption, color: colors.textPrimary },
   chipSelectedText: { ...typography.caption, color: colors.textOnAccent },

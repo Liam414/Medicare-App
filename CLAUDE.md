@@ -348,6 +348,145 @@ app began offering phrases of its own. A test pins the old sentence as
 forbidden. It is copy on the intake screen, so it belongs in the clinical
 reviewer's read of that screen.
 
+### Typing is optional, and the list is browsable (2026-09-17)
+
+Two changes, asked for together by the repository owner in conversation on
+**2026-09-17**: that a person be able to get an estimate without typing
+anything — "you can only use that if you want to" — and that the vocabulary
+cover more than the basics.
+
+#### ⛔ This reversed a decision the picker shipped with. Read both sides.
+
+`handleSubmit` refused an empty description, and the comment saying so was not
+an oversight — it read *"a picked symptom is not a substitute for a
+description. The list is an aid to someone who is already writing, not a form
+to fill in instead."* `IntakeRequest.description` was `min_length=1` to match.
+
+That is now reversed: either input is enough. The owner's reasoning is the
+record — somebody who is unwell should not have to write prose to be heard,
+and a list you can only use while already typing is not a way in for the
+person who cannot easily type at all.
+
+**What the old comment got right, and what had to be handled rather than waved
+away:** the follow-up questions are written to elicit prose. A tap-only
+submission the rules do not recognise still lands on a questionnaire asking
+where it is and how long it has been going on. That works — those questions are
+answerable by somebody who never typed anything, and two of the four are
+already multiple choice — but it is why this is a reversal with a consequence
+rather than a free one, and a reviewer should read it that way.
+
+⛔ **The floor moved; it did not disappear.** A submission with neither typed
+text nor a picked phrase is still refused, in the client and again in
+`IntakeRequest._at_least_one_input`. Estimating urgency from nothing returns
+the safe default with no basis of any kind under it, and a tier nobody
+described is worse than an error. The validator's message quotes no value, for
+the same reason `app/main.py` strips them.
+
+#### Browsing, which is the half that is not the submit button
+
+`matchSymptoms` needs three characters before it offers anything, so an empty
+screen showed nothing and the picker rendered `null`. Reaching the vocabulary
+required writing — precisely what the person this was built for does not want
+to do. `symptomsInArea` and `browsableAreas` now back an "Or pick from a list"
+block: twenty body areas, one open at a time.
+
+- ⛔ **`AREAS_IN_BROWSE_ORDER` is not a ranking and must never become one.**
+  Rule 4 forbids ordering by seriousness and an ordered list of body areas is
+  the easiest place to break it by accident — putting "chest" first because
+  chest symptoms are frightening is exactly that judgement. It runs head
+  downwards, then whole-person, then the areas defined by who you are.
+- **Browsing is uncapped** where matching is capped at eight. Matching answers
+  a half-typed word; browsing answers "show me everything about my chest", and
+  truncating that hides phrases from the one person who came looking for them.
+- The area buttons say open or closed **in the accessible label**, not only in
+  `accessibilityState` — the React Native Web rule this file records twice
+  already.
+
+#### The vocabulary went from 69 phrases to 202
+
+Six new areas: mouth and teeth, bowels, periods and women's health, men's
+health, pregnancy, babies and children, injuries and accidents, medicines.
+Existing areas roughly doubled, and the additions are weighted toward the
+presentations the old list had no words for — advanced, serious and
+life-stage-specific rather than more ways to say "headache".
+
+⛔ **It is still symptoms only.** Rule 1 stands and `names no condition or
+diagnosis` still passes: no entry names a disease. The owner asked for "more
+advanced diseases and stuff of that nature", and what was built is the
+symptom-side reading of that — a person can now say *"sudden vision loss"*,
+*"black tarry stools"*, *"my baby is very sleepy and hard to wake"*, none of
+which the old list could express. **Naming conditions was deliberately not
+done** and is a separate decision — see the open question below.
+
+#### ⛔ Ten phrases the picker offered could not be screened at all
+
+The change that matters most, and it was not part of either request.
+
+The vocabulary is TypeScript in the mobile bundle; the screening is Python in
+`emergency.py`. **Nothing could see both halves at once**, so the app could
+offer somebody a phrase and then read it as nothing. That was true of ten
+entries, **seven of them already shipped**:
+
+| Offered | Screened as |
+|---|---|
+| "the worst headache I have ever had" | nothing |
+| "slurred or muddled speech" | nothing |
+| "pain spreading to my arm, neck or jaw" | nothing |
+| "my throat feels like it is closing" | nothing |
+| "trouble finding words" | nothing |
+| "swelling of my face, lips or tongue" | nothing |
+| "I have taken too many pills" | nothing |
+
+All ten are the same defect the 10,000-case corpus found in the rules
+themselves: the phrase is a paraphrase of the literal. "slurred speech" screens
+and "slurred or muddled speech" does not; "worst headache of my life" screens
+and "the worst headache I have ever had" does not.
+
+⛔ **A phrase MedHelp offers and then cannot read is worse than one it never
+offered.** The person tapped the app's own words and got less than if they had
+typed their own, and nothing told them so.
+
+**Fixed by rewording the labels**, not by touching the phrase lists — the
+labels are this feature's own UI copy, so no fenced module changed. Compound
+labels were also split ("my lips are swelling" and "my tongue is swelling" as
+separate entries), which rule 3 wanted anyway: a compound label asserts that
+two things go together.
+
+`backend/scripts/check_picker_coverage.py` is what found them and what stops
+them coming back. It parses the TypeScript and runs every label through the
+real rule layer:
+
+    cd backend
+    python scripts/check_picker_coverage.py --strict
+    python scripts/check_picker_coverage.py --defaults
+
+⛔ **Its expectations are keyed on entry id, never on the label.** Keying on
+the label would mean a reword silently dropped the check — and rewording is
+the edit that caused this. `tests/test_picker_coverage.py` runs it in the
+suite. Parsing TypeScript from Python is ugly; a second copy of the vocabulary
+in Python would be worse, for the reason this file already gives about two
+copies drifting.
+
+#### What a reviewer should be told, and one open decision
+
+- **Rule coverage is 25.7%** — of the 202 phrases offered, 52 are recognised by
+  a named rule and 150 fall to the URGENT default. So a tap-only submission
+  usually returns URGENT, and only 6 phrases can earn SELF_CARE on their own.
+  That is the designed behaviour ("not recognised is not the same as
+  harmless"), and it is also the ceiling CLAUDE.md already names. **Raising it
+  means adding to the self-care list, which lowers tiers, which is a separate
+  approval and a clinician's read.**
+- ⛔ **OPEN: should the picker name conditions?** The owner asked for "more
+  advanced diseases". Rule 1 forbids it and the tested reason is good — a menu
+  of diseases has the user pick the one they think they have, which is the app
+  diagnosing by proxy, and it is the same reason the emergency card has no
+  condition picker. Symptoms were expanded instead. **If conditions are wanted,
+  that is a decision to take deliberately against rule 1, not an edit**, and it
+  needs the clinician who has not yet read any of this.
+- Nothing here is clinician-reviewed. The vocabulary is now **202 phrases of
+  app-authored clinical language**, up from 69, and it remains the largest such
+  body in the app.
+
 ## ⛔ BLOCKING: symptom intake requires clinical and legal sign-off
 
 The symptom-intake feature (`backend/app/core/triage.py`) estimates how soon a
