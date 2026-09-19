@@ -85,3 +85,12 @@ mobile/.mutation-scratch/
 *.db
 *.sqlite
 *.sqlite3
+
+# Local agent tooling (not part of the app)
+.agents/
+.claude/skills/
+.claude/settings.json
+.claude/CLAUDE.md
+.claude/worktrees/
+skills-lock.json
+graphify-out/
