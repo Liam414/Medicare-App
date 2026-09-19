@@ -179,10 +179,29 @@ describe("browsing with nothing typed", () => {
     expect(screen.queryByTestId("symptom-browse-chest-pain")).toBeNull();
   });
 
+  it("replaces the list of areas with the one that was opened", () => {
+    /*
+      ⛔ THE REPORTED BUG. Every area used to stay on screen underneath the
+      open one, so a person who tapped "chest" read its phrases in the middle
+      of nineteen other buttons — and since an area was drawn as the same pill
+      as a symptom, "head" and "eyes" read as things you could add. One thing
+      at a time is the fix, and this is what pins it.
+    */
+    renderPicker("");
+
+    fireEvent.press(screen.getByTestId("symptom-area-chest"));
+
+    expect(screen.getByTestId("symptom-browse-chest-pain")).toBeTruthy();
+    expect(screen.queryByTestId("symptom-area-skin")).toBeNull();
+    expect(screen.queryByTestId("symptom-area-head")).toBeNull();
+  });
+
   it("switches areas rather than stacking them open", () => {
     // Two hundred phrases at once is not a list anybody reads.
     renderPicker("");
 
+    fireEvent.press(screen.getByTestId("symptom-area-chest"));
+    // Back to the menu, which is the only way to another area now.
     fireEvent.press(screen.getByTestId("symptom-area-chest"));
     fireEvent.press(screen.getByTestId("symptom-area-skin"));
 
