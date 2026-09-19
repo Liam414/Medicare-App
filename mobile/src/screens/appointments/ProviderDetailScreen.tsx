@@ -101,6 +101,53 @@ export function ProviderDetailScreen({ navigation, route }: Props) {
         )}
       </View>
 
+      {/*
+        ⛔ A HAND-OFF, AND THE COPY HAS TO KEEP SAYING SO.
+
+        MedHelp cannot book an appointment — that needs a partnership, provider
+        opt-in and a BAA, none of which exist. This is the address of somebody
+        else's booking page. The heading names the destination, the body says
+        the booking happens on their site, and the button says "open", never
+        "book". If this ever reads as MedHelp booking something, it is wrong.
+
+        Nothing about the user is attached to the link: no ZIP, no reason for
+        visit, no tier. That is why opening it transmits nothing and needs no
+        BAA, and it is a property of the server's registry, asserted there.
+
+        It sits BELOW the call button on purpose. Calling is the path that
+        always works; this one depends on the clinic's own site being up and
+        offering what the person needs, and a broken promise at the top of the
+        screen is worse than a working one underneath.
+      */}
+      {provider.schedulingUrl && provider.schedulingSystem && (
+        <View style={styles.online}>
+          <Text style={styles.onlineHeading}>
+            {provider.schedulingKind === "directory"
+              ? "They may take bookings online"
+              : `Book online at ${provider.schedulingSystem}`}
+          </Text>
+          <Text style={styles.onlineBody}>
+            {provider.schedulingKind === "directory"
+              ? `MedHelp does not know this provider's booking page. ${provider.schedulingSystem} keeps a directory you can search for them by name — the booking, if they offer one, happens on their site and not in MedHelp.`
+              : `This opens ${provider.schedulingSystem}'s own booking page in your browser. You book with them there — MedHelp is not involved and will not know the result, so add the time here yourself afterwards.`}
+          </Text>
+          <AppButton
+            label={
+              provider.schedulingKind === "directory"
+                ? `Search ${provider.schedulingSystem}`
+                : `Open ${provider.schedulingSystem}`
+            }
+            variant="secondary"
+            onPress={() => {
+              // Already checked to be https when it was parsed; a failure here
+              // is a browser that would not open, and the screen is unchanged.
+              Linking.openURL(provider.schedulingUrl as string).catch(() => {});
+            }}
+            accessibilityHint={`Opens ${provider.schedulingSystem} in your browser. MedHelp does not book the appointment.`}
+          />
+        </View>
+      )}
+
       <Text style={styles.sourceNote}>
         Listing from the {provider.sourceName}. MedHelp does not rank or
         recommend providers. Please confirm with the provider that they are
@@ -123,6 +170,19 @@ const styles = StyleSheet.create({
   field: {
     gap: spacing.xs,
   },
+  /*
+    ⛔ A neutral surface, never a safety family. This is a convenience about a
+    clinic's website; the emergency, error and notice palettes carry a reviewed
+    meaning about urgency that it has not earned.
+  */
+  online: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  onlineHeading: { ...typography.bodyStrong, color: colors.textPrimary },
+  onlineBody: { ...typography.caption, color: colors.textSecondary },
   fieldLabel: {
     ...typography.overline,
     color: colors.textSecondary,

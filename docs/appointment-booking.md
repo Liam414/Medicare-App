@@ -239,6 +239,38 @@ it names no condition.
 ⛔ Marking scheduled records **that a time was agreed, never what the time is**.
 `appointments` has no scheduled datetime and must not gain one.
 
+## 6a. The hand-off, built 2026-09-18
+
+Asked directly: *"is there anything I can do to automate hospital bookings?"*
+
+The three options were: apply to Zocdoc's partner programme; hand off to the
+hospital's own booking page; or find a health-system sponsor for an Epic
+integration. **The second was chosen and built**, because it is the only one
+that ships without anybody's permission.
+
+`backend/app/services/scheduling_links.py` maps a provider's published name to
+a booking page, and `ProviderDetailScreen` offers it under the call button.
+
+**Why this needs no BAA.** The link is a constant, the match reads only public
+CMS data, and MedHelp sends no request — so nothing about the user is
+transmitted. It is the same standing as linking to a phone number. This is
+*not* the booking integration §4 describes and does not move
+`delivery_available()`, which still returns False.
+
+**Coverage comes from the fallback, not the registry.** Epic's MyChart runs a
+public searchable directory of the organisations using it, no login required
+(verified 2026-09-18). Seven named systems have direct links; every other
+*organisation* gets the directory; individual clinicians get neither.
+
+⛔ **Every URL came from a live search result and none was constructed by
+pattern.** Hospital sites return 403 to automated fetches, so a URL cannot be
+verified by requesting it — which makes guessing one especially dangerous.
+Add entries by searching, following the link, and recording the date.
+
+**What it does not do.** It is automation only in the sense that it removes the
+phone call. The person still books, and MedHelp never learns whether they did —
+which is why the screen tells them to record the time themselves afterwards.
+
 ## 7. Open questions for the user
 
 - ~~Whether MedHelp should hold patient identity at all.~~ **Decided:

@@ -52,6 +52,33 @@ export interface Provider {
    * rather than as a number.
    */
   distanceMiles: number | null;
+
+  /**
+   * Where this provider takes bookings on their OWN website, if known.
+   *
+   * ⛔ THIS IS NOT MEDHELP BOOKING ANYTHING, and the UI must never say it is.
+   * MedHelp cannot book — that needs a partnership, provider opt-in and a BAA,
+   * and the app has none. This is a hand-off: the address of somebody else's
+   * booking page, which the person opens and uses themselves.
+   *
+   * Do not confuse it with `onlineBookingAvailable` on the search result. That
+   * one answers "can MedHelp send a booking request?" and is false; this one
+   * is a fact about the clinic.
+   *
+   * The URL is a constant from a registry on the server. Nothing about the
+   * user is appended to it, which is why opening it transmits nothing.
+   */
+  schedulingUrl: string | null;
+  /** Whose site that is, for the button's label. Never "MedHelp". */
+  schedulingSystem: string | null;
+  /**
+   * "direct" — their own booking page, one step.
+   * "directory" — a finder the person searches their hospital in, two steps.
+   *
+   * The screen says which, because they are a different promise and a button
+   * that lands somewhere unexpected is worse than one that warns you.
+   */
+  schedulingKind: "direct" | "directory" | null;
 }
 
 export interface ProviderSearchResult {
@@ -80,6 +107,9 @@ interface ApiProvider {
   postal_code: string | null;
   source_name: string;
   distance_miles?: number | null;
+  scheduling_url?: string | null;
+  scheduling_system?: string | null;
+  scheduling_kind?: string | null;
 }
 
 interface ApiSearchResult {
@@ -101,6 +131,27 @@ function fromApi(item: ApiProvider): Provider {
     postalCode: item.postal_code,
     sourceName: item.source_name,
     distanceMiles: typeof item.distance_miles === "number" ? item.distance_miles : null,
+    /*
+      ⛔ https ONLY, CHECKED ON THE WAY IN.
+
+      The server registers only https URLs and a test asserts it, but this is
+      the value that gets handed to `Linking.openURL` on someone's phone. A
+      scheme this client did not expect — `javascript:`, `file:`, an `intent:`
+      on Android — is not a booking page, and refusing it here means the screen
+      never has to think about it. A dropped link costs one button; an opened
+      one costs whatever the scheme does.
+    */
+    schedulingUrl:
+      typeof item.scheduling_url === "string" &&
+      item.scheduling_url.startsWith("https://")
+        ? item.scheduling_url
+        : null,
+    schedulingSystem:
+      typeof item.scheduling_system === "string" ? item.scheduling_system : null,
+    schedulingKind:
+      item.scheduling_kind === "direct" || item.scheduling_kind === "directory"
+        ? item.scheduling_kind
+        : null,
   };
 }
 
