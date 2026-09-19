@@ -1,0 +1,342 @@
+==============================================================================
+ everyday-walking
+ > I want to walk more. I sit at a desk all day and I am stiff by the evening.
+------------------------------------------------------------------------------
+  title:      'Morning, midday, and evening walks'
+  complexity: 'moderate'   rows: 3
+
+   • Walk for 10 minutes around the office block
+     when:   mon,tue,wed,thu,fri @ 07:30
+     detail: Leave your desk at 07:30, walk around the building or nearby streets for about ten minutes, then return to start work.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults need 150 minutes of moderate-intensity physical activity a week."
+
+   • Take a 10‑minute walk after lunch
+     when:   mon,tue,wed,thu,fri @ 12:30
+     detail: At 12:30, step outside the office and walk around the block for ten minutes before returning to your desk.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults need 150 minutes of moderate-intensity physical activity a week."
+
+   • Do a gentle 10‑minute evening walk
+     when:   mon,tue,wed,thu,fri @ 18:30
+     detail: At 18:30, after work, walk at a comfortable pace around your neighbourhood or local park for ten minutes to help reduce stiffness before dinner.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults need 150 minutes of moderate-intensity physical activity a week."
+
+  day-slots: 15
+
+==============================================================================
+ big-weight
+ > I want to lose a hundred pounds. I know it will take a couple of years and I have started and stopped before.
+------------------------------------------------------------------------------
+  title:      'Morning walks, evening veggies, and daily hydration'
+  complexity: 'major'   rows: 5
+
+   • Walk 20 minutes around the neighborhood
+     when:   mon,wed,fri,sat,sun @ 07:30
+     detail: Step outside your front door after breakfast and walk at a comfortable pace around the block, returning before starting work.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults need 150 minutes of moderate-intensity physical activity a week."
+
+   • Do a 10‑minute bodyweight routine
+     when:   tue,thu @ 18:00
+     detail: In your living room, set a timer for 10 minutes and cycle through 5 squats, 5 wall push‑ups, and 5 seated leg lifts, then repeat.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults also need 2 days of muscle-strengthening activity each week."
+
+   • Stand up and move for 2 minutes each hour while at your desk
+     when:   mon,tue,wed,thu,fri @ 10:00
+     detail: When the clock hits the hour, pause your computer, stand, and walk around your office or home for two minutes before resuming work.
+     source: Centers for Disease Control and Prevention — Benefits of Physical Activity
+             "Adults who sit less and do any amount of moderate- to vigorous-intensity physical activity gain some health benefits."
+
+   • Drink a glass of water right after getting out of bed
+     when:   mon,tue,wed,thu,fri,sat,sun @ 07:00
+     detail: Keep a glass of water on your nightstand and sip it as soon as you sit up in the morning.
+     source: Centers for Disease Control and Prevention — About Water and Healthier Drinks
+             "Water has no calories, so replacing sugary drinks with plain water can help reduce caloric intake."
+
+   • Add one serving of vegetables to dinner
+     when:   mon,tue,wed,thu,fri,sat,sun @ 19:00
+     detail: Place a cup of steamed broccoli or a mixed salad on your plate before the main dish at dinner.
+     source: Centers for Disease Control and Prevention — Tips for Increasing Vegetables and Fruits in Your Diet: Healthy Eating for Healthy Weight
+             "Substitute vegetables and fruits for calorie-dense foods to help reduce the amount of calories you eat as well as help you feel full longer."
+
+  day-slots: 26
+
+==============================================================================
+ small-weight
+ > I want to lose one pound before my sister's wedding next month.
+------------------------------------------------------------------------------
+  title:      'Evening walks and veggie‑rich dinners'
+  complexity: 'small'   rows: 2
+
+   • Walk for 20 minutes around the neighborhood
+     when:   mon,wed,fri @ 18:30
+     detail: Leave the house after work at 18:30 and walk the block near your home at a comfortable pace.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults need 150 minutes of moderate-intensity physical activity a week."
+
+   • Add one serving of vegetables to dinner
+     when:   mon,tue,wed,thu,fri,sat,sun @ 19:30
+     detail: Place a pre‑washed bag of mixed vegetables on the kitchen counter and steam or stir‑fry them while cooking dinner at 19:30.
+     source: Centers for Disease Control and Prevention — Tips for Increasing Vegetables and Fruits in Your Diet: Healthy Eating for Healthy Weight
+             "Substitute vegetables and fruits for calorie-dense foods to help reduce the amount of calories you eat as well as help you feel full longer."
+
+  day-slots: 10
+
+==============================================================================
+ sleep
+ > I want to get to bed earlier. I have a six month old and I am usually up scrolling until one.
+------------------------------------------------------------------------------
+  title:      'Evening wind‑down and earlier lights‑out'
+  complexity: 'moderate'   rows: 3
+
+   • Put phone away and stop scrolling by 22:30
+     when:   mon,tue,wed,thu,fri,sat,sun @ 22:30
+     detail: When the 22:30 alarm sounds, place your phone on the kitchen counter, turn on night mode, and spend the next few minutes reading a paper book or listening to a calm podcast.
+     source: Centers for Disease Control and Prevention — About Sleep
+             "Going to bed and getting up at the same time every day."
+
+   • Start bedtime wind‑down at 23:00
+     when:   mon,tue,wed,thu,fri,sat,sun @ 23:00
+     detail: Dim the lights, change into comfortable sleepwear, and do 5‑10 minutes of gentle stretching or breathing while the baby is settled in the crib.
+     source: Centers for Disease Control and Prevention — About Sleep
+             "Going to bed and getting up at the same time every day."
+
+   • Walk 15 minutes after dinner
+     when:   mon,wed,fri @ 19:30
+     detail: Leave the house for a short walk around the block while the baby naps or is in a safe play area, then return home to begin the evening routine.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults need 150 minutes of moderate-intensity physical activity a week."
+
+  day-slots: 17
+
+==============================================================================
+ quit-smoking
+ > I want to stop smoking for good. I have smoked twenty a day for fifteen years.
+------------------------------------------------------------------------------
+  title:      'Breathing breaks and support calls'
+  complexity: 'major'   rows: 5
+
+   • Do a deep‑breathing break when you feel a craving
+     when:   mon,tue,wed,thu,fri,sat,sun @ 09:30
+     detail: When an urge appears, stand, inhale through the nose for 4 seconds, hold 2 seconds, exhale through the mouth for 6 seconds, and repeat four times.
+     source: Centers for Disease Control and Prevention — How to Quit Smoking (Tips From Former Smokers)
+             "Quitlines provide free coaching over the phone to help you quit smoking. Available in several languages."
+
+   • Drink a glass of water instead of reaching for a cigarette
+     when:   mon,tue,wed,thu,fri @ 15:00
+     detail: Keep a water bottle at your desk; when you would normally smoke, take a sip and finish the glass before returning to work.
+     source: Centers for Disease Control and Prevention — How to Quit Smoking (Tips From Former Smokers)
+             "Quitlines provide free coaching over the phone to help you quit smoking. Available in several languages."
+
+   • Call a quit‑line or a supportive friend when you want a cigarette
+     when:   mon,wed,fri,sun @ 20:00
+     detail: Save the quit‑line number or a friend’s contact; when the urge hits, dial and talk for at least two minutes.
+     source: Centers for Disease Control and Prevention — How to Quit Smoking (Tips From Former Smokers)
+             "Quitlines provide free coaching over the phone to help you quit smoking. Available in several languages."
+
+   • Write down each missed cigarette and how you felt
+     when:   mon,tue,wed,thu,fri,sat,sun @ 21:30
+     detail: Keep a small notebook on your nightstand; after each craving, note the time, craving level (1‑10), and what you did instead.
+     source: Centers for Disease Control and Prevention — How to Quit Smoking (Tips From Former Smokers)
+             "Quitlines provide free coaching over the phone to help you quit smoking. Available in several languages."
+
+   • Take a short walk after lunch instead of smoking
+     when:   tue,thu,sat,sun @ 13:00
+     detail: Put on shoes and walk around the block for about 10 minutes right after you finish eating.
+     source: Centers for Disease Control and Prevention — How to Quit Smoking (Tips From Former Smokers)
+             "Quitlines provide free coaching over the phone to help you quit smoking. Available in several languages."
+
+  day-slots: 27
+
+==============================================================================
+ vague
+ > I want to be healthier.
+------------------------------------------------------------------------------
+  NO PLAN. notice='MedHelp could not tell what you were going for. You can add your own activities below.'
+
+==============================================================================
+ stress
+ > My finals are in six weeks and I am so wound up I cannot concentrate for more than ten minutes.
+------------------------------------------------------------------------------
+  title:      'Breathing breaks and afternoon walks'
+  complexity: 'major'   rows: 4
+
+   • Do a 5‑minute deep‑breathing pause at your desk
+     when:   mon,tue,wed,thu,fri @ 09:30
+     detail: Sit upright, close your eyes, and inhale slowly for four counts, hold two, then exhale for six counts. Repeat for five minutes before returning to work.
+     source: Centers for Disease Control and Prevention — Benefits of Physical Activity
+             "Adults who sit less and do any amount of moderate- to vigorous-intensity physical activity gain some health benefits."
+
+   • Take a 10‑minute walk outside after lunch
+     when:   mon,wed,fri,sun @ 13:00
+     detail: Leave your desk, walk around the block or a nearby park at a comfortable pace, and notice the sights and sounds. Return to your workspace refreshed.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults need 150 minutes of moderate-intensity physical activity a week."
+
+   • Turn off screens and read a book for 30 minutes
+     when:   mon,tue,wed,thu,fri,sat,sun @ 21:00
+     detail: Switch off phone, computer, and TV, pick a book you enjoy, and read until the lights go out. This creates a calm transition to bedtime.
+     source: Centers for Disease Control and Prevention — About Sleep
+             "Going to bed and getting up at the same time every day."
+
+   • Drink a glass of water right after getting up
+     when:   mon,tue,wed,thu,fri,sat,sun @ 07:00
+     detail: Place a glass of water by your bedside before sleeping, and sip it as soon as you sit up in the morning.
+     source: Centers for Disease Control and Prevention — About Water and Healthier Drinks
+             "Water has no calories, so replacing sugary drinks with plain water can help reduce caloric intake."
+
+  day-slots: 23
+
+==============================================================================
+ knee
+ > My physio said I should be moving my knee more but I am frightened of doing it wrong so I have not.
+------------------------------------------------------------------------------
+  title:      'Morning knee extensions & evening walks'
+  complexity: 'moderate'   rows: 3
+
+   • Do seated knee extensions for 5 minutes
+     when:   mon,wed,fri @ 09:00
+     detail: Sit in a sturdy chair, straighten one leg fully, hold 2 seconds, then slowly bend the knee back down; repeat for 5 minutes, switching legs after each set.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults also need 2 days of muscle-strengthening activity each week."
+
+   • Take a 10‑minute gentle walk around the block
+     when:   tue,thu,sat @ 18:30
+     detail: After dinner, put on comfortable shoes and walk at a comfortable pace for about 10 minutes, focusing on smooth steps and avoiding hills.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults need 150 minutes of moderate-intensity physical activity a week."
+
+   • Climb one flight of stairs up and down slowly
+     when:   sun @ 13:00
+     detail: After lunch, walk to the nearest staircase, go up one flight at a comfortable pace, then step down; repeat twice, pausing if any discomfort.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults also need 2 days of muscle-strengthening activity each week."
+
+  day-slots: 7
+
+==============================================================================
+ cooking
+ > I want to stop getting takeaways five nights a week. I am broke and I cannot really cook.
+------------------------------------------------------------------------------
+  title:      'Simple weekday meals on a budget'
+  complexity: 'major'   rows: 4
+
+   • Heat a frozen mixed‑vegetable packet and serve with instant rice
+     when:   mon,tue,wed,thu,fri @ 18:30
+     detail: Open the frozen veg bag, microwave for 3‑4 minutes, heat instant rice in the microwave, mix together, and add a pinch of salt.
+     source: Centers for Disease Control and Prevention — Tips for Increasing Vegetables and Fruits in Your Diet: Healthy Eating for Healthy Weight
+             "Substitute vegetables and fruits for calorie-dense foods to help reduce the amount of calories you eat as well as help you feel full longer."
+
+   • Make a quick bean‑and‑corn bowl
+     when:   mon,tue,wed,thu,fri @ 18:45
+     detail: Open a can of beans, rinse, add a can of corn, microwave 2 minutes, stir in a splash of soy sauce and eat with a slice of bread if desired.
+     source: Centers for Disease Control and Prevention — Tips for Increasing Vegetables and Fruits in Your Diet: Healthy Eating for Healthy Weight
+             "Substitute vegetables and fruits for calorie-dense foods to help reduce the amount of calories you eat as well as help you feel full longer."
+
+   • Scramble two eggs with toast
+     when:   mon,tue,wed,thu,fri @ 19:00
+     detail: Crack two eggs into a bowl, whisk, pour into a non‑stick pan, stir until set, toast a slice of bread, and serve together.
+
+   • Drink a glass of water after the meal
+     when:   mon,tue,wed,thu,fri @ 19:15
+     detail: Fill a glass from the tap and sip it right after you finish eating.
+     source: Centers for Disease Control and Prevention — About Water and Healthier Drinks
+             "Water has no calories, so replacing sugary drinks with plain water can help reduce caloric intake."
+
+  day-slots: 20
+
+==============================================================================
+ meds
+ > I keep forgetting to take my tablets in the evening and then I take them at midnight or not at all.
+------------------------------------------------------------------------------
+  title:      'Evening tablet reminder'
+  complexity: 'small'   rows: 2
+
+   • Set a phone alarm for 20:00 each evening to remind you to take your tablets
+     when:   mon,tue,wed,thu,fri,sat,sun @ 20:00
+     detail: Create a daily recurring alarm on your phone labeled 'Take tablets'. When it sounds, pause and go to the kitchen to take them.
+
+   • Place the medication bottle on the kitchen counter next to the coffee maker
+     when:   mon,tue,wed,thu,fri,sat,sun @ 19:30
+     detail: After dinner, put the bottle in the same spot every night so you see it before you sit down with your evening drink.
+
+  day-slots: 14
+
+==============================================================================
+ no-time
+ > I work two jobs and have no free time at all but I want to be less out of breath on the stairs.
+------------------------------------------------------------------------------
+  title:      'Stair steps and simple leg moves'
+  complexity: 'moderate'   rows: 4
+
+   • Take the stairs instead of the elevator at the start of work
+     when:   mon,tue,wed,thu,fri @ 08:30
+     detail: When you arrive at your first job, walk up the nearest two flights of stairs instead of using the elevator; pause at the landing before heading to your desk.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults need 150 minutes of moderate-intensity physical activity a week."
+
+   • Mid‑day stair break
+     when:   mon,tue,wed,thu,fri @ 12:15
+     detail: After lunch, walk up and down the office stairwell for about three minutes, then return to your tasks.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults need 150 minutes of moderate-intensity physical activity a week."
+
+   • Evening home stair climb
+     when:   mon,wed,fri @ 19:30
+     detail: At home, climb the stairs for two minutes before settling down for the evening; use the stairs you normally avoid.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults need 150 minutes of moderate-intensity physical activity a week."
+
+   • Simple leg strength routine
+     when:   tue,thu @ 18:00
+     detail: Do a five‑minute bodyweight squat set: 10 squats, brief rest, repeat until five minutes are up, in your living room or hallway.
+     source: Centers for Disease Control and Prevention — Adult Activity: An Overview
+             "Adults also need 2 days of muscle-strengthening activity each week."
+
+  day-slots: 15
+
+==============================================================================
+ social
+ > I moved cities in January and I have not really spoken to anyone outside work since.
+------------------------------------------------------------------------------
+  title:      'Neighborhood walks and coffee chats'
+  complexity: 'major'   rows: 4
+
+   • Take a 15‑minute walk around the neighborhood after work
+     when:   mon,wed,fri @ 18:30
+     detail: Leave the office at 5:30 pm, walk down Main Street to the park and back, noticing any nearby cafés or shops.
+     source: Centers for Disease Control and Prevention — Social Connection
+             "Staying connected to others creates feelings of belonging and being loved, cared for, and valued."
+
+   • Visit a local café for a coffee and chat with a barista or another patron
+     when:   tue,sat @ 10:00
+     detail: After your morning routine, walk to the corner café, order a coffee, and say hello to the staff or a regular.
+     source: Centers for Disease Control and Prevention — Social Connection
+             "Staying connected to others creates feelings of belonging and being loved, cared for, and valued."
+
+   • Call or video‑chat with a friend or family member for 10 minutes
+     when:   thu @ 20:00
+     detail: Set an alarm for 7:55 pm, pick up your phone and call a friend you haven’t spoken to in a while.
+     source: Centers for Disease Control and Prevention — Social Connection
+             "Staying connected to others creates feelings of belonging and being loved, cared for, and valued."
+
+   • Join a community group activity for 30 minutes
+     when:   sun @ 11:00
+     detail: Search online for a nearby hobby meetup, sign up for the next session, and attend the meeting at the community centre.
+     source: Centers for Disease Control and Prevention — Social Connection
+             "Staying connected to others creates feelings of belonging and being loved, cared for, and valued."
+
+  day-slots: 7
+
+==============================================================================
+ 11 of 12 goals produced a plan.
+==============================================================================
+
+TO READ (2) — lexical and advisory, not a verdict:
+  - everyday-walking: POSSIBLE BENEFIT CLAIM — 'Do a gentle 10‑minute evening walk At 18:30, after work, walk at a comfortable pace around your neighbourhood or local park for ten minutes to help re'
+  - vague: no plan returned (notice='MedHelp could not tell what you were going for. You can add your own activities below.')
+
+saved: C:/Users/a1str/.claude/jobs/3580b660/tmp/out/goals.json

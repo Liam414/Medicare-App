@@ -1,0 +1,67 @@
+==========================================================================
+ LIVE INTAKE PROBE  —  floors only, never exact tiers
+ Not clinical validation. Expectations are this app's documented intent.
+==========================================================================
+returned       floor      description
+--------------------------------------------------------------------------
+ EMERGENT      EMERGENT   I have crushing pressure in my chest and my left arm
+ EMERGENT      EMERGENT   my chest gets tight when I walk up the stairs and I 
+ EMERGENT      EMERGENT   I am getting chest pains and sweating
+ EMERGENT      EMERGENT   my face is drooping on one side and I cannot lift my
+ EMERGENT      EMERGENT   my mouth droops and my speech is slurred
+ EMERGENT      EMERGENT   I am having a hard time breathing and cannot catch m
+ EMERGENT      EMERGENT   my throat is closing and my tongue is swelling
+ EMERGENT      EMERGENT   my neck is stiff and I have a fever
+ EMERGENT      EMERGENT   I hit my head hard and feel awful
+ EMERGENT      EMERGENT   I threw up blood this morning
+ EMERGENT      EMERGENT   I have been thinking about hurting myself
+ EMERGENT      EMERGENT   it is like a curtain came over my eye
+ EMERGENT      EMERGENT   I fainted at work and I do not know why
+ EMERGENT      EMERGENT   my baby is burning up and will not wake properly
+ EMERGENT      EMERGENT   I am pregnant and I am bleeding
+ EMERGENT      EMERGENT   I took too many pills
+ URGENT        URGENT     I have had a sore throat for over two weeks with swo
+ needs_detail  URGENT     I have a fever that has not come down in four days
+ URGENT        URGENT     there is a new lump under my arm that was not there 
+ needs_detail  URGENT     I cannot keep any fluids down since yesterday
+ needs_detail  URGENT     my ankle is swollen and I cannot put weight on it at
+ needs_detail  URGENT     the cut on my hand is red and hot and leaking
+ needs_detail  URGENT     I started a new antibiotic and came out in a rash
+ SELF_CARE     SELF_CARE  I have a head cold and the sniffles
+ SELF_CARE     SELF_CARE  I have a mild cough and a runny nose
+ needs_detail  SELF_CARE  I have a cold sore on my lip
+ SELF_CARE     SELF_CARE  a few mosquito bites that are itchy
+ SELF_CARE     SELF_CARE  my throat feels raw and I have lost my voice
+ URGENT        URGENT     I have a head cold and a high fever
+ needs_detail  URGENT     sunburn with blisters and I feel faint
+ URGENT        URGENT     acid reflux for over a week
+ EMERGENT      EMERGENT   Chest painShortness of breath
+ needs_detail  URGENT     I'm not really sure what's going on, I just feel off
+ needs_detail  URGENT     nothing much, just tired
+ needs_detail  URGENT     I have food poisoning, cramps and diarrhea
+ EMERGENT      EMERGENT   [tapped] chest pain, shortness of breath
+ EMERGENT      EMERGENT   [tapped] my face is drooping
+ needs_detail  URGENT     [tapped] a fever, chills
+ SELF_CARE     -          [tapped] a sore throat
+
+NOTES (18) — not failures:
+  - reasoning contains 'diagnos': 'I have had a sore throat for over two weeks with swollen glands and I am exhausted' -> 'This is being flagged as worth seeing someone about soon because something that keeps going or is getting worse is worth having looked at ra'
+  - needs_detail (round 1): 'I have a fever that has not come down in four days'
+  - reasoning contains 'diagnos': 'there is a new lump under my arm that was not there last month' -> 'This is being flagged as worth seeing someone about soon because new or unexplained changes are usually checked rather than watched. This is'
+  - needs_detail (round 1): 'I cannot keep any fluids down since yesterday'
+  - needs_detail (round 1): 'my ankle is swollen and I cannot put weight on it at all'
+  - needs_detail (round 1): 'the cut on my hand is red and hot and leaking'
+  - needs_detail (round 1): 'I started a new antibiotic and came out in a rash'
+  - needs_detail (round 1): 'I have a cold sore on my lip'
+  - reasoning contains 'diagnos': 'I have a head cold and a high fever' -> 'This is being flagged as worth seeing someone about soon because a fever that persists is usually worth having assessed. This is about how s'
+  - needs_detail (round 1): 'sunburn with blisters and I feel faint'
+  - reasoning contains 'diagnos': 'acid reflux for over a week' -> 'This is being flagged as worth seeing someone about soon because something that keeps going or is getting worse is worth having looked at ra'
+  - needs_detail (round 1): "I'm not really sure what's going on, I just feel off since this morning"
+  - needs_detail (round 1): 'nothing much, just tired'
+  - needs_detail (round 1): 'I have food poisoning, cramps and diarrhea'
+  - tap-only asked for detail: ['a fever', 'chills']
+  - empty submission refused with HTTP 422 (correct)
+  - round 1 asked: ['location', 'severity', 'other']
+  - round 2 asked: ['onset', 'course', 'pattern']
+
+All 35 descriptions held every floor and every invariant.
