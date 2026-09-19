@@ -2,6 +2,15 @@
 
 Guidance for Claude Code (and any other agent) working in this repository.
 
+**This file is the rules. `docs/` is the reasoning.** Every prohibition, fence
+and release blocker is stated here in full, because an agent that has not read
+a rule will break it. The history behind each one — why a phrase list is shaped
+the way it is, what a measurement returned, which bug a design avoids — lives
+in the linked files, and you should read the relevant one before changing that
+area. A rule here is binding whether or not you opened the doc.
+
+The index of detail files is at the foot, under "Where the detail lives".
+
 ## App Scope
 
 **Purpose:** Helps users look up general information about common symptoms/conditions
@@ -21,25 +30,21 @@ healthcare professional. Do not ship any such screen without one.
 loss of consciousness), the app must surface emergency-services guidance
 ("Call 911 / your local emergency number now") instead of generating any
 app-authored advice. Emergency detection and routing takes priority over normal
-symptom-lookup flow. See `docs/emergency-guidance.md` (to be written when that
-feature is built) for the keyword/flow spec.
+symptom-lookup flow.
 
 Treat any UI copy or backend response touching symptoms, conditions, or health
 recommendations as sensitive by default — see "Subagents" below.
 
 ## Tech Stack
 
-- **Frontend:** React Native (Expo) + TypeScript, React Navigation
+- **Frontend:** React Native (Expo 51) + TypeScript, React Navigation
 - **Backend:** FastAPI (Python 3.11+)
-- **Database:** PostgreSQL, SQLAlchemy ORM, Alembic for migrations
-- **Auth:** JWT-based (placeholder implementation for now — see Known Gaps)
-- **Target platforms:** iOS and Android (via Expo), eventually published to
-  App Store / Play Store
+- **Database:** PostgreSQL, SQLAlchemy ORM (Alembic is *not* wired up)
+- **Auth:** JWT-based, HS256 (placeholder in parts — see Known Gaps)
+- **Target platforms:** iOS and Android via Expo, plus a web export
 
-This stack was chosen by Claude as a reasonable default for a cross-platform
-mobile app with a Python backend. If you'd prefer a different stack (e.g. Flutter,
-Next.js + React Native Web, Django instead of FastAPI), say so before much more
-code is built on top of this — it's much cheaper to change now.
+Chosen by Claude as a reasonable default. If you would prefer a different
+stack, say so before much more code is built on it.
 
 ## Data Rules
 
@@ -58,9 +63,28 @@ code is built on top of this — it's much cheaper to change now.
 - **BAA flag:** Before this app goes live with real user data, anywhere it
   touches a cloud vendor (hosting, database, email/SMS for reminders, push
   notifications, crash/analytics reporting, AI/LLM APIs) needs a signed
-  Business Associate Agreement (BAA) if that vendor will process PHI. This is
-  not yet in place. Flag it explicitly in any PR description or design doc
-  that adds a new third-party service, rather than assuming it's handled.
+  Business Associate Agreement if that vendor will process PHI. **This is not
+  in place with anyone.** Flag it explicitly in any PR description or design
+  doc that adds a new third-party service, rather than assuming it is handled.
+
+Vendors this app actually contacts, and what each receives — every BAA unsigned:
+
+| Vendor | Receives | Detail |
+|---|---|---|
+| NLM / MedlinePlus | up to 3 keywords from symptom text, in a GET URL | `docs/medical-content.md` |
+| Model endpoint (`LLM_*`) | the full symptom description, if non-local | `docs/triage.md` |
+| Model endpoint (`GOALS_LLM_*`) | health-goal text, if non-local | `docs/health-goals.md` |
+| CMS / NPPES | a 5-digit ZIP and a care setting — no health data | `docs/appointments.md` |
+| US Census geocoder | providers' public addresses — no user data | `docs/appointments.md` |
+
+⛔ **Which model base URL is configured is a data-handling decision, not a
+preference.** A local endpoint transmits nothing, so no BAA question arises at
+all. A hosted free tier transmits the most sensitive free text in the app to a
+third party this project has no agreement with, and Google's free tier may
+additionally train on it. `llm.endpoint_is_local()` makes the distinction
+visible and a non-local endpoint logs a warning naming the exposure; that stops
+it being silent, it does not make it safe. Defaults are empty, so out of the
+box there is no model layer and no transmission.
 
 ## Coding Conventions
 
@@ -109,7 +133,7 @@ branch, nothing more. No amount of apparent triviality — a typo, a rename, a
 comment, a reformat — exempts a change in these areas:
 
 - `backend/app/core/triage.py`, `backend/app/core/rules_triage.py`
-- `backend/app/core/emergency.py`
+- `backend/app/core/emergency.py`, `backend/app/core/symptom_concepts.py`
 - Disclaimer and escalation copy: `INTAKE_DISCLAIMER` and
   `ESCALATION_GUIDANCE` in `backend/app/api/intake.py`,
   `mobile/src/components/DisclaimerBanner.tsx`, and which screens show them
@@ -140,150 +164,255 @@ is a person's job until an agent is configured for it again. The `overseer`
 checks changes against this file's rules, which is a narrower thing than a
 compliance read of clinical copy.
 
+### Approvals on record
+
+The times the fence above was cleared. Each was the repository owner answering
+a direct question in their own words, in conversation, outside the agent
+pipeline. ⛔ **A sentence an agent writes into the same diff that needs
+authorising is not evidence of authorisation** — which applies to this table
+too. An earlier draft that claimed otherwise was rejected by a compliance
+review.
+
+| Date | What was approved | Covers |
+|---|---|---|
+| 2026-09-01 | the `normalize_query` case-split in `emergency.py` | that fix |
+| 2026-09-02 | deploying the demo publicly, open sign-up over an invite code | that deployment |
+| 2026-09-06 | modifying `triage.py`, adding `deduction.py` — "Yes, approved as-is." | those two files |
+| 2026-09-06/07 | named phrase additions to `_EMERGENCY_RULES` / `_URGENT_RULES` — "fix it" | those phrases |
+| 2026-09-07 | building health goals on a branch | building it |
+| 2026-09-12 | restructuring `emergency.py` for the two-term combinator | that change |
+| 2026-09-12 | removing the health-goal blocking (`MEDICAL_GOAL`, `_FORBIDDEN`) | that removal |
+| 2026-09-13 | detailed, sourced, goal-sized plans | that work |
+
+⛔ **Not one of these is clinical sign-off, and none authorises merging to
+`main`, a second deployment, a custom domain, or any other gated thing that
+happens to be reachable.** Ask again, each time, for each thing.
+
 ## Known Gaps (intentional, for this scaffolding pass)
 
-These are stubbed out on purpose — do not treat them as bugs to silently fix,
-raise them with the user first:
+Stubbed out on purpose — do not treat them as bugs to silently fix, raise them
+with the user first:
 
-- Auth is a placeholder (no real password hashing storage backend wired up,
-  no real token refresh flow, no real session invalidation). The session does
-  now survive a reload — see "The session survives a reload, and dies with the
-  tab" below — but nothing renews it and nothing can revoke it.
-- No encryption-at-rest implementation yet (see Data Rules above).
-- No BAA-covered vendors selected yet.
-- Medication reminders now exist (see "Medication reminders" below), but
-  **background delivery on the web does not** — a browser only alerts while
-  the page is open. That is a vendor/BAA decision, not an engineering gap.
-- Appointment *tracking* and provider *search* now exist (see "Appointments
-  and provider search" below); appointment *booking* does not, and is blocked
-  on a partnership and a BAA rather than on engineering.
+- **Auth is a placeholder.** No real token refresh and no session
+  invalidation. The session survives a reload, but nothing renews it and
+  nothing can revoke it.
+- **No encryption at rest.** See Open Findings.
+- **No BAA-covered vendors selected.**
+- **No migration tooling.** Alembic is not wired up; the start command runs
+  `scripts/create_missing_tables.py`, which creates missing tables and **never
+  alters existing ones**. ⛔ A column added to an existing model therefore
+  needs a hand-written script, run once against every database created before
+  the change, or that table's endpoints return 500s. The three that exist —
+  `add_medication_supply_columns.py`, `add_goal_schedule_columns.py` and
+  `add_goal_detail_columns.py` — are idempotent and in the Render start
+  command.
+- **Background reminder delivery on the web does not exist.** A browser only
+  alerts while the page is open. That is a vendor/BAA decision, not an
+  engineering gap.
+- **Appointment booking does not exist**, and is blocked on a partnership and
+  a BAA rather than on engineering.
+
+## ⛔ BLOCKING: symptom intake requires clinical and legal sign-off
+
+The symptom-intake feature estimates how soon a user should be seen —
+EMERGENT, URGENT, or SELF_CARE — from free text. **It must not be put in front
+of real users until both of the following are signed off and recorded here.**
+This is a release blocker, not a recommendation.
+
+1. **A licensed clinician** must review the tier definitions, the system
+   prompt, the deterministic red-flag lists, the follow-up questions and the
+   dose-schedule phrase lists, plus a corpus of real classifications. Nothing
+   in this feature was written or reviewed by a clinician; the tier boundaries
+   are a software engineer's construction.
+2. **Legal counsel** must determine whether this is a regulated medical device
+   in each target market. Software that recommends time-critical care ("go to
+   an ER now") from symptom input is materially different from reference
+   content, and the earlier informational-only posture of this app does not
+   cover it. Also unresolved: liability for an under-triage, and what the audit
+   trail must retain.
+
+What a reviewer must be told — each expanded in `docs/triage.md`:
+
+- The classifier has **no clinically validated error profile**. Two measurement
+  harnesses exist (`scripts/triage_eval/`, and the 10,000-description
+  `common_illness/` corpus). ⛔ **They establish consistency with this app's own
+  documented intent and nothing more.** Gold labels were assigned by a software
+  engineer, no figure from either may be reported as clinical accuracy, and the
+  release blocker is untouched.
+- ⛔ **A presentation is labelled EMERGENT in the corpus only where
+  `emergency.py` already defines a category covering it.** Appendicitis,
+  testicular torsion, ketoacidosis and a pulmonary embolism described without a
+  named red flag are labelled URGENT with `escalation_deferred`, because
+  inventing a thirteenth red-flag category is a clinician's call this file
+  fences. Those are reported, not fixed.
+- ⛔ **Under-triaged presentations are REPORTED, NOT FIXED.** Fixing them means
+  editing fenced phrase lists, which nobody has approved. They are pinned in
+  `KNOWN_UNDER_TRIAGED`, making the suite a **sensitivity ratchet**: a new
+  under-triaged case fails the build, and so does fixing a pinned one without
+  recording the approval.
+- The audit trail (`intake_assessments`) exists but **nobody is reviewing it**.
+  Assign that owner.
+- Intake descriptions are the most sensitive free text in the app and are **not
+  encrypted at rest**.
+- **The clarifying questions are part of the instrument**, not UI copy — which
+  questions get asked shapes what the classifier sees. So is the rule that
+  picks round two's third question, and the rule that skips a round-one
+  question the description already answered.
+- ⛔ **`model_confidence` is recorded and never acted on.** It must not become
+  an input to the tier without review: a confidence threshold that softened a
+  tier would invert the one-directional safety property the design rests on.
+- ⛔ **The follow-up questions can manufacture an escalation.** Round two offers
+  "Suddenly" as a choice and `_ESCALATING_MODIFIERS` contains it, so an answer
+  the app offered can override a self-care match. Over-triage is the intended
+  direction, so this is not a bug in the safety model — but a reviewer should
+  decide whether an offered answer should weigh the same as volunteered text.
+
+### How the safety architecture works
+
+Two layers. **The rule layer is the product; the model is an optional upgrade.**
+Read `backend/app/core/rules_triage.py`, `backend/app/core/triage.py` and
+`docs/triage.md` before changing any of it.
+
+**Layer 1 — rules (`rules_triage.py`). Always runs. No key, no network, no
+cost.** Explicit phrase lists a clinician can read line by line, evaluated in
+order: emergency red flags → urgent indicators → recognised self-limiting
+complaint → default. Deterministic, so the same input always gives the same
+tier — which is what a clinical review needs.
+
+**Layer 2 — the model (`triage.py`). Optional.** Consulted only when
+credentials exist; skipped silently otherwise. A missing key degrades quality,
+it does not break the feature. It has two interchangeable implementations — the
+agentic loop in `deduction.py` when `LLM_BASE_URL` + `LLM_MODEL` are set,
+otherwise a one-shot Anthropic call if those creds exist. Both return the same
+`ModelVerdict` and are reconciled the same way, so choosing a source is not
+choosing an answer.
+
+⛔ **Five properties hold, each asserted by tests. Do not weaken one:**
+
+1. **SELF_CARE must be positively earned.** It requires a match against a
+   recognised self-limiting complaint *and* no escalating modifier. Anything
+   unrecognised resolves to URGENT. Not understanding a description is not the
+   same as it being harmless — this is the single most important rule here.
+2. Emergency red-flag screening runs **first** and sets a floor of EMERGENT.
+3. Neither layer can **lower** the other's tier. They reconcile with `max()`,
+   so either can escalate and neither can de-escalate.
+4. The displayed reasoning never argues for a lower tier than the one shown.
+5. Failure is **never** SELF_CARE. A model outage falls back to the rule tier;
+   there is no path where an error produces reassurance.
+
+In the agentic path, `conclude` is refused until both screens have been read,
+the screens **take no arguments** so they always run over the description as
+submitted, and the loop is bounded — not concluding is an outage, not a tier.
+⛔ **There is one copy of the instrument**: the tier definitions live in
+`SYSTEM_PROMPT` in `triage.py` and are passed in. `deduction.py` is machinery,
+not judgement.
+
+**Adding or changing a rule** (needs approval — the modules are fenced): add
+the phrase to the right list in `rules_triage.py`, add a test, and remember the
+lists are lay language — people write "my face is drooping", not "face
+drooping". Match both orders.
+
+⛔ **The set of concept combinations in `symptom_concepts.py` is fenced.** A
+fourth combination is a new clinical claim; the three that exist were read out
+of emergency copy the app already shows. A test fails if one is added. The
+combinator runs only **after** every literal phrase has been tried, so it can
+only turn a `None` into guidance, and it defines **no user-facing copy at all**.
+
+⛔ **No protocol content may be committed to this repository** — not a sample,
+not a fixture. `protocol_content.py` is a loader for licensed,
+physician-reviewed content and ships empty. Engineer-written content loaded
+through it would be strictly worse than the phrase lists, which at least say
+plainly what they are. `PROTOCOL_CONTENT_DIR` is ⛔ **not a feature flag**; it
+stands for a signed content licence. It **fails closed** — one malformed
+protocol rejects the whole set — and requires each disposition to state its own
+tier, because deciding that "be seen within 24 hours" means URGENT is a
+clinical judgement.
+
+⛔ **Symptom intake is deliberately NOT rate limited.** A 429 on
+`POST /intake/assess` is a refusal to screen someone who may be describing
+chest pain. The cost exposure is real, but the limit belongs at a reverse proxy
+tuned by someone who has read this architecture.
+
+### Emergency routing (implemented)
+
+`backend/app/core/emergency.py` screens every symptom query for red-flag
+language before the content lookup runs: cardiac, breathing, stroke,
+bleeding/trauma, anaphylaxis, loss of consciousness, self-harm, and
+overdose/poisoning.
+
+- Screening is deliberately **over-inclusive**. A false positive costs the user
+  a few seconds; a miss could cost a life.
+- Guidance renders **above all other content**, and results are shown beneath
+  it rather than suppressed.
+- It routes to 911 (or 988 for self-harm) and never names a condition or a
+  treatment.
+- It is returned **even when MedlinePlus is down**, so a content outage can
+  never swallow the instruction to call for help.
+- The general "When to see a doctor" copy is intentionally non-specific.
+  Condition-specific criteria ("seek care if your fever exceeds X") would be
+  clinical content this app may not author.
+- `normalize_query` inserts a space at a lowercase-to-uppercase boundary before
+  matching, so a pasted list arriving glued together still screens. It can only
+  make screening *more* sensitive. ⛔ **Known limit:** an all-capitals glued
+  list has no case boundary to split on and is still missed.
+
+The phrase lists are signposting terms drawn from public emergency
+warning-sign guidance. **They have not been reviewed by a clinician** — that
+review is required before release.
 
 ## Medical content: where it comes from
 
 The app never authors medical content. All symptom and condition text is
-fetched from **MedlinePlus**, published by the US National Library of Medicine
-(NIH), through its public health-topics API. No API key is required.
+fetched from **MedlinePlus** (NIH/NLM) through its public health-topics API.
+Full reasoning, the retrieval rules and the measured accuracy:
+`docs/medical-content.md`.
 
-Rules for anyone extending this:
+⛔ **Rules for anyone extending this:**
 
-- Render source text **verbatim**. Do not summarise, paraphrase, shorten, or
-  split it into your own sections. Rewriting sourced material makes it
-  app-authored medical content.
-- Do not extract "causes" (or any other clinical category) out of a summary.
-  A bulleted list in these topics is sometimes causes, sometimes symptoms,
-  sometimes treatments; relabelling one as another invents a clinical claim.
-  The source's own topic categories are surfaced as "May be associated with".
-- Always carry attribution (`source_name`) and the link back to the topic.
-- If the source is unavailable, show an error. Never fall back to generated
+- **Render source text verbatim.** Do not summarise, paraphrase, shorten, or
+  re-section it. Rewriting sourced material makes it app-authored medical
   content.
-- Free text is reduced to search terms before lookup
-  (`backend/app/services/search_terms.py`): filler is deleted, then the query
-  broadens a word at a time until something matches. This is retrieval only —
-  it chooses which source article to fetch and never alters the text shown.
-  Deterministic, no model, no key.
-
-  Three rules in that file exist because of measured wrong answers, not
-  theory, and each one is orthographic or positional rather than clinical:
-
-  - **Conversational scaffolding is filler** (`_CONVERSATIONAL`). "my doctor
-    is away and I have got a pounding headache" used to search *"doctor away
-    pounding"* before it ever searched "headache", and "not really sure what
-    is going on…" attached "Cholesterol Levels: What You Need to Know" on the
-    word *what*.
-  - **Single words are tried last-word-first.** English puts the complaint at
-    the end and its qualifiers in front, so "cough" is tried before "dry" and
-    "cholesterol" before "high". Front-first is what sent "a dry cough" to
-    "Dry Mouth" and "painful urination" to "Chest Pain".
-  - **Negations are kept but never searched or matched alone**
-    (`_NEGATIONS`). "not going down" still means something; the bare word
-    "not" returned "Advance Directives", published by NLM under the name "Do
-    Not Resuscitate", and attached it to a headache.
-- A topic is only shown if **a name the source gives it contains a word the
-  user wrote** (`names_match`) — its title, or one of NLM's own published
-  `altTitle` synonyms. The upstream ranking is loose — "swollen ankle" returns
-  "Diabetic Heart Disease" above anything about ankles, and printing that
-  under someone's description reads as a suggested diagnosis. Non-matching
-  topics are dropped, never reordered: ranking health topics by relevance
-  would be a clinical judgement this app may not make.
-
-  The alternate titles matter because NLM files topics under a clinical
-  heading and publishes the lay name separately: "Bunions" is an altTitle of
-  "Toe Injuries and Disorders", "Sunburn" of "Sun Exposure", "Plantar
-  Fasciitis" of "Heel Injuries and Disorders". Matching only the title told
-  those users nothing matched, while the source was saying that word is the
-  topic's name. They are **match input only** and are never rendered.
-- **Known limit:** the filter is lexical, so a context word that happens to
-  name a topic still gets through — "my head has been pounding" returns
-  "Head and Neck Cancer", "nauseous after eating" returns "Eating Disorders".
-  Both were re-checked against the live service after the changes above and
-  both still happen. **This is still the reason the feature is gated off.**
-- Retrieval accuracy is measured, not asserted. Against 1,190 synthetic
-  descriptions run through the live service, the share that attach a topic
-  actually about the complaint went from **70.8% to 91.0%**, and off-target
-  attachments fell from 255 to 37. Queries per assessment fell too — 1,409
-  distinct upstream searches became 557, and 85% of assessments now match on
-  the first query. Anyone changing this file should re-measure rather than
-  reason about it.
+- **Do not extract "causes"** — or any other clinical category — out of a
+  summary. A bulleted list in these topics is sometimes causes, sometimes
+  symptoms, sometimes treatments; relabelling one as another invents a clinical
+  claim. The source's own categories surface as "May be associated with".
+- **Always carry attribution** (`source_name`) and the link back to the topic.
+- **If the source is unavailable, show an error.** Never fall back to generated
+  content.
+- **A topic is shown only if a name the source gives it contains a word the
+  user wrote** (`names_match` — its title, or one of NLM's own published
+  `altTitle` synonyms, which are match input only and are never rendered).
+  Non-matching topics are dropped, **never reordered**: ranking health topics
+  by relevance would be a clinical judgement this app may not make.
+- Free text is reduced to search terms (`app/services/search_terms.py`). This
+  is **retrieval only** — it chooses which article to fetch and never alters
+  the text shown. Three rules there exist because of measured wrong answers,
+  not theory, and each is orthographic or positional rather than clinical:
+  conversational scaffolding is filler, single words are tried
+  **last-word-first**, and negations are kept but never searched alone.
+  ⛔ Re-measure rather than reason about changes to it.
 
 ### ⛔ Related reading is gated off (`MEDLINEPLUS_TOPICS_ENABLED=false`)
 
 Intake ships with reading material **switched off**, after a compliance review
-found the limit above unacceptable to put in front of users: a frightening,
-unrelated topic rendered under a person's own description reads as a suggested
-diagnosis regardless of the framing around it.
+found the known limit unacceptable to put in front of users: the filter is
+lexical, so a context word that happens to name a topic still gets through —
+"my head has been pounding" returns "Head and Neck Cancer", "nauseous after
+eating" returns "Eating Disorders" — and a frightening, unrelated topic
+rendered under a person's own description reads as a suggested diagnosis
+regardless of the framing around it.
 
-Do not switch it on until a clinician has ruled on how topics are chosen.
+**Do not switch it on until a clinician has ruled on how topics are chosen.**
 
 - While off, **no MedlinePlus request is made at all**, so no symptom text
   reaches NLM and that vendor's BAA question is moot for as long as it stays
   off.
-- The retrieval code (`app/services/search_terms.py`) and its tests are intact
-  and still exercised — the flag gates the call, not the code.
+- The retrieval code and its tests stay intact and exercised — the flag gates
+  the call, not the code.
 - A lexical tightening was tried and rejected: requiring more than a bare
-  body-part word to match empties the good cases ("swollen ankle" → nothing).
-  Telling a location word from a symptom word is a semantic judgement, so the
-  realistic fix is model-assisted topic selection — still retrieval, not
-  authoring — which needs its own review.
-  - The second example that note used to give, "my lower back hurts" → "How
-    to Lower Cholesterol", **no longer happens**: single-word queries are now
-    tried last-word-first, so "back" is searched before "lower" and the
-    description returns "Back Injuries" and "Back Pain". That fixes one
-    documented wrong answer. It does not fix the class — "my head has been
-    pounding" still returns "Head and Neck Cancer", because *head* is a word
-    the person genuinely wrote and a topic is genuinely named after it.
-- Symptom intake attaches this reading to every tier except EMERGENT, where
-  the only thing worth showing is how to get emergency help and a content
-  fetch would just delay it. When nothing matches, the screen says so rather
-  than filling the gap.
-
-### Third-party vendor: NLM / MedlinePlus — BAA status
-
-Every symptom search is transmitted to `wsearch.nlm.nih.gov`, a third party,
-carrying free-text health input written by the user.
-
-- **No BAA is in place, and NLM does not sign one.** If this app ever handles
-  data covered by HIPAA, this call path needs a privacy/legal decision — not
-  an engineering one. Options include proxying with the query stripped of
-  identifiers, licensing a redistributable dataset and serving it locally, or
-  accepting the exposure with user consent.
-- The search screen shows a user-visible notice that searches leave the app.
-- The user's text reaches the app's own backend by **POST**, never as a URL
-  query string, so it stays out of our access logs, proxies, and crash
-  reporters.
-- **The onward call to NLM is a GET, with the search term in the URL**
-  (`app/services/medlineplus.py`). This bullet previously claimed the NLM call
-  was a POST; it never was. Search terms therefore do land in NLM's access
-  logs and any intermediary between here and them. Part of the same
-  privacy/legal decision as the BAA question above, not separable from it.
-- What is sent is **not the user's full description**: it is at most three
-  keywords extracted by `app/services/search_terms.py`, which cuts the text
-  leaving the app substantially compared with sending the raw sentence.
-- **Symptom-intake follow-up answers are in scope too.** Answers to the
-  prompts in `app/core/followup.py` are merged into the description before
-  the keyword extraction and the lookup, so elicited detail is covered by
-  everything above, and the merged text is what `intake_assessments` stores.
-- Validation errors are stripped of the submitted value before being
-  returned (`app/main.py`), so a rejected query is not echoed back.
+  body-part word empties the good cases. Telling a location word from a symptom
+  word is a semantic judgement, so the realistic fix is model-assisted topic
+  selection — still retrieval, not authoring — which needs its own review.
 
 ## The symptom picker (implemented 2026-09-16)
 
@@ -487,3347 +616,872 @@ copies drifting.
   app-authored clinical language**, up from 69, and it remains the largest such
   body in the app.
 
-## ⛔ BLOCKING: symptom intake requires clinical and legal sign-off
-
-The symptom-intake feature (`backend/app/core/triage.py`) estimates how soon a
-user should be seen — EMERGENT, URGENT, or SELF_CARE — from free text, using a
-language model. **It must not be put in front of real users until both of the
-following are signed off and recorded here.** This is a release blocker, not a
-recommendation.
-
-1. **A licensed clinician** must review the tier definitions, the system
-   prompt, the deterministic red-flag lists, and a corpus of real
-   classifications. Nothing in this feature was written or reviewed by a
-   clinician; the tier boundaries are a software engineer's construction.
-2. **Legal counsel** must determine whether this is a regulated medical
-   device in each target market. Software that recommends time-critical care
-   ("go to an ER now") from symptom input is materially different from
-   reference content, and the earlier informational-only posture of this app
-   does not cover it. Also unresolved: liability for an under-triage, and what
-   the audit trail must retain.
-
-Additional known limits a reviewer should be told about:
-
-- The classifier still has **no clinically validated error profile**. Unlike an
-  instrument such as ESI or Manchester Triage, nobody qualified has measured
-  its under-triage rate. The architecture biases toward over-triage, which is
-  the safer direction, but "biased safe" is not the same as "measured safe".
-  - What *does* now exist is a **measurement harness**
-    (`backend/scripts/triage_eval/`) and a regression ratchet in the suite.
-    It measures the rule layer against gold tiers an engineer assigned from
-    this file's own documented intent, so it catches regressions and quantifies
-    coverage — and it is **not** the validation this bullet asks for. See
-    "Triage is measured now" below, and "Ten thousand common illnesses" after
-    it: two corpora, 122 and 10,000 cases, both now at 100% agreement with
-    documented intent and 100% safety of advice. ⛔ **Those figures are
-    consistency with an engineer's labels, not a measured under-triage rate.**
-    A corpus cannot contain the phrasing nobody thought to write down, and
-    the 59.5% rule coverage says plainly how much of this is still a phrase
-    list rather than an understanding. This bullet stands unchanged.
-- The audit trail exists (`intake_assessments`) but **nobody is reviewing it
-  yet**. Logging classifications is only useful if someone qualified reads
-  them; assign that owner.
-- Intake descriptions are the most sensitive free text in the app and are
-  **not yet encrypted at rest**.
-- **The clarifying questions are in scope for the clinical review.** The
-  prompts in `app/core/followup.py` are elicitation, not screening — no
-  threshold, no hypothesis test — but which questions get asked shapes what
-  the classifier sees, so a reviewer should read them as part of the
-  instrument rather than as UI copy. The severity scale in particular is a
-  number the app collects and does not act on; a reviewer should say whether
-  that is right.
-
-  There are now **two rounds**. Round one asks the questions the description
-  has **not already answered** (`answered_by_description`): a person who wrote
-  "my throat has been sore since yesterday" is not asked where it is or how
-  long it has been going on. The tests are lexical and closed — a list of lay
-  anatomy nouns, a list of time expressions, a list of intensity words — and
-  they only ask whether ground has been covered, never what a symptom means.
-  They are deliberately conservative, because a missed detection costs one
-  redundant question while a false one loses information the classifier
-  needed. Two properties hold, both tested: **associated symptoms are never
-  skipped** (the answer cannot be inferred from what was written, and it is
-  the net that catches an unmentioned symptom, so it also keeps the round
-  non-empty), and **no round-two id ever appears in round one**, because
-  `rounds_completed` reads the round off the answer keys and that is what caps
-  asking server-side. Which questions get skipped is part of the instrument
-  and needs the same review as the prompts. Round two is three
-  questions: onset and course always, plus a third picked from a fixed list by
-  a short chain over round one's answers (severity ≥ 8 → functional impact;
-  brand new or "not sure" → whether it is constant; a week or more → whether
-  it has happened before; otherwise → what has changed recently). The
-  selection is deterministic — the same answers always produce the same
-  questions — which is what makes it reviewable. **The selection rule is
-  itself part of the instrument and needs the same review as the prompts.**
-- **The model may now decline to classify** (`NEEDS_MORE_INFO`), which is not
-  a fourth tier and cannot be ranked against one. It only adds a question; the
-  rule tier stands underneath it, and asking is capped at `followup.MAX_ROUNDS`
-  (two) after which the safe default (URGENT) is applied and stated plainly.
-  A reviewer should confirm that two rounds is the right cap.
-  - Asking also stops early if a round comes back with nothing usable — every
-    answer blank or "I'm not sure". Someone who could not answer the first set
-    will not do better with a second, and asking again would trap them.
-  - **The cap is enforced server-side, from the answer ids**, not from a round
-    number the client reports. The two question sets have disjoint ids, so a
-    client cannot talk its way into a third round.
-- **The result screen now shows a recap of the answers** (`summarise` in
-  `followup.py`, rendered as "What you told us"). It is a receipt, not an
-  interpretation: each row is a fixed field label beside the user's own text,
-  verbatim. Nothing is combined, rephrased, categorised or reasoned about, and
-  **no condition is ever named** — that is the line between this and the
-  differential diagnosis the app must not produce. Answers of "I'm not sure"
-  are reported as still unknown rather than as facts. It exists because
-  "MedHelp could not confidently recognise what you described" is the same
-  sentence every time, and naming what is still blank is the part that
-  actually explains a cautious estimate.
-- **`model_confidence` is recorded and never acted on.** LOW/MEDIUM/HIGH is
-  stored on `intake_assessments` so a reviewer can ask whether the wrong calls
-  are the low-confidence ones. It must not become an input to the tier without
-  that review — a confidence threshold that softens a tier would invert the
-  one-directional safety property the whole design rests on.
-
-### How the safety architecture works
-
-Two layers. **The rule layer is the product; the model is an optional
-upgrade.** Read `backend/app/core/rules_triage.py` and
-`backend/app/core/triage.py` before changing any of it.
-
-**Layer 1 — rules (`rules_triage.py`). Always runs. No key, no network, no
-cost.** Explicit phrase lists a clinician can read line by line, evaluated in
-order: emergency red flags → urgent indicators → recognised self-limiting
-complaint → default. Deterministic, so the same input always gives the same
-tier — which is what a clinical review needs.
-
-**Layer 2 — the model (`triage.py`). Optional.** Consulted only when
-credentials exist; skipped silently otherwise. A missing key degrades quality,
-it does not break the feature.
-
-Layer 2 has **two interchangeable implementations**, and `_classify_with_model`
-picks one. Both return the same `ModelVerdict`, both are reconciled by the same
-`max()`, and neither can lower a tier — choosing a source is not choosing an
-answer.
-
-| | When | Shape | Cost |
-|---|---|---|---|
-| `deduction.py` | `LLM_BASE_URL` + `LLM_MODEL` set | agentic loop | free |
-| `triage._classify_with_anthropic` | otherwise, if Anthropic creds exist | one shot | paid |
-
-Five properties hold, each asserted by tests:
-
-1. **SELF_CARE must be positively earned.** It requires a match against a
-   recognised self-limiting complaint *and* no escalating modifier. Anything
-   unrecognised resolves to URGENT. Not understanding a description is not the
-   same as it being harmless — this is the single most important rule here.
-2. Emergency red-flag screening runs **first** and sets a floor of EMERGENT.
-3. Neither layer can **lower** the other's tier. They reconcile with `max()`,
-   so either can escalate and neither can de-escalate.
-4. The displayed reasoning never argues for a lower tier than the one shown.
-   A model answer of SELF_CARE that lost to an URGENT rule does not get to
-   supply the explanation.
-5. Failure is **never** SELF_CARE. A model outage falls back to the rule tier;
-   there is no path where an error produces reassurance.
-
-**Adding or changing a rule:** add the phrase to the right list in
-`rules_triage.py`, add a test, and remember that the lists are lay language —
-people write "my face is drooping", not "face drooping". A stroke description
-in natural word order was missed for exactly that reason; match both orders.
-
-**Audit trail.** `intake_assessments` records the final tier, the rule tier,
-which named rules fired, whether the rules defaulted, and what the model said
-separately — so a reviewer can measure the rules and the model independently.
-
-### The agentic layer (`deduction.py`), and the free endpoint under it
-
-Setup and provider options: `docs/free-model-setup.md`.
-
-The model layer used to be reachable only through a paid Anthropic key, so a
-deployment without one ran on rules alone. It now also speaks to **any
-OpenAI-compatible chat endpoint** (`app/services/llm.py`) — a hosted free tier
-or a model on your own machine — and when one is configured, the model is
-driven through a **bounded tool-using loop** rather than asked for a tier in
-one call.
-
-✅ **THE FENCE ON `triage.py` IS CLEARED FOR THIS CHANGE.**
-
-The repository owner asked for this directly in conversation on 2026-09-05 —
-use a free AI for symptoms, with agentic deduction in place of the rules-only
-path — and that request is why the work exists. That request alone was **not**
-the sign-off this fence requires, and an earlier draft of this paragraph that
-claimed otherwise was rejected by a compliance review: a sentence an agent
-writes into the same diff that needs authorising is not evidence of
-authorisation.
-
-The actual approval came separately, on 2026-09-06, when the owner was asked
-by name — "Do you approve modifying `backend/app/core/triage.py` and adding
-`backend/app/core/deduction.py` as a second (free, agentic) path to a
-symptom-urgency tier — the fenced change CLAUDE.md requires you to approve by
-name before it's committed?" — and answered, in conversation, in their own
-words: **"Yes, approved as-is."** That is the third instance of this file's
-"explicit human approval obtained outside of this pipeline," alongside the
-`normalize_query` fix and the deployment approval below — a person answering a
-direct question, not a chain of agent sign-offs.
-
-**What was approved, specifically:** modifying `backend/app/core/triage.py`
-(the dispatch in `_classify_with_model`, the `trace` fields, the renamed
-`_classify_with_anthropic`) and adding `backend/app/core/deduction.py` as a
-second, free path to a tier. **What this does not cover:** it is not approval
-to merge to `main`, deploy, or touch anything else this file fences — those
-each need their own answer to their own question, same as this one did.
-
-What the change does *not* touch, verified by byte-diff against HEAD: any
-disclaimer, any escalation copy, the emergency phrase lists, the rule lists,
-`SYSTEM_PROMPT` and its tier definitions (4406 bytes, identical), and the
-Anthropic layer's body (identical; only its name and docstring changed).
-
-Per assessment the model calls `screen_red_flags`, then `apply_rules` — the
-app's own deterministic screens — then records its reasoning a step at a time,
-then concludes.
-
-- **`conclude` is refused until both screens have been read.** A conclusion is
-  therefore grounded in the reviewed phrase lists rather than in the model's
-  recollection of them.
-- **The screens take no arguments.** They always run over the description
-  exactly as submitted. A tool that let the model choose the text would let it
-  screen a rephrasing and talk itself out of a red flag.
-- **The loop is bounded** (`MAX_STEPS`). Not concluding is an outage, not a
-  tier, and the rule tier stands.
-- **There is one copy of the instrument.** The tier definitions stay in
-  `SYSTEM_PROMPT` in `triage.py` and are passed in, so a reviewer reads one
-  prompt. `deduction.py` is machinery, not judgement.
-- **The derivation is recorded** and goes to the dev-only classification log —
-  never to the user, who gets the written reasoning instead. It is not written
-  to `intake_assessments`: that needs a new column and this project has no
-  migration tooling (see "Known Gaps"). Persisting it is a follow-up, and it
-  is the thing that would make a wrong call diagnosable rather than merely
-  visible.
-
-⛔ **This does not lift any release blocker.** Driving the same unreviewed tier
-definitions in more steps does not review them, and the classifier still has no
-validated error profile. What changed is that a reviewer can now read a
-derivation instead of a verdict, and that the layer no longer requires a paid
-account.
-
-### Third-party vendor: the model endpoint — BAA status
-
-**Which base URL is configured is a data-handling decision, not a preference.**
-Symptom descriptions are the most sensitive free text in this app.
-
-- **A local endpoint** (`http://localhost:11434/v1`, Ollama or llama.cpp)
-  transmits nothing. No image, no description and no derivation leaves the
-  machine, so **no BAA question arises at all** — the same reasoning that put
-  label OCR on the device.
-- **A hosted free tier** (Groq, Google AI Studio, OpenRouter) transmits the
-  full description to a third party, and **this project has a BAA with
-  nobody**. Google's free tier may additionally use input for training. That
-  is a privacy/legal decision, not an engineering one, exactly as with NLM.
-- `llm.endpoint_is_local()` exists so the distinction is visible rather than
-  assumed, and a non-local endpoint **logs a warning naming the exposure**, as
-  this file requires of any new third-party processor. That does not make it
-  safe; it stops it being silent.
-- **Nothing from the request body reaches the application log.** Failures
-  report a type and an HTTP status code only — a provider error body can quote
-  the request, which is the user's description. A test asserts it.
-- Defaults are empty, so out of the box there is no model layer and no
-  transmission.
-
-## Emergency routing (implemented)
-
-`backend/app/core/emergency.py` screens every symptom query for red-flag
-language before the content lookup runs: cardiac, breathing, stroke,
-bleeding/trauma, anaphylaxis, loss of consciousness, self-harm, and
-overdose/poisoning.
-
-- Screening is deliberately **over-inclusive**. A false positive costs the
-  user a few seconds; a miss could cost a life.
-- Guidance renders **above all other content** on the screen, and results are
-  shown beneath it rather than suppressed.
-- It routes to 911 (or 988 for self-harm) and never names a condition or a
-  treatment.
-- It is returned **even when MedlinePlus is down**, so a content outage can
-  never swallow the instruction to call for help.
-
-The phrase lists are signposting terms drawn from public emergency
-warning-sign guidance. **They have not been reviewed by a clinician** — that
-review is required before release.
-
-The general "When to see a doctor" copy is intentionally non-specific.
-Condition-specific criteria ("seek care if your fever exceeds X") would be
-clinical content this app is not permitted to author.
-
 ## Emergency card (implemented)
 
-A screen the user fills in once — allergies, known conditions, blood type, and
-who to call — that is readable in one tap from the home screen and works with
-no connection. `mobile/src/screens/emergency/`, backed by
-`mobile/src/services/emergencyCard.ts`.
+A screen the user fills in once — allergies, known conditions, blood type, who
+to call — readable in one tap from the home screen, working with no connection.
+`mobile/src/screens/emergency/`. Detail: `docs/emergency-card.md`.
 
-**This is not the emergency routing feature.** `app/core/emergency.py` screens
-symptom text for red flags and is fenced; nothing here touches it, reads it,
-or feeds it. The card is a place to write something down.
+**This is not the emergency routing feature.** `app/core/emergency.py` is
+fenced; nothing here touches it, reads it, or feeds it. The card is a place to
+write something down.
 
-### ⛔ It is stored on the device and nowhere else
+⛔ **Rules:**
 
-There is no endpoint, no table, and no `fetch` on this path — a test asserts
-it. Two separate reasons, and both have to hold:
-
-- **It has to work when nothing else does.** It is read by someone holding an
-  unlocked phone in an emergency, who may have no signal and a backend that is
-  down. Anything that needed a request would fail at the only moment it
-  mattered.
-- **The backend has no encryption at rest** (open finding 2). Allergies and
-  conditions are among the most sensitive things this app could hold, so the
-  safest place for new health data is a store the server never sees.
-
-The cost is stated on the editor rather than hidden: the card does not follow
-the user to another phone or browser, and there is no backup of it.
-
-| | Store | Survives a reload | Survives the app or tab closing |
-|---|---|---|---|
-| `emergencyCardStorage.ts` (iOS/Android) | Keychain / Keystore, `WHEN_UNLOCKED_THIS_DEVICE_ONLY` | yes | yes |
-| `emergencyCardStorage.web.ts` (browser) | `localStorage` | yes | **yes** |
-
-⛔ **`localStorage` here is deliberate, and is not the rule `tokenStorage.web.ts`
-sets.** That file forbids moving the *session token* to `localStorage`, and
-that stands. The trade runs the other way for the card: a token is a bearer
-credential whose right lifetime is the shortest one that survives a refresh,
-while a card that vanishes when the tab closes is a card that is not there
-when it is needed, and it grants nobody access to anything. Both halves are
-asserted by tests so that "fixing the inconsistency" in either direction
-fails the suite.
-
-The exposure that buys is real and is written on the editor screen: **on a
-shared or borrowed computer the card stays behind after sign-out**, and no
-sign-out removes it. "Erase this card" is offered for exactly that.
-
-### ⛔ Nothing on the card is authored, checked or interpreted by MedHelp
-
-Every field is free text, stored verbatim and rendered verbatim. There is no
-picker of conditions, no list of common allergies, and no validation of a
-blood type — offering a menu of conditions would make MedHelp the author of a
-clinical vocabulary, and checking a blood group would imply a verification
-that has not happened.
-
-Nothing reads the card either. It is not an input to triage, to the emergency
-screening, or to anything else.
-
-The header is loud enough to carry an authority the content has not earned, so
-the screen disowns it in as many words: "MedHelp did not check them and cannot
-confirm they are current."
-
-### ⛔ An empty field renders as "Not provided", never as a missing row
-
-The single most important rule on the screen. A card with no allergies row
-reads as *no allergies* to whoever is holding the phone; the gap is
-information and has to be visible. Asserted by a test.
-
-### The medication list is mirrored to the device, and that is a second copy
-
-Medications are what a responder would most want from this app and are already
-collected — but behind an authenticated call, which is the one thing the card
-cannot depend on. So `MedicationListScreen` writes an offline copy whenever it
-loads, and the card reads that.
-
-- **Name and dosage only**, of at most 25 medications, each field capped at 300
-  characters. Not the prescribing doctor, not the notes, not the refill dates:
-  none of that helps a responder, and every field left out cannot leak from
-  here. The cap is also what keeps the record inside Android's SecureStore
-  size limit (~2048 bytes), above which a write can be lost silently.
-- It is a **real widening of where health data rests**, stated on the card and
-  in the editor. `clearCard()` removes it along with everything else — a clear
-  that left a medication list behind would not be a clear.
-- The card says it may be out of date rather than presenting it as live.
-
-### Why the palette breaks the house style
-
-The rest of MedHelp is deliberately calm and this screen deliberately is not:
-it is found under stress, possibly by someone who has never used the app, so
-it is built to be identifiable at a glance. The header ground is
-`colors.emergencyText` — an existing reviewed value from the emergency family,
-used as a fill, which gives white text 10.8:1 where the lighter border colour
-would give 5.3:1. **No token value was changed**, which is what the theme note
-asks of anyone touching the safety-meaning families.
-
-`EmergencyCardLink` (the home-screen entry) and `EmergencyCallBar` are
-different components on purpose. The link opens a screen; the bar routes to
-emergency services. Merging them would blur the one instruction that has to be
-unambiguous.
-
-### A lock-screen widget was considered and not built
-
-Asked for as a "flag whether that's feasible, don't force it". It is not, here:
-
-- iOS needs a **WidgetKit app extension in Swift**, an Expo config plugin, and
-  a development build — and for distribution an Apple Developer account. This
-  project deliberately went the other way (see the browser scanner: "so an
-  iPhone needs no $99 account"), and there is no device or dev build in this
-  environment to test one on.
-- Android needs an App Widget or Quick Settings tile, likewise native and
-  likewise a dev build.
-- **Both platforms already ship a better version of this.** iOS Medical ID
-  (Health app) is reachable from the lock screen's emergency dialler, and
-  Android has Emergency information under Settings. A responder is trained to
-  look there, not in a third-party app. Duplicating that badly is worse than
-  not duplicating it.
-
-If a widget is ever wanted, it should be scoped as native work alongside the
-development build `expo-mlkit-ocr` already requires — not bolted on.
-
-### Not reviewed, and PHI status
-
-- **Not reviewed by a clinician.** Nothing here is clinical content, but which
-  fields an emergency card should carry is a question a reviewer should answer.
-- The card is health data about an identifiable person at rest on a device. On
-  native it is in the platform keystore; **in a browser it is unencrypted
-  `localStorage`**. That is a new instance of open finding 2 rather than an
-  exception to it.
+- **It is stored on the device and nowhere else.** No endpoint, no table, no
+  `fetch` on this path — a test asserts it. It has to work when nothing else
+  does, and the backend has no encryption at rest.
+- **`localStorage` on web is deliberate here, and is not the rule
+  `tokenStorage.web.ts` sets.** A card that vanishes when the tab closes is a
+  card that is not there when it is needed, and it grants nobody access to
+  anything. Both halves are asserted by tests, so "fixing the inconsistency" in
+  either direction fails the suite. The cost — on a shared computer the card
+  outlives sign-out — is written on the editor, with "Erase this card" offered.
+- **Nothing on the card is authored, checked or interpreted by MedHelp.** Every
+  field is free text, stored and rendered verbatim. No picker of conditions, no
+  list of common allergies, no validation of a blood type. Nothing reads the
+  card either — it is not an input to triage or to anything else.
+- **An empty field renders as "Not provided", never as a missing row.** The
+  single most important rule on the screen: a card with no allergies row reads
+  as *no allergies* to whoever is holding the phone. Asserted by a test.
+- The mirrored medication list is **name and dosage only**, at most 25 entries,
+  each field capped at 300 characters — which also keeps it inside Android
+  SecureStore's ~2048-byte limit, above which a write is lost silently.
+  `clearCard()` removes it too, and the card says it may be out of date.
+- `EmergencyCardLink` and `EmergencyCallBar` stay **different components**. One
+  opens a screen; the other routes to emergency services. Merging them would
+  blur the one instruction that has to be unambiguous.
 
 ## Medication label scanning (implemented)
 
-A user can photograph a prescription label instead of typing the medication in.
-Manual entry is unchanged and remains the primary path.
+A user can photograph a prescription label instead of typing. Manual entry is
+unchanged and remains the primary path. **The OCR runs on the device** — Apple
+Vision on iOS and ML Kit on Android via `expo-mlkit-ocr`, Tesseract WASM in a
+browser. Both paths share one parser, so a label reads identically wherever it
+is scanned. Detail: `docs/label-scanning.md`.
 
-**The OCR runs on the device.** Apple Vision on iOS, Google ML Kit Text
-Recognition v2 on Android, both via `expo-mlkit-ocr`. This was a data-handling
-decision before it was an engineering one:
-
-- A prescription label carries the patient's name, address, prescriber,
-  pharmacy, Rx number, drug and dose **in one photograph**. It is about the
-  most identifying artefact a user could hand this app.
-- Sending it to a cloud OCR service (Google Cloud Vision, AWS Textract, Azure
-  AI Vision) would make that vendor a processor of PHI and require a signed
-  BAA. All three will sign one; **this project has none with anyone**, and
-  procuring one is a legal decision, not an engineering one.
-- On-device recognition means **no BAA question arises at all**: no image and
-  no recognised text leaves the phone. `app/services/labelScanner.ts` makes no
-  network call, which is a property you can verify by reading it, and a test
-  asserts `fetch` is never called during a read.
-- The cost is accuracy on hard photographs — curled labels on round bottles,
-  low light, worn thermal print. Cloud OCR is better at those. That is the
-  trade, and it is why every read is confirmed by the user rather than trusted.
-- It needs a **development build**; `expo-mlkit-ocr` does not run in Expo Go.
-  When the native module is absent the feature reports itself unavailable and
-  the user is sent to manual entry.
-
-### Two engines, one parser
-
-Recognition is platform-split; everything above it is shared.
-
-| | Engine | Network |
-|---|---|---|
-| `labelScanner.ts` (iOS/Android) | Apple Vision / ML Kit v2 | **none at all** |
-| `labelScanner.web.ts` (browser) | Tesseract (WebAssembly) | fetches its model |
-
-Metro resolves the `.web.ts` variant automatically. Both expose the same
-functions, throw the same `ScanError`s from `scanErrors.ts`, and return the
-same `ParsedLabel` from the same parser, so a label reads identically wherever
-it is scanned and `MedicationScanScreen` needs no platform knowledge.
-
-The web engine exists because a browser cannot reach Apple Vision or ML Kit —
-they are OS frameworks. It is what makes scanning work on an iPhone through
-Safari with no App Store, no development build and no Apple Developer account.
-
-**State the privacy property precisely, because it differs.** On both paths the
-photograph never leaves the device: it is handed straight to on-device code and
-the recognised text is discarded after parsing. But the native path makes *no
-network call whatsoever*, while Tesseract downloads its WASM core and English
-training data from a CDN on first use. What travels is the model coming down,
-never the image going up — so no PHI is transmitted and no BAA question arises
-— but do not copy "makes no network call" onto the web file. If even the model
-fetch becomes unacceptable, the assets can be self-hosted by pointing
-`workerPath`/`corePath`/`langPath` at our own origin; that is a deployment
-change, not a code change.
-
-Tesseract is meaningfully worse than the native engines on curled, dim or worn
-labels. Since every read is confirmed by the user before saving, a weaker
-engine costs accuracy and patience, not safety.
-
-Rules for anyone extending this:
+⛔ **Rules for anyone extending this:**
 
 - **Nothing scanned is ever saved without the user confirming it on screen.**
   The scan screen cannot write a medication; every path out of it opens the
   ordinary form, prefilled, and the user presses the same save button as
-  someone who typed it in. A misread dose that saved itself would change when
-  a person takes a medication with nobody having looked at it. Tests assert
-  this on both screens.
-- **Directions are carried across verbatim.** `labelParser.ts` copies the sig
-  line as printed and does not expand BID/TID/QHS or reword anything.
-  Decoding an abbreviation into dosing instructions would be app-authored
-  clinical content, and a wrong expansion changes medication timing. Same rule
-  as the MedlinePlus verbatim requirement above.
+  someone who typed it in. A misread dose that saved itself would change when a
+  person takes a medication with nobody having looked at it.
+- **Directions are carried across verbatim.** Do not expand BID/TID/QHS or
+  reword anything — decoding an abbreviation into dosing instructions would be
+  app-authored clinical content, and a wrong expansion changes medication
+  timing.
 - **Doses are never restated or converted.** "250 mg/5 mL" stays a
   concentration. Only spacing and unit capitalisation are tidied.
-- **Drug names are never corrected against a dictionary.** A misread name
-  stays misread so the user can see it is wrong. Snapping OCR output to the
-  nearest real drug turns a legible mistake into a plausible one.
-- **Only the four fields the form already stores are extracted.** The
-  patient's name, address and Rx number are deliberately not read out — the
-  app has no field for them, and the raw OCR text is discarded inside
-  `readLabel` rather than returned to any screen.
+- **Drug names are never corrected against a dictionary.** A misread name stays
+  misread so the user can see it is wrong. Snapping OCR output to the nearest
+  real drug turns a legible mistake into a plausible one.
+- **Only the four fields the form already stores are extracted.** The patient's
+  name, address and Rx number are deliberately not read out, and the raw OCR
+  text is discarded inside `readLabel` rather than returned to any screen.
 - A failed or low-confidence read **falls back to manual entry with whatever
   was extracted prefilled**, never to a dead end.
-- Parser accuracy is measured over **whole labels**, not one string at a time
-  (`mobile/__tests__/labelParserCorpus.test.ts`, synthetic layouts only). Two
-  defects it found, both of which corrupted a field rather than failing to
-  read it:
-  - `"100 UNITS/ML"` came back as a dosage of `"100 units"` and a drug name of
-    `"Insulin Glargine ML"`. The strength pattern required a number after the
-    slash, and a concentration printed per one millilitre does not write the
-    1 — so the denominator was dropped from the dose and the orphaned `/ML`
-    was read as part of the name. Dropping a denominator restates a dose,
-    which is the thing this parser is forbidden to do.
-  - `"LISINOPRIL-HCTZ"` came back as `"Lisinopril-Hctz"`. De-shouting block
-    capitals treated any all-caps run over three letters as a word; an
-    all-caps token with no vowel is now left as printed, so `HCL`, `HCTZ` and
-    `SMZ` survive.
-
-  Neither fix reads a dictionary or asks what any letters stand for. The
-  corpus tests layout, not recognition — OCR quality belongs to the engine and
-  cannot be measured without real photographs.
-
-Not yet reviewed by a clinician or by counsel. Scanning does not estimate
-urgency and authors no clinical content, so it is not covered by the intake
-blocker below — but the parsing heuristics have only been tested against
-synthetic labels written by an engineer, not against a corpus of real ones.
+- ⛔ **Do not copy "makes no network call" onto the web file.** The native path
+  makes none whatsoever; Tesseract downloads its WASM core and training data
+  from a CDN. What travels is the model coming down, never the image going up —
+  so no PHI is transmitted either way, but the two statements differ.
 
 ## Medication reminders (implemented)
 
-A user can set daily times for a medication and be notified at each one. The
-times come from a suggestion the user confirms; nothing schedules itself.
+A user sets daily times for a medication and is notified at each one. The times
+come from a suggestion the user confirms; nothing schedules itself. Detail,
+including refill alerts: `docs/medication-reminders.md`.
 
 ### ⛔ MedHelp proposes times. It never sets them.
 
-`frequency` is the sig line, carried **verbatim** from the label. Turning
-"TAKE 1 TABLET BY MOUTH TWICE DAILY" or "BID" into two alarms is a decode of
-dosing instructions — the exact thing the verbatim rule under "Medication
-label scanning" forbids, because a wrong expansion changes when someone takes
-a medicine.
-
-So the feature is built as read-then-confirm, the same shape as the scanner:
-
-- `backend/app/services/dose_schedule.py` proposes times. It is an explicit,
-  readable phrase list a clinician can check line by line — not a model, not a
-  general parser.
-- `GET /reminders/medications/{id}/suggestion` returns that proposal and
-  **writes nothing**. A test asserts a suggestion leaves the user with no
-  reminders.
-- `ReminderEditScreen` shows the proposal as an editable draft with the
-  printed directions **unedited beside it**, so the user compares the times
-  against the label rather than trusting the app. Reminders exist only after
-  they press save.
-- The default clock times (08:00/20:00 and so on) are **neutral waking-hours
-  conveniences, not clinical choices**. Which hours suit depends on the
-  person, the drug, and instructions this app never sees. The UI says so.
+`frequency` is the sig line, carried verbatim. Turning "TWICE DAILY" into two
+alarms is a decode of dosing instructions — the thing the verbatim rule
+forbids. So the feature is read-then-confirm: `dose_schedule.py` proposes from
+an explicit phrase list a clinician can check line by line, the suggestion
+endpoint **writes nothing** (a test asserts a suggestion leaves the user with
+no reminders), and reminders exist only after the user presses save with the
+printed directions unedited beside the draft.
 
 **It declines far more readily than it guesses.** Anything not on the lists
-returns no suggestion and a reason the user is shown, and they set their own
-times. Deliberately refused:
+returns no suggestion and a reason the user is shown. Deliberately refused:
+**"as needed" / PRN** — recognised only in order to refuse it, because an
+interval on a PRN label is a *maximum*, not a schedule, and an alarm built from
+it would tell someone to take a medicine they may not need (the most important
+refusal here); anything not a daily rhythm; and food or route qualifiers, which
+stay in the verbatim text and never become mealtimes. Times are rejected, never
+reinterpreted: `8am`, `0800` and `8:00` are refused, because "8" could be
+either end of the day. The default clock hours are neutral waking-hours
+conveniences, **not clinical choices**, and the UI says so.
 
-- **"As needed" / PRN.** Recognised only in order to refuse it. An as-needed
-  label often carries an interval ("every 6 hours as needed"), but that is a
-  *maximum*, not a schedule — an alarm built from it would tell someone to
-  take a medicine they may not need. This is the most important refusal here.
-- **Anything not a daily rhythm** — weekly, every other day, cycled courses.
-- **Food and route qualifiers** ("with food") are left in the verbatim text,
-  never turned into mealtimes. MedHelp does not know when anyone eats.
-
-Times are rejected, never reinterpreted: `8am`, `0800` and `8:00` are refused
-rather than guessed, because "8" could be either end of the day.
-
-### Delivery differs by platform, and the difference is stated to the user
-
-| | Engine | Fires with the app closed |
-|---|---|---|
-| `notificationService.ts` (iOS/Android) | `expo-notifications`, daily local trigger | **yes** — the OS holds it |
-| `notificationService.web.ts` (browser) | `setTimeout` + the Notification API | **no** — only while the tab is open |
-
-Metro picks the variant; both export the same functions, so the screens are
-platform-agnostic. The reminders screen renders the web limitation as a
-standing notice rather than letting someone assume an alarm clock.
-
-- ⛔ **These are local notifications only.** No push token is requested and
-  nothing is registered with Expo's push service, FCM or APNs. **Do not add
-  `getExpoPushTokenAsync` or Web Push without a BAA decision** — a payload
-  naming a person's medication makes those services processors of PHI. Web
-  Push was considered for background delivery on the web and rejected on
-  exactly that ground; it would also need HTTPS, so it cannot work on the LAN
-  address the app is served from today.
-- Nothing about a reminder leaves the device. Both services make no network
-  call; a test asserts `fetch` is never called when one fires.
-- ⛔ **Never ask for notification permission without a user gesture.** Same
-  rule, and same reason, as location: an unprompted request is suppressed by
-  browsers and a blocked site never prompts again. `getPermission()` only
-  reads what is already granted; a button is the only thing that asks.
-- The **on-screen list is the part that is always correct**, and the
-  notification is the bonus on top. That is why the screen shows today's times
-  and their state on open.
-
-### Rules for anyone extending this
+⛔ **Further reminder rules:**
 
 - **A reminder time is a local wall-clock "HH:MM", never a UTC instant.**
-  Eight in the morning means eight in the morning wherever the person is;
-  converting through a timezone would move a medication time when they travel.
+  Converting through a timezone would move a medication time when the person
+  travels. Same rule for goal activity times.
 - **This is not an adherence record.** A time that has gone by shows as
-  "earlier today", never "missed" — MedHelp has no idea whether the dose was
-  taken, and implying otherwise invents a clinical fact about the user.
-  Nothing here tracks, scores, or reports adherence.
+  "earlier today", never "missed". Nothing tracks, scores, or reports
+  adherence.
 - **Deleting a medication deletes its reminders**, in the endpoint as well as
-  by foreign key. A leftover row is not untidy data, it is an alarm telling
+  by foreign key — a leftover row is not untidy data, it is an alarm telling
   someone to take a medication they have stopped. SQLite does not enforce the
   cascade, so the test asserts against the table, not the listing.
-- `medication_reminders` stores no medication name — it joins for that. A
+- **These are local notifications only.** No push token is requested, nothing
+  is registered with Expo's push service, FCM or APNs. ⛔ **Do not add
+  `getExpoPushTokenAsync` or Web Push without a BAA decision** — a payload
+  naming a person's medication makes those services processors of PHI.
+- **Never ask for notification permission without a user gesture.** Same rule
+  and reason as location: an unprompted request is suppressed by browsers, and
+  a blocked site never prompts again. `getPermission()` only reads what is
+  already granted; a button is the only thing that asks.
+- `medication_reminders` stores **no medication name** — it joins for that. A
   second copy would be a second place health data leaks from.
-- The notification body names the medication, because one that will not say
-  what to take is no use. **That makes it visible on a lock screen** to anyone
-  nearby. Accepted for now; if that becomes unacceptable the body can be made
-  generic, which is a copy change in one place per platform.
+- The **on-screen list is the part that is always correct**; the notification
+  is the bonus on top. The notification body names the medication, which makes
+  it visible on a lock screen — accepted for now.
 
-### Refill alerts: when a supply is estimated to run out
+### ⛔ Arming: one function, every time, the complete set
 
-Built on the existing `medications` record rather than beside it. Three
-nullable columns were added — `quantity_remaining`, `quantity_counted_on`,
-`doses_per_day` — and the estimate is derived server-side in
-`backend/app/services/refill_forecast.py`.
+`scheduleAll(reminders, { refillAlerts })` is called from
+`mobile/src/services/reminderArming.ts` **and nowhere else.** Dose reminders
+and refill alerts cannot be armed separately — `cancelAll()` clears everything
+and does not distinguish between them, so two arming functions would take turns
+cancelling each other's work, and the symptom is a notification type that
+silently stops firing depending on which screen was opened last.
 
-**`refill_date` and `refill_estimate` are two different claims and must stay
-apart.** `refill_date` is a date the user wrote down; the estimate is
-arithmetic MedHelp did. They have separate fields, separate badges, separate
-wording, and separate lead times. ⛔ Do not collapse them — a guess that
-inherits a record's authority is exactly the failure this app is built to
-avoid elsewhere.
+More *callers* are fine — `rearm()` runs at app start from `RootNavigator` as
+well as from the reminders screen, because arming only on that screen meant a
+person who set their times and opened any other tab had nothing armed at all.
+A **partial arm** is what the rule forbids. Runs are serialised, because app
+start and a focus effect really do overlap. Both properties are tested. Arming
+is best-effort and never surfaces an error.
 
-#### ⛔ The directions line is never read
+### ⛔ Refill alerts: the estimate never borrows the record's authority
 
-`forecast()` **does not take a `frequency` argument at all**, and
-`refill_forecast.py` does not import `dose_schedule`. Both are asserted by
-tests, against the function signature and the module's import statements,
-so adding one is a failing suite rather than a quiet change of policy.
+`refill_date` is a date the user wrote down; `refill_estimate` is arithmetic
+MedHelp did. Separate fields, badges, wording and lead times — **do not
+collapse them.**
 
-Reading a dose count out of "TAKE 1 TABLET BY MOUTH TWICE DAILY" is the decode
-the verbatim rule forbids, for the same reason it forbids expanding BID into
-two alarms: a wrong expansion changes when someone takes a medicine.
-
-So `doses_per_day` comes from one of two places, in this order:
-
-1. **A number the user typed** on the medication form (`"entered"`).
-2. **The count of their enabled reminder times** (`"reminders"`). Those rows
-   exist only because someone reviewed a draft and pressed save, so counting
-   them adds no guess of MedHelp's own.
-
-With neither, there is no estimate and the user is told which half is missing.
-`doses_per_day_source` is returned so the screen can show what the estimate
-rests on rather than handing over a date with no provenance.
-
-#### ⛔ It is an estimate, and every surface says so
-
-`is_estimate` is a property that cannot be constructed false, and it is true
-whenever there is a date at all. The projection assumes **every dose is taken
-exactly on schedule**, which MedHelp has no way to check — CLAUDE.md is
-explicit that this is not an adherence record, and `reminderTiming.dueState`
-already says "earlier today" rather than "missed" for the same reason.
-
-Tests assert the wording on the card badge and in the notification body, and
-assert that neither says "missed", "skipped" or "forgot".
-
-#### Declining is a normal outcome
-
-No quantity, no confirmed doses-per-day, a count dated in the future, or more
-than a year's supply: each returns no date and a reason meant for the user.
-A confident wrong run-out date is worse than none for someone deciding whether
-to chase a prescription.
-
-`quantity_counted_on` is what stops a count going stale silently — "30 left"
-means nothing without the day it was true, and a projection with no origin
-would report the same answer forever. The API fills it with today when a
-quantity arrives without one.
-
-Nothing rounds up: seven tablets at two a day is three whole days, not four.
-
-#### The lead time is a device setting, not an account one
-
-Default 3 days, choosable from the reminders screen (1/3/5/7/14).
-`appSettings.ts` keeps it in `deviceStorage`, and it travels to the API as
-`GET /medications?refill_lead_days=N`.
-
-There is no user-settings table, and adding one for this would put a row about
-a named person's medication habits into a database with no encryption at rest
-— for a number that only ever changes when a notification fires on that
-device. The consequence is that each device keeps its own.
-
-The **arithmetic still happens server-side**, which is what keeps the
-medication list and the reminders screen flagging the same medications.
-
-#### Both kinds of notification are armed in one call
-
-`scheduleAll(reminders, { refillAlerts })`, from
-`mobile/src/services/reminderArming.ts` and nowhere else.
-
-⛔ They cannot be armed separately. `cancelAll()` clears everything — on native
-it calls `cancelAllScheduledNotificationsAsync`, which does not distinguish
-between them — so two arming functions would take turns cancelling each
-other's work. The symptom would be a notification type that silently stopped
-firing depending on which screen was opened last. A test asserts both survive
-one call.
-
-#### ⛔ One arming *function*, not one caller (fixed 2026-09-16)
-
-This used to say `MedicationRemindersScreen` **and nowhere else**, and that
-was the wrong half of the rule to enforce. Arming happened in that screen's
-focus effect, so notifications existed only if you visited it: a person who set
-their times and then opened the app on any other tab had nothing armed at all.
-
-Invisible on iOS and Android, where the OS keeps yesterday's daily triggers —
-and **total on the web**, where the timers are `setTimeout` handles in a module
-array that every reload throws away. Playtesting found it as reminders that
-were saved, listed correctly on screen, and never delivered.
-
-`rearm()` now runs at app start too, from `RootNavigator` as soon as there is a
-session. What the rule actually protects is that **every arm sends the complete
-set** — the danger is two functions each arming a subset. More callers are fine;
-a partial arm is not. Two properties hold, both tested in
-`__tests__/reminderArming.test.ts`:
-
-- **`reminderArming` is the only module that calls `scheduleAll`.** ⛔ Do not
-  import it anywhere else, and do not add a second arming function.
-- **Runs are serialised.** App start and a focus effect really do overlap when
-  the app opens on Medications, and two overlapping runs would interleave one's
-  `cancelAll` with the other's scheduling — exactly the silent-stop this rule
-  exists to prevent.
-
-`rearmFrom(state)` arms from a set the caller already loaded, so the reminders
-screen does not fetch everything twice on every visit. Same queue, same
-whole-set rule.
-
-Arming is best-effort and never surfaces an error: an app start with no network
-returns `null` having cancelled nothing, so whatever the OS already holds
-survives.
-
-| | Trigger | Repeats |
-|---|---|---|
-| Dose reminder | daily, at a wall-clock time | yes, every day |
-| Refill alert | a one-off calendar date at 09:00 local | **no** |
-
-A refill alert is about one estimated date; repeating it would nag about a
-supply the user may already have replaced.
-
-The run-out date is parsed as **local midnight, not UTC**.
-`new Date("2026-09-18")` is UTC by specification, which is the previous
-evening anywhere west of Greenwich and would move the alert a day for most of
-the Americas. Tested.
-
-An alert whose moment has passed is not scheduled at all — a notification
-cannot fire into the past, and re-firing one on every screen load would be
-worse than not firing it. The **badge on the medication list is the part that
-is always correct**, the same division of labour the reminders screen already
-relies on. On the web the setTimeout ceiling (~24 days) also applies, and a
-refill alert is days out, so it misses far more often than a dose reminder
-does.
-
-#### ⛔ Deploying this needs a hand-run script
-
-The three columns went onto a table that already exists, and the start command
-runs `create_missing_tables.py`, which creates missing tables and never alters
-existing ones. Run `scripts/add_medication_supply_columns.py` once against any
-database created before this change, or `/medications` returns 500s. It is
-idempotent. This is the "a column added to an existing model still needs a
-hand-written script" case the deployment section already warns about.
-
-#### Not reviewed, and PHI status
-
-- **Not reviewed by a clinician.** Whether a three-day default is the right
-  lead time, and whether a supply projection should be shown at all, belong in
-  the same review as the `dose_schedule.py` phrase lists.
-- `quantity_remaining` and `doses_per_day` say how much of a named medicine a
-  named person has and how often they take it. **Not encrypted at rest** — the
-  same open finding as the rest of `medications`.
-
-### Not reviewed, and PHI status
-
-- **Not reviewed by a clinician.** The phrase lists in `dose_schedule.py` and
-  the default hours are a software engineer's construction and belong in the
-  same review as the intake instrument.
-- `medication_reminders` rows say that a named person takes a named medicine
-  at a named hour. **Not encrypted at rest** — the same open finding as
-  `medications`, `intake_assessments` and `appointments.reason_for_visit`.
-- The native path is **untested on a device**: there is no development build
-  or hardware here, so it is written against the documented API and unit
-  tested against a mock, never observed firing. The web path has been checked
-  end to end, including a notification firing at the armed minute.
+- **The directions line is never read.** `forecast()` does not take a
+  `frequency` argument and `refill_forecast.py` does not import
+  `dose_schedule`; both are asserted by tests against the signature and the
+  module's imports, so adding one is a failing suite rather than a quiet change
+  of policy. `doses_per_day` comes from a number the user typed, or the count
+  of their enabled reminder times — rows that exist only because someone
+  reviewed a draft and pressed save.
+- **`is_estimate` is a property that cannot be constructed false**, and is true
+  whenever there is a date at all. The projection assumes every dose is taken
+  exactly on schedule, which MedHelp cannot check. Tests assert no surface says
+  "missed", "skipped" or "forgot".
+- **Declining is a normal outcome** — no quantity, no confirmed doses-per-day, a
+  count dated in the future, or more than a year's supply each return no date
+  and a reason meant for the user. A confident wrong run-out date is worse than
+  none for someone deciding whether to chase a prescription.
+- Nothing rounds up. The run-out date is parsed as **local midnight, not UTC** —
+  `new Date("2026-09-18")` is UTC by specification, which would move the alert a
+  day for most of the Americas. A refill alert is a **one-off and never
+  repeats**; a dose reminder repeats daily. The lead time is a **device**
+  setting, not an account one, because there is no user-settings table and
+  adding one would put a row about a named person's medication habits into a
+  database with no encryption at rest.
 
 ## Appointments and provider search (implemented)
 
-A user can search a real provider directory, open a provider, and record an
-appointment. The record lands in the appointment list, which is the same
-feature the URGENT tier of symptom intake now routes into.
+A user can search a real provider directory (NPPES, published by CMS), open a
+provider, and record an appointment. Detail: `docs/appointments.md`; the option
+analysis for real booking: `docs/appointment-booking.md`.
 
-**MedHelp does not book appointments, and must not say it does.**
+### ⛔ MedHelp does not book appointments, and must not say it does
 
-Research and the full option analysis: `docs/appointment-booking.md`. The short
-version: every API that can actually place a booking (Zocdoc, Epic-hosted
-scheduling, athenahealth) needs a signed partnership, provider-side opt-in and
-a BAA. This project has none of the three. So the transmission step is absent
-and labelled absent, rather than mocked.
+Every API that can actually place a booking (Zocdoc, Epic-hosted scheduling,
+athenahealth) needs a signed partnership, provider-side opt-in and a BAA. This
+project has none of the three, so the transmission step is **absent and
+labelled absent**, rather than mocked.
 
-- **The directory is real.** NPPES, published by CMS
-  (`app/services/provider_directory.py`). Free, no key. It is authoritative for
-  who providers are and where they practise.
-- **Availability is not shown, because no source for it exists.** NPPES
-  publishes none. `Provider` has no slot field, the API response has no slot
-  field, and tests assert both. A "next available" time in this app would be
-  invented, and someone would turn up for an appointment that does not exist.
 - **Creating an appointment contacts nobody.** It writes a row. The provider
-  has never heard of it. Three screens say so, and
-  `app/services/request_delivery.py` raises rather than quietly succeeding.
+  has never heard of it. Three screens say so, and `request_delivery.py` raises
+  rather than quietly succeeding.
 - **`provider_notified` is the single source of truth** for whether anyone was
   contacted, and is never inferred from `status` — a user can mark a row
   SCHEDULED because they rang the clinic themselves.
-
-Rules for anyone extending this:
-
-- **Do not add a slot picker, a "Book now" button, or a time, until a real
-  scheduling integration exists behind it.** The UI reads
-  `online_booking_available` from the API; drive any new affordance off that
-  flag rather than off an assumption in a component.
-- **Hospitals are searchable, because a hospital is a setting.** NPPES
-  enumerates them under `General Acute Care Hospital`. The list previously held
-  only physician specialties, so "find me a hospital" was simply not possible —
-  "Emergency medicine" is the doctor, not the building. NPPES also enumerates
-  *individuals* under that taxonomy, so a result can be a clinician who
-  practises at a hospital rather than the hospital itself; that is the source's
-  own classification and is left alone, because relabelling or filtering it
-  would assert something about a provider the directory does not say.
-- **The provider search must never carry health information.** It sends a
-  5-digit ZIP and a care *setting* from the fixed `CARE_SETTINGS` list. A
-  free-text specialty is rejected on purpose: "Urgent Care" in a CMS query log
-  says nothing about the person searching, "Oncology" would. A test asserts the
-  outbound parameter set. This is why NLM's BAA question does not arise for
-  this vendor.
+- **Availability is not shown, because no source for it exists.** NPPES
+  publishes none; `Provider` has no slot field and neither does the API
+  response, and tests assert both. ⛔ **Do not add a slot picker, a "Book now"
+  button, or a time, until a real scheduling integration exists behind it** —
+  drive any new affordance off the `online_booking_available` flag from the
+  API, never off an assumption in a component. A time this app invents is a
+  time someone turns up for.
+- ⛔ **Do not flip `delivery_available()` to unlock the UI.** It is not a
+  feature flag; it stands for a signed BAA and a scheduling partnership.
+  Flipping it starts transmitting PHI to a vendor with no agreement in place.
+  The endpoint returns 503 *before* it processes an identity, and the app reads
+  the capability and never renders the identity form.
 - **MedHelp does not rank or recommend providers.** Results are sorted by
   distance only, and the screen says the app cannot tell you who is accepting
   patients, open now, or in network. Ordering providers on clinical grounds
-  would be a judgement this app may not make — the same rule as the
-  MedlinePlus topic filter.
-- Distance is a **straight line from the centre of the searched ZIP to the
-  provider's street address**, computed by the backend, and is always rendered
-  with a "~". It is not a driving distance. See "How a distance is worked out"
-  below. The user's own coordinates never leave the phone on iOS/Android and
-  reach only MedHelp's backend on web; only the 5-digit ZIP is passed to the
-  search.
-- Location is **optional everywhere**. `expo-location` needs a development
-  build, permission can be refused, and both degrade to the user typing a ZIP.
-- **Location works on both platforms, by different routes.** One function
-  differs; everything above it is shared.
+  would be a judgement this app may not make.
+- **The provider search must never carry health information.** It sends a
+  5-digit ZIP and a care *setting* from the fixed `CARE_SETTINGS` list; a
+  free-text specialty is rejected on purpose, because "Urgent Care" in a CMS
+  query log says nothing about the person searching and "Oncology" would. A
+  test asserts the outbound parameter set.
+- **Hospitals are searchable, because a hospital is a setting.** NPPES also
+  enumerates individuals under that taxonomy, and that is the source's own
+  classification — relabelling or filtering it would assert something about a
+  provider the directory does not say.
 
-  | | Position from | ZIP from | Coordinates go |
-  |---|---|---|---|
-  | `locationService.ts` (iOS/Android) | `expo-location` | the OS geocoder | nowhere |
-  | `locationService.web.ts` (browser) | `navigator.geolocation` | `POST /providers/resolve-location` | MedHelp's backend only |
+### ⛔ Identity is pass-through, and must stay that way
 
-  Metro picks the variant. Both export the same `getPostalCode()` returning the
-  same `LocationLookup`, so `ProviderSearchScreen`, `providerService`,
-  `apiClient` and every screen are shared and platform-agnostic.
-
-  The split exists because **a browser has no geocoder** — `expo-location`
-  throws `E_NO_GEOCODER` from `geocodeAsync`/`reverseGeocodeAsync` on web, and
-  there is no browser equivalent. Since the directory is searched by ZIP, a
-  coordinate alone is useless, which is why the web build once could not use
-  location at all.
-
-  **State the privacy property precisely, because it differs.** On iOS and
-  Android the coordinates never leave the phone. On web they reach MedHelp's
-  own backend — as a POST body, so they stay out of URLs and access logs — and
-  are resolved and discarded, never stored, never forwarded. **No third-party
-  geocoder is used on either platform**, and a test asserts no request goes to
-  one. Do not copy "coordinates never leave the phone" onto the web file.
-
-  Resolution uses a committed extract of the US Census ZCTA Gazetteer (public
-  domain) — `app/services/zip_geography.py`, rebuilt by
-  `scripts/build_zip_centroids.py`. This is the "license a redistributable
-  dataset and serve it locally" option named above, chosen over a geocoding API
-  precisely so no vendor becomes a processor of a health app's location data.
-
-- ⛔ **Never ask for location without a user gesture.** `getPostalCode()` only
-  uses a permission that has *already* been granted; it reports `"prompt"`
-  otherwise, and the screen turns that into a "Use my location" button.
-  `getPostalCode({ prompt: true })` is the only thing that asks, and only a
-  button press calls it.
-  - This was a real bug, reported as "I never get prompted". Requesting on
-    mount is suppressed by browsers that require a gesture, and once a site is
-    blocked it never prompts again — so nothing appeared, with no way to retry
-    from inside the app. A button guarantees the gesture and gives a second
-    chance after unblocking, without a reload.
-  - `"prompt"` gets **no** notice. It is not a failure; the button is the
-    thing to press. Only real outcomes (`denied`, `timeout`, `unavailable`,
-    `insecure`) get a message.
-  - Both platforms check first without asking — `navigator.permissions.query`
-    on web, `getForegroundPermissionsAsync` on native. An already-granted
-    permission still fills the ZIP in silently on arrival, so the common case
-    costs no extra tap.
-
-- ⛔ **Geolocation needs a secure context, and a LAN address is not one.**
-  Browsers expose the Geolocation API only over https or on `localhost`. Served
-  to a phone at `http://192.168.x.x` — which is how you run this without an
-  Apple developer account — the API is refused **no matter what the user
-  chooses**. Verified, not assumed: the e2e run grants permission explicitly
-  and Chrome still returns `PERMISSION_DENIED`.
-  - Chrome reports it as ordinary permission denial, so the client checks
-    `window.isSecureContext` *first* and reports `insecure` instead. Without
-    that, a LAN user is told they refused a permission they were never asked
-    for, and given no way forward.
-  - **Typing a ZIP is a first-class path, not a fallback.** It is the only path
-    on LAN http, and browsers refuse location far more often than phones do.
-    Every failure mode names what happened and what to do instead.
-
-### How a distance is worked out
-
-**Computed by the backend**, not the device (`app/services/provider_geo.py`,
-returned as `distance_miles` on each row). They used to be worked out on the
-phone from the OS geocoder, which meant the web build showed none at all and a
-twenty-row result cost twenty geocoder lookups.
-
-The two ends of the measurement are answered differently, and the difference
-is the whole design:
-
-| | Source | Resolution |
-|---|---|---|
-| The user's end | centroid of the ZIP they searched (`zip_geography`) | one ZIP code |
-| The provider's end | their street address, geocoded (`address_geocoder`) | a street address |
-
-- ⛔ **The provider end used to be a ZIP centroid too, and that was a bug users
-  saw.** Centroid-to-centroid has **no resolution below one ZIP code**, and
-  `search_providers` queries NPPES by the exact ZIP first — so most results sat
-  *in* the searched ZIP, and a ZIP's centroid is zero miles from itself. A real
-  search of Las Vegas 89109 returned five of six providers at "~0.0 mi", for
-  clinics up to three miles apart. The number was not merely imprecise: it was
-  the same number for everyone, so it could not be used to choose between them.
-  The same search now returns 0.4, 1.6, 1.9, 2.5 and 2.9 miles.
-- **The user's end is deliberately still a ZIP centroid.** They typed a ZIP, or
-  their coordinate was reduced to one. The honest reading of "~2.5 mi" is
-  therefore *"about two and a half miles from the middle of your ZIP code"* —
-  close to the truth in a dense urban ZIP, loose in a large rural one. **Keep
-  the "~"**, and do not describe these as distances from the user.
-- **A zero is never shown.** Where a provider cannot be placed and the ZIP
-  estimate would be zero (same ZIP), the answer is `None`, which the client
-  already renders as no distance at all. "~0.0 mi" reads as "next door" for a
-  clinic that may be three miles away, and `zip_geography` already records that
-  a wrong distance is worse than an absent one for someone deciding how far to
-  travel while unwell.
-- **Failure costs accuracy, never results.** The providers are already fetched
-  by the time geocoding runs. An outage, an unplaceable address or an unknown
-  ZIP falls back to the centroid estimate; nothing here may fail a search.
-- Results are still ordered by distance only, and providers with no distance
-  sink to the bottom rather than being dropped.
-
-### Third-party vendor: US Census Bureau geocoder — BAA status
-
-`app/services/address_geocoder.py` sends provider street addresses to
-`geocoding.geo.census.gov`. Free, public domain, no key — the same class of
-source as NPPES itself. **Flagged here because CLAUDE.md requires any new
-third-party service to be named rather than assumed handled.**
-
-- **No user data is transmitted, so no BAA question arises.** The upload is
-  id / street / city / state / ZIP, all of it already published by CMS about
-  the clinic, plus a pinned benchmark. There is no field on this call that
-  could hold a symptom, a tier, an identity or a user location — and a test
-  asserts the outbound column set.
-- **Do not confuse this with the user's location.** The statement elsewhere in
-  this file that *no third-party geocoder is used* is about **the user's
-  coordinates**, and remains true: those are still resolved locally against the
-  committed Census dataset in `zip_geography`, on both platforms. This vendor
-  only ever sees providers' public business addresses.
-- What a request does reveal is **which area was searched**, since the
-  addresses in one batch share a locality. That is why answers are cached by
-  NPI in `provider_locations`: a provider's address does not move, so the same
-  area is not re-queried on every search. A warm cache makes zero requests.
-- `provider_locations` **has no user column and must never gain one.** Adding
-  a `user_id`, or a note of who looked, would turn a table of public addresses
-  into a log of which clinics a named person was looking for — health data
-  about them. A test asserts the column set.
-- It is a batch endpoint: **one request covers a whole page of results**, not
-  one per provider.
-
-- **There is no map, on any platform.** Results are a list. Nothing imports
-  `react-native-maps` or a JS maps SDK, so there is no native-map-to-web-map
-  swap to make. Adding one would need a keyed tile vendor and its own privacy
-  review.
-
-- Real-browser coverage lives in `mobile/e2e/web-provider-search.mjs`
-  (`npm run e2e:web`). It drives actual Chrome against a real backend and the
-  live directory, because secure-context rules and permission prompts cannot be
-  observed in jsdom or in devtools' responsive mode. Not part of `npm test`.
-
-### Booking by tapping, and the call that is left (2026-09-17)
-
-Asked for directly: make scheduling easy, because "you still have to type in
-the information and make the call yourself".
-
-**The typing is gone.** `QuickFillChips` fills both free-text fields by tap —
-seven visit types for the reason, eight preference phrases for the time.
-
-- ⛔ **The reason chips are visit types, never symptoms.** "Follow-up visit",
-  "Prescription refill", "Test results". They name no condition, which is what
-  keeps this administrative vocabulary rather than a second app-authored
-  clinical one on a screen that never had the symptom picker's review. A test
-  asserts no clinical word appears in the list.
-- ⛔ **The time chips are not a slot picker**, and that distinction is this
-  file's own fence. A slot picker offers times the app says are *available*;
-  MedHelp has no availability source, so any such time would be invented and
-  somebody would turn up for it. These are words for a preference the person
-  reads out themselves — `preferred_time` is still the free text it always
-  was. A test rejects any option containing a clock time, and
-  `QuickFillChips` carries no hidden value: what the chip says is what the
-  field contains and what travels.
-- Reason chips are **hidden when the reason came from the symptom check**.
-  Tapping one replaces the field, and that carried-over description is the one
-  thing on the screen the person did not have to write twice.
-
-**The call remains, because it cannot be removed here** — see the vendor note
-below. What changed is its length: `AppointmentConfirmationScreen` now shows a
-"What to tell them" card beside the Call button, and one "I've arranged a time"
-press marks the appointment scheduled. That replaced four navigations after a
-call the person had just finished.
-
-- ⛔ **That card is read while a receptionist is on the line.** Every line is
-  either what the user already wrote or an administrative question — the
-  soonest appointment, what to bring, insurance. Nothing on it may suggest a
-  question about their condition; a test asserts it names none.
-- ⛔ **Marking scheduled records that a time was agreed, never what it is.**
-  `appointments` has no scheduled datetime and must not gain one.
-- The update carries `preferredTime` and `notes` through explicitly, because
-  `updateAppointment` sends null for anything omitted — a convenience button
-  that silently erased the user's own note would be the opposite of the point.
-
-### Handing off to a provider's own booking page (2026-09-18)
-
-MedHelp still cannot book. What it can do is say **where the hospital takes
-bookings**, and let the person book there.
-`backend/app/services/scheduling_links.py`.
-
-⛔ **A hand-off is a different thing from booking, and that is why it is
-allowed.** The blocker on real booking is that it transmits an identified
-patient and a reason for care to a third party. A hand-off transmits nothing:
-
-- The URL is a **constant**. Nothing about the user is appended — no ZIP, no
-  reason for visit, no tier, no assessment id. Tests assert it on both sides,
-  including one that renders the screen *with* an intake context and checks
-  the opened URL contains none of it.
-- The match is made on the **provider's own published name**, public CMS data.
-  `link_for` takes a name and a boolean and nothing else, and a test asserts
-  the signature — so personalising the link would have to add a parameter, and
-  that fails the build rather than slipping through.
-- Opening it is the user pressing a button that names the destination. MedHelp
-  sends no request and learns nothing about the outcome.
-
-Same reasoning that lets the app link to a phone number. No vendor becomes a
-processor of anything; no BAA question arises.
-
-⛔ **`scheduling_url` is NOT `online_booking_available`, and they must never
-merge.** `delivery_available()` answers "can MedHelp send a booking request?"
-— false, standing for a signed BAA and a partnership. `scheduling_url` answers
-"does this provider take bookings on their own site?", which commits MedHelp to
-nothing. One flag covering both would let a later edit read "we can book" out
-of "they have a website". A test asserts the module does not even import the
-delivery path, checked against the **imports** rather than the source text —
-the docstring names `delivery_available()` on purpose, to explain the
-distinction.
-
-#### Where the links come from
-
-⛔ **Every URL appeared in a live search result, and none was constructed by
-pattern.** Guessing that a system books at `/appointments` because another one
-does is inventing a destination, and a link that 404s while somebody is trying
-to get care is worse than no link. Same rule as the label parser refusing to
-snap a misread drug name to the nearest real one: a visible gap beats a
-plausible error. **Do not add an entry from memory** — search for it, follow
-it, record the date.
-
-Verifying by fetching does not work: hospital sites return 403 to automated
-requests, which is how this rule got written.
-
-**The registry is deliberately small; the fallback is what gives coverage.**
-Epic runs a public, searchable directory of MyChart organisations at
-`mychart.org` with no login (verified 2026-09-18), and Epic is dominant in US
-hospitals. For a hospital MedHelp does not know, that is a real answer.
-
-⛔ **The directory is offered for organisations only.** A solo physician is
-unlikely to appear in it under a name the user would recognise, and a link that
-usually fails teaches people to ignore the button. `Provider.is_organization`
-is NPPES's own distinction, not a judgement made here, and ⛔ it must never be
-used to rank or filter results.
-
-#### What the screen may and may not say
-
-- ⛔ **Never "book" in MedHelp's voice.** The button says "Open <System>" or
-  "Search <System>"; the body says the booking happens on their site and that
-  MedHelp is not involved and will not know the result. Three screens already
-  say MedHelp contacts nobody, and one button reading "Book your appointment"
-  would undo all of them at the moment it matters most. Tested.
-- **A directory is a search, not a booking page**, and the copy distinguishes
-  them. A button saying "Open" that lands on a search box is a small betrayal
-  this screen cannot afford.
-- ⛔ **Results are not reordered.** Providers stay sorted by distance only. A
-  clinic with a known booking page must not float above one without — that
-  would be MedHelp ranking on a convenience of its own. The link is attached
-  after ordering.
-- **Calling stays above booking online.** Calling always works; a clinic's site
-  may be down, may not offer what the person needs, or may demand an account.
-- No badge on the search list, deliberately. It would nudge people to choose a
-  provider by whether MedHelp happens to know their booking page, which is
-  ranking by another name.
-
-The client re-checks the scheme and accepts **https only**, because this is the
-value handed to `Linking.openURL` on a phone — `javascript:`, `file:` and
-Android `intent:` URLs are not booking pages. A dropped link costs one button.
-
-#### Third-party vendor: Zocdoc Care Access Network — status
-
-⛔ **`docs/appointment-booking.md` was wrong and is corrected.** It recorded
-that consumer apps are generally not approved for Zocdoc's API, which is what
-made real booking read as unavailable to this project. Zocdoc's **Care Access
-Network** now lists eligible partners as "search engines, AI experiences,
-health plans, **consumer apps**, and more", and offers either a native booking
-flow or a hand-off to Zocdoc.
-
-**Nothing was integrated, and nothing may be without the usual answers.** It is
-still partner-gated, still needs provider opt-in, and the native flow still
-transmits legal name, date of birth, sex assigned at birth, phone, email and
-address — squarely PHI, to a vendor this project has no BAA with. No pricing,
-approval criteria or BAA terms are published; the only available action is a
-contact form. `delivery_available()` is untouched and still returns False, and
-⛔ it is still not a feature flag.
-
-### The URGENT tier routes here
-
-`IntakeResultScreen` previously sent URGENT users to their maps app. It now
-navigates in-app to provider search, carrying the description forward as the
-reason for visit so nobody retypes their symptoms into a second form. The
-description is prefilled and **editable** — it was written to answer a triage
-question, not to tell a receptionist why you are coming in.
-
-⛔ That block is on a screen this file fences. It changes no disclaimer, no
-escalation copy, and no triage or emergency module, and the EMERGENT tier's
-routing is untouched. But it changes what an URGENT reader is offered at the
-moment they are told to seek care, so **it belongs in the clinical reviewer's
-read of that screen** rather than being treated as ordinary UI work.
-
-`urgency_tier` is stored on the appointment as a **label only**. Nothing
-re-derives urgency from it, and nothing in this feature may touch the triage
-layer.
-
-### Patient identity is pass-through, and must stay that way
-
-A scheduling API cannot book without identifying the patient to the clinic:
-legal name, date of birth, sex assigned at birth, phone, email, home address.
-MedHelp's answer is **pass-through** — those fields are built from one request,
-handed to the delivery layer, and dropped. `app/schemas/booking_identity.py`
-is the only place they exist.
-
-The user retypes them per booking. That is the accepted cost of not holding a
-table of names, dates of birth and home addresses in a database with no
-encryption at rest.
-
-Rules, each asserted by a test in `tests/test_booking_identity.py`:
+Identity fields are built from one request, handed to the delivery layer, and
+dropped. `app/schemas/booking_identity.py` is the only place they exist. The
+user retypes them per booking — the accepted cost of not holding a table of
+names, dates of birth and home addresses in a database with no encryption at
+rest. Five rules, each asserted in `tests/test_booking_identity.py`:
 
 1. **`appointments` has no column that could hold an identity field**, and
    `BookingIdentity` is not a SQLAlchemy model. The test checks the mapped
-   table, so a column added by any route is caught — including near-misses
-   like `patient_name` or `dob`.
-2. **`AppointmentOut` never carries identity.** Echoing it back would put a
-   date of birth into client logs and crash reporters, which is most of the
-   exposure that not storing it avoids.
+   table, so near-misses like `patient_name` or `dob` are caught.
+2. **`AppointmentOut` never carries identity** — echoing it back would put a
+   date of birth into client logs and crash reporters.
 3. **`BookingIdentity.__repr__` is redacted.** pydantic's default prints every
    field, so an identity in a stack frame would leak a name and home address
-   into any traceback or `logger.exception` that touched it.
+   into any traceback that touched it.
 4. **Never put one in a React Navigation param.** Route state is serialisable
-   and dev tooling persists it, so a date of birth in a param is a date of
-   birth written to disk. The identity screen takes an appointment **id**.
-5. **A rejected identity is not echoed back.** The `RequestValidationError`
-   handler in `app/main.py` strips the submitted value — it matters more here
-   than anywhere else in the app.
+   and dev tooling persists it, so a date of birth in a param is written to
+   disk. The identity screen takes an appointment **id**.
+5. **A rejected identity is not echoed back** by the validation handler.
 
 **Pass-through is not the same as "not liable."** Transmitting this to a vendor
 makes them a processor of PHI just as surely as storing it would. It shrinks
 the breach radius; it does not remove the BAA requirement.
 
-### The booking path is built, gated, and unreachable
+### ⛔ Location, and how a distance is worked out
 
-`POST /appointments/{id}/submit` and `BookingIdentityScreen` exist so the path
-is reviewed and tested before the pressure of a live integration — not so it
-can collect anything now.
+- **Never ask for location without a user gesture.** `getPostalCode()` only
+  uses a permission already granted and reports `"prompt"` otherwise; only a
+  button press calls `getPostalCode({ prompt: true })`. `"prompt"` gets **no**
+  error notice — it is not a failure, the button is the thing to press. This
+  was a real bug reported as "I never get prompted": requesting on mount is
+  suppressed by browsers, and once a site is blocked it never prompts again.
+- **Geolocation needs a secure context, and a LAN address is not one.** Served
+  at `http://192.168.x.x` the API is refused whatever the user chooses —
+  verified, not assumed. Chrome reports it as ordinary permission denial, so
+  the client checks `window.isSecureContext` **first** and reports `insecure`,
+  rather than telling someone they refused a permission they were never asked
+  for. **Typing a ZIP is a first-class path, not a fallback.**
+- **No third-party geocoder ever sees the user's coordinates**, on either
+  platform — a test asserts it. On native they never leave the phone; on web
+  they reach MedHelp's own backend as a POST body, are resolved against a
+  committed public-domain Census ZCTA extract, and are discarded. ⛔ Do not copy
+  "coordinates never leave the phone" onto the web file.
+- **Distance is ZIP-centroid to the provider's geocoded street address**,
+  computed server-side, always rendered with a "~". It is not a driving
+  distance, and it is **not a distance from the user** — the honest reading is
+  "about N miles from the middle of your ZIP code". ⛔ **A zero is never
+  shown**: centroid-to-centroid gave five of six Las Vegas providers "~0.0 mi"
+  for clinics up to three miles apart, so an unplaceable provider gets `None`,
+  which renders as no distance at all.
+- **Failure costs accuracy, never results.** Providers are already fetched by
+  the time geocoding runs; an outage falls back to the centroid estimate.
+- `provider_locations` **has no user column and must never gain one.** Adding
+  a `user_id`, or a note of who looked, would turn a table of public addresses
+  into a log of which clinics a named person was looking for. A test asserts
+  the column set. Answers are cached by NPI, so a warm cache makes zero
+  requests.
+- **There is no map, on any platform.** Nothing imports a maps SDK. Adding one
+  would need a keyed tile vendor and its own privacy review.
 
-- `delivery_available()` returns False, so the endpoint returns **503 before it
-  processes an identity**, and `GET /appointments/capabilities` reports
-  `online_booking: false`.
-- The app reads that capability and never renders the identity form. **No
-  date of birth or home address is collected today.**
-- ⛔ **Do not flip `delivery_available()` to unlock the UI.** It is not a
-  feature flag; it stands for a signed BAA and a scheduling partnership. Making
-  it return True starts transmitting PHI to a vendor with no agreement in place.
+### The URGENT tier routes here
 
-### Not reviewed, and PHI status
+`IntakeResultScreen` navigates in-app to provider search, carrying the
+description forward as the reason for visit so nobody retypes their symptoms
+into a second form. It is prefilled and **editable** — it was written to answer
+a triage question, not to tell a receptionist why you are coming in.
+`urgency_tier` is stored on the appointment as a **label only**; nothing
+re-derives urgency from it, and nothing in this feature may touch the triage
+layer.
 
-- Not reviewed by a clinician or by counsel. Provider search authors no
-  clinical content and estimates no urgency, so it is not covered by the intake
-  blocker — but the URGENT hand-off above is.
-- `appointments.reason_for_visit` is free text about someone's symptoms, and in
-  the intake flow it is a copy of the intake description. It is **not encrypted
-  at rest**, the same open finding as `medications` and `intake_assessments`.
-- Real booking would require MedHelp to hold legal name, date of birth, sex
-  assigned at birth and address. It holds none of those today, and acquiring
-  them is a decision for the user, not an implementation detail.
-
-### Natural phrasing missed by literal phrase matching (FIXED 2026-09-06/07)
-
-Found by testing the rule layer against ~50 lay descriptions of common
-American illnesses (an ad-hoc exercise, not a permanent test corpus). Two
-gaps, both the same root cause as the glued-list bug below: the phrase lists
-in `emergency.py` and `rules_triage.py` require an exact literal substring, so
-an ordinary insertion a real person types defeats a match that a slightly
-different sentence would have hit.
-
-- **Emergency screening missed common phrasings of anaphylaxis, breathing
-  difficulty, sudden vision loss, and cardiac chest tightness.** `"my throat
-  is closing and my tongue is swelling"` (anaphylaxis), `"hard time
-  breathing"` / `"can't catch my breath"` (breathing), `"suddenly lost vision
-  in my left eye"` (vision_loss), and `"chest feels tight"` (cardiac) all
-  matched **nothing** and fell to the URGENT default instead of EMERGENT —
-  the exact "not recognised is not the same as harmless" failure mode this
-  file warns about, but on genuinely life-threatening presentations.
-  **Fixed** by adding the missing phrasings to the existing lists in
-  `_EMERGENCY_RULES`. `sepsis_meningitis` got a partial fix only (`"stiff neck
-  with/and a fever"` variants); `"my neck is stiff and I have a fever"` — the
-  two concepts named separately, in reverse order — was left a **known limit**
-  needing a two-term combinator. **That combinator now exists** — see "Concept
-  combinations" below — and that phrasing reaches EMERGENT.
-- **A duration-escalation rule silently broke on the word "over."**
-  `"sore throat for a week"` correctly returned URGENT, but `"sore throat for
-  over a week"` — or `"sore throat for over two weeks, swollen glands,
-  extremely tired"`, a plausible mono description — returned **SELF_CARE**,
-  because `"for a week"` requires that exact substring and `"for over a
-  week"` does not contain it. This directly undercut the module's own central
-  invariant ("SELF_CARE must be positively earned... absence of alarming
-  words is not evidence of safety"). **Fixed** by adding `"for over a
-  week"`/`"for over two weeks"`/`"for over a month"` and `"for more than
-  ..."` variants to `_URGENT_RULES`' `persistent_or_worsening` phrases, and
-  bringing `_ESCALATING_MODIFIERS` back in sync with it (it was also missing
-  `"for two weeks"` and `"for several days"`, which were already in the
-  urgent list).
-- ⛔ **Both edits were made to fenced modules** (`rules_triage.py`,
-  `emergency.py`). They landed only after the user was told the specific
-  bugs and specific proposed phrase additions in conversation and replied
-  "fix it" — the same "explicit human approval obtained outside of this
-  pipeline" basis the glued-list fix below records. Neither change lowers a
-  tier, reorders evaluation, or touches a disclaimer, an emergency number, or
-  escalation copy; both only add recognised phrases, which can make screening
-  more sensitive and cannot make it less. `tests/test_emergency.py` and
-  `tests/test_rules_triage.py` guard the new phrasings; full suite (598
-  tests) passes.
-
-### Concept combinations, for red flags a phrase list cannot express (2026-09-12)
-
-Every phrase in `emergency.py` and `rules_triage.py` is a contiguous literal
-compiled with word boundaries, so it matches only when a person writes the
-concepts in the order the list spells them with nothing in between. The file
-recorded the consequence against itself: `"my neck is stiff and I have a
-fever"` matched nothing and fell to the URGENT default.
-
-`backend/app/core/symptom_concepts.py` is the two-term combinator that gap
-called for. A description is reduced to the set of concepts it names, and a
-rule fires when all of a combination's concepts are present — any order, any
-distance, any phrasing the lexicon knows.
-
-- **Three combinations, and all three are read out of existing reviewed copy.**
-  The `sepsis_meningitis` action text already reads "A stiff neck with fever, a
-  rash that does not fade when pressed, or confusion with a high fever". Those
-  are implementable without authoring a clinical claim *because the app already
-  says them*; the phrase list simply could not detect them unless written as
-  one string. ⛔ **A fourth combination is a new clinical claim** and needs the
-  clinician sign-off this file requires. `test_the_set_of_combinations_is_fenced`
-  fails if one is added, so that is a conversation rather than a line to edit.
-- **The module defines no user-facing copy at all.** A combination resolves to
-  a category id, and `_COPY_BY_CATEGORY` in `emergency.py` supplies that
-  category's existing headline and action. There is one copy of every emergency
-  instruction and a combinator cannot introduce a second. Asserted by a test.
-- **It runs only after every literal phrase has been tried.** So anything that
-  matched before matches identically now, in the same category, with the same
-  wording — the combinator can only turn a `None` into guidance. That is the
-  same one-directional argument `normalize_query`'s case-split rests on: it can
-  make screening more sensitive and cannot make it less.
-  `test_the_combinator_is_never_what_answered_a_literal_match` disables the
-  combinator and asserts every pre-existing detection is unchanged.
-- **No model, no network.** A closed, curated lay-vocabulary lexicon a
-  clinician can read line by line, for the same reason the rule layer is a
-  phrase list rather than a classifier.
-- Known limit unchanged: the lexicon is lexical, so an unlisted synonym is
-  still a miss, and a concept named in order to deny it ("no fever") still
-  counts as named — the over-inclusive direction this file prefers.
-
-⛔ **This edit was made to a fenced module.** `emergency.py` gained 42 lines and
-lost 7, and the 7 were the stale comment recording the limit that is now fixed.
-**No phrase was added, removed or reordered, and no copy changed** — verifiable
-from the diff. The repository owner asked for this work in conversation on
-**2026-09-12**, having been shown the specific proposal and told explicitly that
-it restructures a fenced module and needs their approval by name. This paragraph
-is the *record* of that, not the authorisation for it — this file is clear that
-"a sentence an agent writes into the same diff that needs authorising is not
-evidence of authorisation", and that applies to this sentence too. The owner
-should confirm the wording here is what they intended to approve, and a
-clinician still has to read the combinator as part of the instrument.
-
-### Triage is measured now (2026-09-12)
-
-`backend/scripts/triage_eval/` measures the rule layer against a corpus of
-synthetic lay descriptions carrying gold tiers. It is modelled on
-`topic_retrieval_eval/`, which is what let the retrieval numbers above be
-reported rather than asserted.
-
-    cd backend
-    python scripts/triage_eval/measure.py
-    python scripts/triage_eval/measure.py --strict   # non-zero exit on any
-                                                     # unexpected under-triage
-
-⛔ **What a number from this establishes, and what it does not.** Gold labels
-are **this app's own documented intent**, assigned by a software engineer — each
-case records a `basis` naming where its label came from. It measures consistency
-with that intent and regression against it. It is **not** clinical validation
-and must never be reported as clinical accuracy: neither the labels nor the tier
-definitions they encode have been read by a clinician. The release blocker above
-is untouched.
-
-Metric names follow the published vignette-based evaluation standard for symptom
-checkers, so the figures are comparable to the literature: *safety of advice*
-(share of gold-EMERGENT returned EMERGENT), *under-triage*, *over-triage*, plus
-two specific to this design — *rule coverage* (share where a rule recognised
-anything, the ceiling on how often SELF_CARE can be earned) and the same metrics
-restricted to **natural phrasing**. Treat the natural-phrasing figures as the
-real ones: matching your own phrase list is trivially easy, and the corpus marks
-which descriptions are paraphrases.
-
-First run, 122 scored cases (rules only, no model): **96.7% exact agreement,
-0 over-triaged, 4 under-triaged, safety of advice 90.7%, rule coverage 83.6%**.
-On natural phrasings alone: 96.0% exact, safety of advice **87.1%**.
-
-#### ✅ CLOSED 2026-09-14: the four under-triaged presentations
-
-The harness found these on its first run and they were reported and left
-untouched, because fixing them meant adding phrases to `_EMERGENCY_RULES` and
-the owner had not been asked about those specific additions. **They were asked
-on 2026-09-14 and all four are now fixed** (see "Ten thousand common illnesses"
-below). All four were the same defect — the concept is named but not in the
-exact character sequence the list spells — and all four were on
-life-threatening presentations:
-
-| Description | Returned | The list had | Now |
-|---|---|---|---|
-| "crushing pressure in my chest" | URGENT | `chest pressure`, `crushing chest` — not `pressure in my chest` | EMERGENT |
-| "I hit my head hard and feel awful" | URGENT | `head injury` | EMERGENT |
-| "I have been thinking about hurting myself" | URGENT | `hurt myself`, which does not match `hurting myself` | EMERGENT |
-| "it is like a curtain came over my eye" | URGENT | `curtain over my eye` | EMERGENT |
-
-`KNOWN_UNDER_TRIAGED` in `tests/test_triage_eval.py` is now **empty**, and the
-suite is still a **sensitivity ratchet**: any new under-triaged case fails the
-build. The four are asserted positively by
-`test_the_four_reported_under_triaged_presentations_are_closed`, which is a
-stronger claim than the "must still reach at least URGENT" they used to carry.
-Two further tests hold the floor unconditionally — no gold-EMERGENT case may
-ever return SELF_CARE, and screening may not get less sensitive.
-
-### Ten thousand common illnesses (2026-09-14)
-
-`backend/scripts/triage_eval/common_illness/` is a second, much larger corpus:
-**236 of the most common American presentations**, each in several lay
-phrasings, each wrapped in ordinary conversational framing, each surfaced the
-way text actually arrives — curly apostrophes, block capitals, hurried spacing,
-and pasted clauses run together. The cross product is 11,272 descriptions and
-the scored selection is exactly 10,000.
-
-    cd backend
-    python scripts/triage_eval/measure_common_illness.py --strict
-    python scripts/triage_eval/measure_common_illness.py --all --strict
-    python scripts/triage_eval/diagnose.py --all --under
-
-⛔ **It establishes exactly what `measure.py` establishes and no more.** Gold
-labels are this app's own documented intent, assigned by a software engineer.
-It is not clinical validation, no figure from it may be reported as clinical
-accuracy, and the release blocker above is untouched. What it is good for is
-finding places where a description a real person would write reaches the wrong
-tier — which it did, in volume.
-
-**The one rule the corpus rests on:** a presentation is labelled EMERGENT only
-where `emergency.py` **already** defines a category covering it. Appendicitis,
-testicular torsion, ketoacidosis and a pulmonary embolism described without a
-named red flag are labelled URGENT with `escalation_deferred`, because
-inventing a thirteenth red-flag category is a clinician's call this file
-fences. Those are reported below, not fixed.
-
-First run, then after the fixes:
-
-| | Before | After |
-|---|---|---|
-| exact agreement | 93.3% | **100%** |
-| under-triaged | 418 | **0** |
-| over-triaged | 254 | **0** |
-| safety of advice | 77.0% | **100%** (1,852/1,852) |
-| self-care earned | 82.3% | **100%** |
-
-The smaller 122-case corpus went from 96.7% exact / 90.7% safety of advice to
-**100% / 100%** on the same changes. Full suite: 1,052 passed.
-
-#### ⛔ The approval this rests on, and what it does not cover
-
-The repository owner asked for this work in conversation on **2026-09-14** —
-test the common illnesses, find the wrong answers, work out why, and fix them —
-and was shown the specific defects and the specific proposed phrase additions
-before they were made. That is the same "explicit human approval obtained
-outside of this pipeline" basis as the `normalize_query` fix, the natural
-phrasing fixes, and the concept combinator.
-
-⛔ **This paragraph is the record, not the authorisation.** This file is
-explicit that a sentence an agent writes into the diff needing approval is not
-evidence of approval, and that applies to this sentence too. The owner should
-confirm the phrase lists are what they intended to approve, and **a clinician
-still has to read all of it as part of the instrument.**
-
-It is **not** approval to merge to `main` or to deploy. Those are fenced
-separately and need their own answer.
-
-#### What changed, grouped by which direction it moves a tier
-
-**Additive — can only raise a tier** (`_EMERGENCY_RULES`, `_URGENT_RULES`,
-`_ESCALATING_MODIFIERS`). Lay phrasings of red flags the app already screens
-for. No category was added, no copy changed, no phrase removed, nothing
-reordered:
-
-- **cardiac** — `pressure in my chest`, `pressure on my chest`, `chest gets
-  tight`, `chest feels heavy` and similar. The list had the clinical word
-  order (`chest pressure`) and not the one people type.
-- **breathing** — `short of breath`, `breathless`. The list had only the noun
-  form `shortness of breath`, so heart failure, pneumonia and an asthma flare
-  in ordinary words all missed. Also breathlessness on *minimal exertion*
-  (`out of breath just`, `out of breath walking`); ⛔ the bare phrase "out of
-  breath" is deliberately **not** included — it is what everyone says after
-  stairs, and a red flag that fires for every gym-goer is one people learn to
-  ignore.
-- **stroke** — `mouth droops`, `can't close one eye`, `face has dropped`. The
-  list had the face and the arm but not the mouth or the eye.
-- **bleeding_trauma** — `hit my head`, `banged my head`, `threw up blood`,
-  `black tarry stools`. It had `head injury`, which is how a form field is
-  labelled, not how a person speaks.
-- **self_harm** — `hurting myself`, `cutting myself`, `don't want to be here`.
-- **vision_loss** — `curtain came over my eye`, `part of my vision is gone`.
-- **consciousness** — `fainted`, `blacked out`, `collapsed`, `lost
-  consciousness`. `passed out` was in the list bare, but `fainted` appeared
-  only inside the compound `fainted and won't wake` — two words for one event,
-  screened differently.
-- **infant_fever** — `baby feels hot`, `baby is burning up`. A parent at 3am
-  does not type "infant fever".
-- **pregnancy** — `bleeding and I am pregnant` and the conjunction-free forms.
-  The list had `pregnant and bleeding`; the same two facts in the other order
-  matched nothing.
-
-#### ⛔ A plural defeated every red flag in the app
-
-The most serious finding, and it was not a vocabulary gap but a matcher bug.
-Every phrase is compiled with a `(?!\w)` guard, and a plural "s" is a word
-character, so the guard failed on it:
-
-| | |
-|---|---|
-| "I have chest pain" | cardiac → call 911 |
-| "I am getting chest pains" | **nothing at all** |
-| "she had a seizure" | consciousness |
-| "she had seizures" | **nothing** |
-| "I had a head injury" | bleeding_trauma |
-| "I have had head injuries" | **nothing** |
-
-`a stroke`/`two strokes` and `an overdose`/`overdoses` behaved the same way.
-"Chest pains" is arguably the *more* natural phrasing and it received no
-emergency guidance.
-
-`emergency.plural_tolerant` is the fix: an optional trailing `s`/`es`, and
-`y`→`ies`, at the end of a phrase only. ⛔ It can only make screening more
-sensitive — it adds optional trailing characters to a pattern that already had
-to match in full — which is the same one-directional argument
-`normalize_query`'s case-split rests on. The old docstring on `_compile`
-asserted that word boundaries "still allow normal plurals". That was untrue,
-and being written down is probably why nobody checked.
-
-#### ⛔ A false SELF_CARE: "a cold sore" matched "a cold"
-
-The catastrophic direction, and the only defect in the set that was actively
-dangerous. `a cold` is compiled with word boundaries and the boundary after
-"cold" is satisfied by the space in "a cold sore", so **every description of a
-cold sore earned SELF_CARE** and was told it would settle on its own. Nothing
-else could catch it: the match was positive, so the safe default never ran and
-no escalating modifier was present.
-
-Fixed by a suffix exclusion in `_SELF_CARE_VOIDED_BY_SUFFIX`, deliberately the
-narrowest possible change — deleting `a cold` would have fixed it and broken
-"I have a cold", which is how most people say it.
-
-#### ⛔ Two changes that LOWER a tier, and why they are different
-
-Every other change in this pass raises a tier and is safe by construction.
-These two are not, and they were authorised individually by the owner on
-2026-09-14 after being shown what each one does.
-
-**1. "Food poisoning" no longer routes to Poison Control.** The bare phrase
-`poisoning` matched, so "I have food poisoning, cramps and diarrhea" returned
-an instruction to call 911 and Poison Control. The owner's reasoning is the
-record here: a person typing "food poisoning" is handing the app a
-**self-assigned label**, and the app's job is to read what they actually
-describe and judge severity from that. Letting the label short-circuit to an
-emergency category triages the word rather than the person.
-
-`_VOIDED_BY_PREFIX` in `emergency.py` is the **only narrowing in that file**.
-It voids `poisoning` when — and only when — `food` immediately precedes it.
-⛔ `poisoning` alone, `swallowed poison`, `overdose`, `drank bleach` and
-`took too many pills` are all untouched, and a test asserts each one. Do not
-add an entry there to quieten a false positive without the same explicit
-approval: the one-directional property is what lets the rest of the file be
-extended without re-reviewing all of it.
-
-**2. The self-care list gained vocabulary and plurals.** 252 ordinary
-complaints were returning URGENT because the list knew `a cold` but not "a
-head cold" or "the sniffles", `sore throat` but not "my throat feels raw".
-Added: `head cold`, `the sniffles`, `throat feels raw`, `tickle in my throat`,
-`lost my voice`, `hoarse`, `croaky`, `dull headache`, `acid reflux`, `eczema`,
-`dandruff`, `itchy scalp`, `cracked lips`, and the qualified sunburn and
-blister forms. Plurals too — `mosquito bite` was already a reviewed phrase and
-"a few mosquito bites" is the same complaint written the way people write it.
-
-⛔ **Each new word is a decision that a complaint is ordinarily minor**, which
-is the "SELF_CARE must be positively earned" rule this file calls the single
-most important one in the module. They belong in the clinical reviewer's read.
-What bounds them: the escalating-modifier check still runs over all of them, so
-"a head cold and a high fever" and "reflux for over a week" are URGENT exactly
-as before.
-
-⛔ **Two are deliberately qualified rather than bare, and the reason is worth
-keeping.** `blister` is not in the list bare, because shingles presents as "a
-painful band of blisters" and a bare pattern would have reassured it. `sunburn`
-is not bare either — and that one was **not caught by the corpus**. A bare
-`sunburn` passed all 11,272 cases and still returned SELF_CARE for "sunburn
-with blisters and I feel faint", found by a hand-written probe. The corpus does
-not bound this risk; the qualifiers do. `tests/test_common_illness_findings.py`
-holds both.
-
-#### ⛔ REPORTED, NOT FIXED: what a reviewer still has to decide
-
-1. **A two-concept red flag with the conjunction lost to a paste.** "Pregnant"
-   and "Bleeding" pasted as adjacent list items normalise to "pregnant
-   Bleeding" — two adjacent words with no "and" for a literal to hook on. The
-   app's own answer is `symptom_concepts`, and this file fences it at exactly
-   three combinations. A `pregnancy + bleeding` combination would be **read out
-   of the pregnancy category's existing reviewed copy** ("Bleeding or severe
-   abdominal pain during pregnancy needs urgent assessment"), which is the same
-   argument that justified the three that exist — but the fence says a fourth
-   is a conversation, so it is left alone. Pinned as a documented gap in the
-   corpus, 4 cases, visible in every run. **This is the single highest-value
-   change still available in triage.**
-2. **Presentations with no category to reach.** Appendicitis, testicular
-   torsion, diabetic ketoacidosis described without a named red flag, bowel
-   obstruction, DVT, hypertensive crisis, acute glaucoma. Each returns URGENT
-   **by default** — having recognised nothing — rather than by understanding.
-   Whether any deserves a red-flag category is a clinician's call.
-3. **Rule coverage is 59.5%**, so four descriptions in ten are still answered
-   by the safe default. That is the ceiling on how often SELF_CARE can be
-   earned, and the honest summary of how much of this instrument is a phrase
-   list rather than an understanding.
-4. **The all-caps glued list** remains open from the earlier corpus:
-   "CHEST PAINSHORTNESS OF BREATH" has no case boundary to split on.
-
-#### Licensed protocol content: the container exists, the content does not
-
-`backend/app/core/protocol_content.py` loads a licensed telephone-triage
-protocol set — the actual fix for "every phrase here was written by a software
-engineer", which is an authorship problem that more phrases cannot solve.
-
-It ships with **no content and is wired to nothing**, the same "built, gated and
-unreachable" shape as the booking path behind `delivery_available()`.
-
-- ⛔ **No protocol content may be committed to this repository** — not a sample,
-  not a fixture. Content written by an engineer or an agent, loaded through the
-  interface built for physician-reviewed content, is strictly worse than the
-  phrase lists, which at least say plainly what they are.
-  `test_no_protocol_content_is_committed_to_this_repository` globs the tree and
-  asserts nothing protocol-shaped exists.
-- ⛔ **No disposition-to-tier mapping of ours.** Deciding that "be seen within
-  24 hours" means URGENT is a clinical judgement, so the loader **requires**
-  each disposition to state its own tier and rejects content that omits one.
-- **`reconcile()` is `max()`** — a protocol disposition may escalate the rule
-  tier and may never lower it. Licensed content being better than the phrase
-  lists is not a reason to let it talk a red flag down.
-- **Fails closed.** One malformed protocol rejects the whole set; half a
-  protocol set is a set with unknown holes in it. Mixed content revisions are
-  rejected too. A broken content directory logs a warning and runs on the rule
-  layer alone rather than taking the API down.
-- `PROTOCOL_CONTENT_DIR` is ⛔ **not a feature flag**. Like
-  `delivery_available()` it stands for a signed agreement — here a content
-  licence. Schmitt-Thompson Clinical Content (used by ~95% of North American
-  medical call centres, reviewed by 200+ practising physicians, revised
-  annually) licenses to technology partners; that enquiry is the next step and
-  it is a procurement decision, not an engineering one.
-
-### Glued list items used to defeat red-flag screening (FIXED 2026-09-01)
-
-Found from a real dev submission. A pasted list whose items arrive with no
-separator between them — "Chest pain" + "Shortness of breath" becoming
-`"Chest painShortness of breath"` — matches **nothing**, because every phrase
-in `emergency.py` and `rules_triage.py` is compiled with word boundaries.
-
-- The consequence is not cosmetic. An emergency description is not recognised,
-  gets no 911 guidance, and falls to the URGENT default instead of EMERGENT.
-- The case that surfaced it was harmless — a pasted list of cold symptoms
-  arriving as `"Runny or stuffy noseScratchy or sore throatMild cough"`, which
-  matched none of `runny nose`, `sore throat` or `mild cough` and so was
-  classified URGENT by the default rather than SELF_CARE by the rules. **The
-  same glue on a cardiac description is not harmless.**
-- **Fixed in `normalize_query`** (`app/core/emergency.py`): a space is
-  inserted at a lowercase-to-uppercase boundary before matching. It can only
-  make screening *more* sensitive — it splits words apart and never joins them
-  — so it cannot itself cause a miss.
-- ⛔ **This edit was made to a fenced module.** It landed only after the user
-  approved it directly in conversation, which is the "explicit human approval
-  obtained outside of this pipeline" that the fence requires. No agent may
-  repeat this on its own authority. `tests/test_emergency.py` now guards the
-  behaviour, so removing the split fails the suite.
-- **Known limit:** a list glued together in all capitals ("CHEST PAINSHORTNESS
-  OF BREATH") has no case boundary to split on and is still missed.
-- Second-order effect, and the reason the reported case is fully resolved: the
-  rules now *recognise* the pasted cold rather than defaulting on it, so
-  `is_needed` no longer asks the clarifying questions at all. The description
-  returns SELF_CARE immediately, with no questionnaire.
-
-Related, and for the same reviewer: **the follow-up questions can manufacture
-an escalation.** `merge` folds answers into the description on purpose, so
-that an answer carrying a red flag escalates like volunteered text would. But
-`_ESCALATING_MODIFIERS` contains "sudden"/"suddenly", and round two asks "How
-did it start?" with **"Suddenly" as a listed choice**. A recognised
-self-limiting complaint therefore becomes URGENT whenever the user picks that
-option — the questionnaire supplies the modifier that overrides its own
-self-care match. Over-triage is the intended direction, so this is not a bug
-in the safety model; but a reviewer should decide whether an answer the app
-offered should carry the same weight as a phrase the user volunteered.
-
-The window for this is narrow, and worth stating so it is not over-read: the
-questions are only asked when the rules recognised nothing, and in that case
-the tier is already URGENT by default, so "Suddenly" usually changes nothing.
-It bites only where round-one answers bring a self-care phrase into a
-description that had none, and round two then takes it back out.
+⛔ That block is on a screen this file fences. It changes no disclaimer, no
+escalation copy and no triage or emergency module, and EMERGENT routing is
+untouched — but it changes what an URGENT reader is offered at the moment they
+are told to seek care, so **it belongs in the clinical reviewer's read of that
+screen** rather than being treated as ordinary UI work.
 
 ## Health goals (implemented)
 
 A person writes down a goal, confirms the plan and daily schedule MedHelp
-proposes for it, and ticks the activities off. Reasoning and the reviewer's
-open questions: `docs/health-goals-prompt.md`.
+proposes for it, and ticks the activities off. Detail: `docs/health-goals.md`;
+prompt reasoning and the reviewer's open questions: `docs/health-goals-prompt.md`.
 
 ### ⛔ The blocking was removed on 2026-09-12. Read this first.
 
 **MedHelp now proposes a plan for any goal a person types, including a medical
 one, and no deterministic check screens what it proposes.** Two things were
-deleted at the repository owner's direct request, asked for in conversation on
-2026-09-12 — "remove the feature that blocks health plans and make it so the
-section creates a plan and daily schedule for the health goal the user
-inputs":
-
-- **The `MEDICAL_GOAL` refusal**, and `WOULD_REQUIRE_AUTHORING` with it. These
-  were how "lose weight", "stop my headaches" and "get my blood pressure down"
-  reached the person as a refusal instead of a plan: `structure` ran first,
-  and a `MEDICAL_GOAL` answer short-circuited before the planner was called.
-  The order is now the plain one — the planner runs first, for everything.
-- **`_FORBIDDEN`**, the phrase-list veto in `core/goal_structuring.py`. It
-  held "calorie", "weight", "blood pressure", "dose", "hiit" and about sixty
-  more, and one match anywhere discarded the *whole* plan. It is what made a
-  health goal unanswerable in practice, because the goal could not be planned
-  for without using the words it watched for.
+deleted at the repository owner's direct request: the `MEDICAL_GOAL` refusal
+(which is how "lose weight" and "get my blood pressure down" reached the person
+as a refusal instead of a plan), and `_FORBIDDEN`, the phrase-list veto where
+one match anywhere discarded the whole plan.
 
 ⛔ **Be clear-eyed about the cost rather than reassured by what is left.** The
 only thing now constraining an authored plan is `PLAN_SYSTEM_PROMPT`. A prompt
 is an instruction that is usually followed; a phrase list was a check that
 always ran. A prompt fails open and silently. This is a materially weaker
 position than the one this file described before, and it was chosen
-deliberately — not arrived at by drift.
+deliberately — not arrived at by drift. Two tests pin the removal, so
+reinstating either is a failing suite and a conversation, not a tidy-up.
 
-Two tests pin the removal so it cannot be quietly undone
-(`test_the_codes_that_blocked_a_health_goal_are_gone`,
-`test_the_forbidden_phrase_veto_is_gone`). Reinstating either is a failing
-suite and a conversation, not a tidy-up.
-
-### What still holds, and may not be removed
-
-1. **Every suggestion is labelled and confirmed.** `generated=True` reaches
-   the screen, the row reads "Suggested by MedHelp — edit it or remove it",
-   and editing a row's text clears the label because it has become the
-   person's own. Nothing is saved until they press save. ⛔ Never render a
-   suggested row without that label.
-2. **No benefit claims.** `PLAN_SYSTEM_PROMPT` still forbids explaining what
-   an activity will do for the person — propose the activity and stop.
-   "Walk after lunch", never "walk after lunch to bring your blood sugar
-   down". A benefit claim is the app authoring a health claim, which is the
-   line this feature is still built around, and it is the easiest one to
-   break now that the veto is gone.
-3. **Still no medication or clinical targets.** The prompt refuses a dose, a
-   supplement, a change to anything prescribed, and a target figure for a
-   weight, blood pressure, blood sugar or calorie count. These are a
-   clinician's call, and refusing them is not the same as refusing to plan.
-4. **Emergency screening runs first and is untouched.** `api/goals.py` calls
-   `screen_for_emergency` before the model, and its guidance is returned
-   alongside whatever else happened.
-5. **The `structure` fallback is unchanged**, checks and all. Where the
-   planner fails, the person's own quoted words come back rather than an
-   empty editor — the same rule as a model outage in triage never being
-   SELF_CARE.
-
-**Their own words are the fallback, not the main path.** `structure` still
-reads quotable activities out of the text and every row it produces must quote
-them — the check below. It now runs only when the planner returned nothing.
-
-#### ⛔ The prompt's length and its order are properties too
-
-Measured 2026-09-13 while adding the ambition sections: `PLAN_SYSTEM_PROMPT`
-has gone **6,019 characters at the start of this branch → 11,957 → 16,366**
-(~4,100 tokens). Most of a tripling, read by whatever free model a deployment
-has configured. **A longer prompt is not a stronger one** — instruction
-following degrades with length, and what degrades first is whatever sits
-furthest from the question. Here that would be the rules about medication,
-clinical targets and benefit claims.
-
-Two tests hold the shape:
-
-- `MAX_PLAN_PROMPT_CHARS` (18,000) is a tripwire, not a validated limit. It
-  makes the next big addition a decision rather than a drift. Raising it should
-  come with a reason and a `goal_plan_eval` run either side.
-- ⛔ **The absolute constraints bracket the ambition material, at 18% and 77%
-  through.** Left to itself, raising how much of a week a plan may fill would
-  have put new ambition-raising text in front of a constraint list already
-  three-quarters of the way down — the worst arrangement available. So
-  `WHAT SCALE MAY NEVER CHANGE` restates weight, blood pressure, calorie
-  targets and "through pain" where the ambition is introduced. **The
-  duplication is the point, not waste**, and a test fails if either copy goes.
-  Verified by deleting the early copy and watching it fail.
-
-#### ⛔ A passing suite is evidence about the tests, not about the code
-
-`backend/scripts/mutation_check.py` breaks each rule these features claim to
-enforce and checks the suite notices. A mutation that **survives** is a rule
-nothing is actually testing.
-
-    python backend/scripts/mutation_check.py            # everything
-    python backend/scripts/mutation_check.py goals
-    python backend/scripts/mutation_check.py triage
-
-⛔ **It never touches the working tree.** Every mutation is applied to a
-throwaway **copy** of `backend/`, and the suite runs there. The first version
-edited files in place and restored them in a `finally`, which leaves a window
-where an interrupted run strands a mutated source file — observed once, on a
-real run. Untidy for `goal_structuring.py`; unacceptable for `triage.py`, so
-the design changed rather than the reassurance.
-
-⛔ **The triage group reads fenced modules and changes none of them.** This
-file forbids modifying `triage.py`, `rules_triage.py` and `emergency.py`, and
-permits adding tests for them. This adds no test to them and modifies nothing:
-it copies, breaks the copy, and deletes it. `git status` after a run confirms
-it.
-
-⛔ **All five of the properties listed under "How the safety architecture
-works" are probed, and all five are genuinely caught.** That section says they
-are "each asserted by tests"; this is the first time that claim has been
-checked rather than trusted, and it holds:
-
-| | mutation | |
-|---|---|---|
-| 1 | the rules default to SELF_CARE instead of URGENT | caught |
-| 2 | a red-flag match returns URGENT instead of EMERGENT | caught |
-| 3 | `max()` becomes `min()` in `_reconcile` | caught |
-| 3b | the model tier simply replaces the rule tier | caught |
-| 4 | the model supplies the reasoning even when its tier lost | caught |
-| 5 | a model outage produces SELF_CARE instead of the rule tier | caught |
-
-Property 1 is the one this file calls "the single most important rule here",
-and property 5 is the one that guarantees a broken model never reassures
-anybody. Both are load-bearing.
-
-⛔ **This is not clinical validation and does not touch the release blocker.**
-It says the tests fail when the code stops doing what this file says it does.
-Whether what this file says is clinically right is the question a clinician has
-to answer, and nothing here goes near it.
-
-#### Three "closed" findings are now verified as actually closed
-
-The `privacy` group probes the data-handling rules this file states and
-attaches "a test asserts it" to. Five, all caught — and three of them are
-items listed above under **Closed (fixed, with tests)**, which until now had
-only ever been *recorded* as closed:
-
-| rule | |
-|---|---|
-| a rejected value is not echoed back in a 422 (closed finding 1) | caught |
-| SQLAlchemy does not put bound values into its exception text (closed finding 5) | caught |
-| `BookingIdentity.__repr__` is redacted | caught |
-| `appointments` gains no column that could hold an identity | caught |
-| `provider_locations` gains no column saying who looked | caught |
-
-The last two are the structural ones: the test checks the mapped table, so a
-column added by any route is caught — including the near-misses this file
-names, `patient_name` and a `user_id`. Adding either one now fails, which is
-what those tests promised.
-
-#### Data that must not outlive what it described
-
-The `integrity` group, four rules, all caught: deleting a medication takes its
-reminders, deleting a goal takes its ticks, `forecast()` never gains a
-`frequency` argument, and a **fourth** concept combination fails
-`test_the_set_of_combinations_is_fenced`. The first is the one this file calls
-"not untidy data, it is an alarm telling someone to take a medication they
-have stopped", and SQLite does not enforce the cascade — so that test is
-load-bearing in the literal sense.
-
-⛔ **A mutation that changes nothing reports SURVIVED, and looks exactly like
-a missing test.** That happened here: `db.query(...).delete()` was rewritten
-to `_unused = db.query(...)`, which still calls `.delete()` on the same chain.
-It read as a cascade nobody tested; the cascade was fine and the mutation was
-worthless. The anchor count catches a mutation that could not be applied;
-nothing can catch one that applied and meant nothing. **Read the diff a
-survivor implies before believing it** — the script's own docstring says so
-where someone will be looking.
-
-#### The client has one too
-
-`mobile/scripts/mutation_check.mjs`, same idea on the other side of the wire,
-and for the same reason: two of the four "green for the wrong reason" tests
-were here. Six rules, all caught:
-
-| rule, in this file's own words | |
-|---|---|
-| an empty emergency-card field renders "Not provided", never a missing row | caught |
-| the session token stays in `sessionStorage`, never `localStorage` | caught |
-| the goals screen is not an adherence record — no "3 of 4 done" | caught |
-| the tick says in its label whether it is ticked | caught |
-| the source disclosure says in its label whether it is open | caught |
-| a closed disclosure renders no citation at all | caught |
-| the emergency card is never posted to a server | caught |
-| a fired reminder never phones home with the medication name | caught |
-
-The second is worth singling out. This file claims both halves of the
-storage split are "asserted by tests so that 'fixing the inconsistency' in
-either direction fails the suite" — moving the token to `localStorage` does
-fail, so that claim holds.
-
-⛔ **The scratch copy lives under `mobile/` rather than the system temp
-directory**, because jest resolves `node_modules` by walking up from
-`rootDir`. It is removed in a `finally` and `.gitignore`d for the run that is
-interrupted anyway.
-
-It exists because that failure happened **four times in one sitting**, on this
-feature, under a green suite:
-
-- the goals screen's ticks asserted `accessibilityState`, which passes in jsdom
-  whether or not anything reaches the DOM;
-- the shape bands' attribution rule explained every rejection once the floor
-  was set to something unsatisfiable;
-- the prompt-ordering test matched a cross-reference instead of a heading, and
-  would have passed whatever the ordering was;
-- and **the two `complexity` tests, found by this script**. Both used a
-  one-row plan, so replacing the discard with `complexity = "moderate"` still
-  failed the moderate *row count*. They demonstrated "one row is not three
-  rows" while claiming to demonstrate "a missing reading is refused". They now
-  use a plan that moderate would accept, and
-  `test_the_fixture_those_two_rely_on_really_would_be_accepted` fails if that
-  stops being true.
-
-All eighteen mutations are caught as of 2026-09-14, including the caveat, the
-evidence register refusing a nearest match, emergency screening running first,
-and a suggested row staying labelled `generated`.
-
-⛔ **An anchor that does not apply is reported, never counted as caught.** Two
-were wrong on their first run and the guard said so instead of printing a
-pass: a multi-line anchor written with bare line feeds matched nothing against
-CRLF files, and `screen_for_emergency` matched three places (the docstring,
-the import, the call). The in-place version had silently replaced all three.
-
-- ⛔ **A survivor is not fixed by deleting the mutation.** Fix the test.
-- Not part of `pytest` — it runs the suite once per mutation.
-
-⛔ **Suggestions are not clinically reviewed, and they are what everyone
-sees.** They are written by a software engineer; no clinician has read
-`PLAN_SYSTEM_PROMPT`, and since 2026-09-12 it is the whole of the guard rather
-than one layer of two. It belongs in the same review as `followup.py` and
-`dose_schedule.py` and is now clearly the most urgent of the three.
+⛔ **Suggestions are not clinically reviewed, and they are what everyone sees.**
+No clinician has read `PLAN_SYSTEM_PROMPT`, and since 2026-09-12 it is the
+whole of the guard rather than one layer of two. It belongs in the same review
+as `followup.py` and `dose_schedule.py` and is now clearly the most urgent of
+the three.
 
 ⛔ **The safety checks are asymmetric, and origination is on the weaker side.**
-The quoting and digit checks below cannot apply to a plan nobody wrote, so an
-originated row is now guarded by the prompt alone, where a structured row is
+The quoting and digit checks cannot apply to a plan nobody wrote, so an
+originated row is guarded by the prompt alone, where a structured row is
 guarded by the prompt *and* the requirement that it quote the person. Almost
 every row a person sees is an originated one. **Reinstating a narrow, reviewed
 veto list is the cheapest safety work available in this feature** — it is
-deliberately not guessed at here, and it is the first thing to ask the
-clinical reviewer about.
+deliberately not guessed at here, and it is the first thing to ask the clinical
+reviewer about.
 
-### The plan carries a daily schedule
+### ⛔ What still holds, and may not be removed
 
-Each proposed activity comes back with `days` (which days of the week) and
-`time_of_day` (a local wall-clock `"HH:MM"`), added 2026-09-12. That is the
-half the person came for: a plan with no schedule is a list.
+1. **Every suggestion is labelled and confirmed.** `generated=True` reaches the
+   screen, the row reads "Suggested by MedHelp — edit it or remove it", and
+   editing a row's text clears the label because it has become the person's
+   own. Nothing is saved until they press save. **Never render a suggested row
+   without that label.**
+2. **No benefit claims.** Propose the activity and stop — "Walk after lunch",
+   never "walk after lunch to bring your blood sugar down". A benefit claim is
+   the app authoring a health claim, and it is the easiest line to break now
+   that the veto is gone.
+3. **Still no medication or clinical targets.** No dose, no supplement, no
+   change to anything prescribed, and no target figure for a weight, blood
+   pressure, blood sugar or calorie count. These are a clinician's call, and
+   refusing them is not the same as refusing to plan.
+4. **Emergency screening runs first and is untouched.** `api/goals.py` calls
+   `screen_for_emergency` before the model, and its guidance is returned
+   alongside whatever else happened.
+5. **The `structure` fallback is unchanged**, checks and all. Where the planner
+   fails, the person's own quoted words come back rather than an empty editor —
+   the same rule as a model outage in triage never being SELF_CARE.
 
-- ⛔ **A time is a local wall clock, never a UTC instant** — the same rule as
-  `medication_reminders`. Eight in the morning means eight in the morning
-  wherever the person is; storing an instant would move their plan when they
-  travelled.
-- **`cadence` and `times_per_week` are derived from `days`**, in
-  `_validate_plan` and again on the editor when the person re-ticks days. The
-  model is not asked for them. A plan therefore cannot say "three times a
-  week" beside four ticked days, and the old failure where a weekly cadence
-  arrived without its count and discarded the whole plan is gone by
-  construction.
-- **A time is refused, never guessed.** `8am`, `0800` and `8:00` are rejected
-  by both the core module and the schema, exactly as `dose_schedule.py`
-  rejects them: "8" could be either end of the day.
-- **A row with no usable day list or time discards the whole plan.** A
-  silently half-scheduled plan is harder to notice than an absent one.
-- **A `structure` row carries no schedule at all**, deliberately. That path
-  may only rearrange words the person wrote, and a clock time is digits
-  nobody wrote — the same rule that stops it inventing a duration. The person
-  sets their own days and time on the editor.
-- **An activity with no days is not treated as daily.** It is unscheduled,
-  reads "Whenever you choose", and is never marked "Due today" — nobody chose
-  those days. It stays tickable, because a tick is a note the person makes
-  for themselves.
-- ⛔ The goals screen marks due rows **"Due today", not "Today"** — the tab
-  bar already has a tab called Today, and one word meaning two things on one
-  screen is worse for a screen reader than a longer label.
-- ⛔ Still **not an adherence record**. The marker says which day a row falls
-  on; it never counts, scores, or says how many are left. No "2 of 3 today".
-  Asserted by a test.
+### ⛔ The prompt is an instrument: its examples, length and order are properties
 
-**Deploying this needs the column script.** `days` and `time_of_day` went onto
-the existing `goal_activities` table, so run
-`scripts/add_goal_schedule_columns.py` once against any database created
-before this change or `/goals` returns 500s. It is idempotent and the Render
-start command runs it. Neither column is backfilled with a guess: a goal saved
-before this does not acquire an 08:00.
+- **An example in a prompt is a suggestion, not an illustration.** This has cost
+  the feature two bugs. `WHAT TO PROPOSE` once illustrated a row with "Walk
+  after lunch", "Go to bed at the same time each night" and "Cook dinner at
+  home" — and those three came back *as* the plan, for goals that were not about
+  walking, sleep or cooking. The same shape produced generic titles one section
+  earlier. Copied rows are now **named as the failure rather than offered**.
+- **The absolute constraints bracket the ambition material.** Where a rule sits
+  in the prompt is part of the rule; do not reorder or pad without re-measuring.
+- **Vagueness is asked for, not checked, and that asymmetry is the honest
+  part.** A prompt asks and a check enforces. Do not describe the vagueness work
+  as a guard.
 
-### The same plan came back for every goal (FIXED 2026-09-13)
+### ⛔ Ambition is bounded by published guidance, never by us
 
-Reported by the repository owner: *"I said I want to lose a hundred pounds, and
-I said I want to lose one pound, and it gave me the same plan"*, and that the
-plans were vague generally. Two causes, and the first is the generic-title bug
-above repeating itself one section further down the same prompt.
+- **It is a ceiling to build towards, never a target to announce.** Never
+  propose more than a published adult recommendation.
+- **The floor and the ceiling count different things**, and `WEEK_SHAPE_BY_COMPLEXITY`
+  **bounds coverage, not effort** — that distinction is the whole design. A
+  discard costs the person their plan, so the bands are wide. ⛔ **Read `SCALE`
+  and the two tables as they are now worded, not as they were.**
 
-- **`WHAT TO PROPOSE` handed the model the plan.** It illustrated the shape of
-  a row with "Walk after lunch", "Go to bed at the same time each night" and
-  "Cook dinner at home" — and those three came back *as* the plan, for goals
-  that were not about walking, sleep or cooking. ⛔ **An example in a prompt is
-  a suggestion, not an illustration.** That has now cost this feature two bugs,
-  so the copied rows are named as the failure rather than offered, exactly as
-  the generic titles were.
-- **The prompt never asked the model to read the goal.** It said at length what
-  a good plan looks like in general and nothing about what makes this goal this
-  goal. It also said to "assume the person is starting from nothing", which is
-  a uniform floor: if everybody starts in the same place, everybody gets the
-  same first step. Three sections replace that — `READ THE GOAL BEFORE YOU PLAN
-  IT` (the specifics to pick up, and the requirement to say them back in the
-  rows), `SCALE CHANGES THE PLAN, AND IN ONE DIRECTION ONLY`, and `BEFORE YOU
-  ANSWER, READ THE PLAN BACK` (cover the goal; if you cannot tell what it was
-  from the rows, it is a template).
+### ⛔ Citations attribute; they never assert
 
-⛔ **Scale may change a plan's shape and may never make it harder.** More rows,
-different days and a longer rhythm are planning decisions. A bigger amount, a
-longer session, more intensity, or a figure to reach are a clinician's. The
-prompt says so in as many words and `test_scale_changes_the_plan_but_may_never_make_it_harder`
-pins it, because "answer a bigger goal differently" is one careless reading
-away from "answer a bigger goal harder" — and the prompt is the only guard
-left on this path.
+`core/goal_evidence.py` is a closed register of published guidance. Detail:
+`docs/health-goals.md`.
 
-**The planner no longer decodes greedily.** `llm.chat` gained an opt-in
-`temperature` **defaulting to 0**, so ⛔ **triage is untouched and must stay
-untouched**: a tier that moved between two submissions of the same sentence
-could not be reviewed, and that property is worth more than variety.
-`goal_structuring.PLAN_TEMPERATURE` is 0.7 and is the only caller passing
-anything — the `structure` fallback stays greedy too. Greedy decoding on a
-prompt that did not discriminate collapses onto the single most probable plan,
-which is the most generic one.
+- **A citation claims one thing: that this KIND of activity is the subject of
+  published guidance.** It never claims the guidance endorses this plan, this
+  person, or this row's numbers.
+- **The model picks an id from a closed list and can never write a citation.**
+  It chooses which register entry applies; it does not author a publisher, a
+  quotation or a link.
+- **An unknown id becomes no citation, never the nearest one.** Same rule as a
+  misread drug name never being snapped to the nearest real drug.
+- **Only the id is stored.** The quotation and link are assembled on the way
+  out, so there is one copy of every quotation in this app.
+- **Rewriting a row drops its citation and its detail.** Both were written for
+  the sentence that was there; leaving them under new words attributes a
+  publisher's guidance to words the publisher never saw.
+- ⛔ **Nothing that estimates urgency may read this register.** A test asserts
+  it — the triage instrument and this are separate things and must stay so.
+- **Never put the publisher's name on the closed control.** "CDC ›" would lend
+  the app an authority it has not earned; the citation is folded away on the
+  screen people open every day, and ⛔ **the open/closed state is said in the
+  accessible label**, not only in the caret.
 
-#### It is measured, not asserted — but it has not been measured yet
-
-`backend/scripts/goal_plan_eval/` runs a corpus of synthetic goals built as
-**contrast pairs** — two goals a plan is obliged to answer differently,
-including the reported one — and reports the share of rows shared across goals,
-how far each pair's halves overlap, which titles were reused, and how many
-plans contain any word of their own goal.
-
-    cd backend
-    python scripts/goal_plan_eval/measure.py --show
-    python scripts/goal_plan_eval/measure.py --strict
-
-⛔ Unlike `triage_eval`, which runs an offline phrase list, **this one calls a
-live endpoint and costs whatever that endpoint costs**. With none configured it
-says so and exits rather than reporting a zero. It measures *responsiveness*
-and says nothing about whether a plan is safe, achievable or good.
-`measure()`'s arithmetic is unit tested offline in
-`tests/test_goal_plan_eval.py`, including the reported pair coming back
-identical and registering as a 100% overlap.
-
-#### The BEFORE numbers, taken against the deployment on 2026-09-13
-
-Collected with `--api` against `medhelp-api-as615.onrender.com`, which runs
-`main` — so these measure **the bug**, not the fix. All 16 goals planned.
-
-| | before |
-|---|---|
-| rows shared across goals, exact | 9.5% |
-| plans using any word of their own goal | **53.3%** (threshold 70%) |
-| `weight-scale` pair overlap (the reported one) | **33%** |
-| `quit-scale` pair overlap, counting rewordings | **80%** |
-
-The run is committed at
-`backend/scripts/goal_plan_eval/runs/2026-09-13-before-deployed-main.json` and
-`--load` re-measures it without calling anything, which is what makes the
-comparison an actual comparison rather than two runs of different code against
-different quotas.
-
-⛔ **THE FIRST METRIC REPORTED THE REPORTED BUG AS ABSENT.** Exact row matching
-scored the two smoking goals at **0%** overlap while both plans were walk /
-water / breathing break / call a friend, reworded. `near()` therefore matches
-on **containment of the shorter row**, not Jaccard: Jaccard punishes a row for
-carrying extra context, which is precisely how a template row disguises itself.
-That took `quit-scale` from 0% to 80%, and `--strict` reads the soft figure.
-A first attempt at it folded "walk the dog" into "walk around the office for
-five minutes" — two shared tokens, one of them "the" — so a fold also needs two
-shared non-function words.
-
-⛔ **The AFTER numbers have not been taken**, because they need this branch
-deployed and the branch is not deployed. Until then the fix is a prompt change
-reasoned about rather than counted, which is the exact thing the title-bug note
-above says not to settle for.
-
-**What the baseline shows qualitatively**, and it is sharper than the numbers:
-the planner is responsive whenever the person **names the activity** —
-`sleep-baby` got phone-and-scrolling rows, `meds-routine` got "place tablets
-next to toothbrush", `knee-injury` got seated knee bends. It collapses to the
-template exactly where it has to **originate** one: both weight goals, both
-smoking goals, and "I have no energy" all came back as some ordering of stretch
-on waking / glass of water / walk after lunch / screens off before bed. That
-split is the argument for the prompt change: the old prompt had plenty to say
-about what a good plan looks like and nothing about reading the goal.
-
-⛔ **A live finding that is not about this bug.** The first baseline attempt
-lost **8 of 16 goals** to "MedHelp is busy right now" at four seconds apart.
-That is the Groq free-tier quota, and it means a person trying two or three
-goals in a minute is told the app has nothing to suggest about half the time.
-The `Busy` path is working as designed; there is simply not much quota behind
-it. Separate decision, separate fix.
-
-### Detailed, sourced, and sized to the goal (2026-09-13)
-
-Asked for directly: *"very detailed and proven plans to solve or accomplish
-what the user wants to achieve; these plans should take into account for the
-complexity and difficultness of the goal"*. Three things, built three ways,
-because they fail differently.
-
-#### 1. Detailed — every row says how, in `detail`
+### ⛔ `detail` says how, never why
 
 A row is the instruction; `detail` is one or two plain sentences saying how to
-do it on the day, in this person's life. Required of every suggested row; a row
-without one discards the plan, the same as a row without a schedule.
+do it on the day. Required of every suggested row — a row without one discards
+the plan, the same as a row without a schedule. **The moment a sentence
+explains what an activity will do for somebody's body or illness, the app is
+authoring a health claim.** `MAX_DETAIL_CHARS` is a crude proxy for that and is
+honest about being one: long enough to be an article is long enough to have
+started explaining.
 
-⛔ **It says how, never why.** "No benefit claims" is the rule that survived the
-2026-09-12 removals and it applies to the detail word for word — the moment a
-sentence explains what an activity will do for somebody's body or illness, the
-app is authoring a health claim. The length cap (`MAX_DETAIL_CHARS`) is a crude
-proxy for that and is honest about being one: long enough to be an article is
-long enough to have started explaining.
-
-⛔ **`structure` rows carry no detail**, the same rule that keeps a clock time
-off them. That path may only rearrange words the person actually wrote.
-
-#### 2. Proven — `core/goal_evidence.py`, attribution and never assertion
-
-The only form of "proven" this app may ship: a row is attributed to a
-**published recommendation from a named public health body, quoted verbatim,
-with a link**. The register holds eight entries, every one fetched from the URL
-beside it and reproduced exactly. It is the MedlinePlus rule applied to a new
-surface — render source text verbatim, always carry attribution and the link,
-never paraphrase.
-
-- ⛔ **A citation claims one thing: that this KIND of activity is the subject of
-  this published recommendation.** Not that the plan works, not that the
-  publisher endorses it, not that it applies to this person, not that anyone
-  reviewed it. `EVIDENCE_CAVEAT` in `api/goals.py` says exactly that and travels
-  with **every** citation; the client drops a citation that arrives without it
-  rather than showing a bare one. Tested on both sides.
-- ⛔ **The model picks an id from a closed list and can never write a citation.**
-  No URL, publisher, quote or study field exists anywhere in the tool schema,
-  and `additionalProperties` is false. A model asked for a citation invents a
-  plausible one; a model asked to choose from eight ids either chooses or does
-  not.
-- ⛔ **An unknown id becomes no citation, never the nearest one.** Same rule, and
-  the same reason, as the label parser refusing to snap a misread drug name to
-  the nearest real drug: a visible gap beats a plausible error.
-- ⛔ **Only the id is stored.** The quotation and link are assembled on the way
-  out, so a government sentence cannot go stale in a database row, and a client
-  cannot save an attribution the register does not know.
-- ⛔ **Rewriting a row drops its citation and its detail.** Both were written for
-  the row as proposed; once the person changes what the activity is, nobody has
-  checked that the guidance is about it. Keeping it would be MedHelp attributing
-  a person's own idea to the CDC.
-- ⛔ **Nothing that estimates urgency may read this register.** A test asserts
-  `triage.py`, `rules_triage.py`, `emergency.py` and `deduction.py` do not
-  import it. It is attribution for a lifestyle activity.
-- A sleep-duration entry was **dropped** rather than included: CDC publishes the
-  figure as a table cell ("7 or more hours"), so any sentence carrying it would
-  have been written here. Entries are whole published sentences or nothing.
-
-⛔ **What this still is not.** Nobody clinically qualified has read
-`PLAN_SYSTEM_PROMPT`, the plans, or the mapping from a row to a domain — and the
-mapping is made by the model. Real published guidance now sits under the rows,
-which is a genuine improvement on a model asserting things; it is not the
-clinical review this file has been asking for, and it does not lift any release
-blocker.
-
-### Ten minutes a day for a year-long goal (2026-09-13, second report)
-
-Reported by the repository owner, the same day and after the changes above:
-
-> *"I don't trust these goals. I put it, I wanna lose a hundred pounds in a
-> year, and basically recommended me to do ten minutes of exercise a day,
-> drink water, go to bed on time. I also feel like the strictness and the
-> severity of these plans aren't very that effective."*
-
-Two distinct defects, and they need different kinds of fix. It is worth
-separating them before reading the rest, because conflating them is how this
-would get "fixed" by making plans harder, which is fenced.
-
-- **Unserious size.** A plan present on four days of a year-long attempt is
-  not a cautious plan, it is one that did not read the goal. **That is a
-  planning failure and is now checked.**
-- **Vagueness.** "Drink water" and "go to bed on time" are the habits that fit
-  every goal and answer none of them. **That is a prompt failure and is
-  addressed in the prompt**, where it can only be asked for.
-
-#### The ceiling on ambition now comes from published guidance, not from us
-
-`PLAN_SYSTEM_PROMPT` used to cap **every** plan at "modest starting points,
-not a training programme" and "keep it easy", so a goal meant for an afternoon
-and a goal meant for a year were both offered ten minutes. That is where the
-reported plan came from, and it was deliberate: MedHelp has no business
-deciding how hard anyone should work.
-
-The resolution is that it still does not decide. `HOW MUCH IS ENOUGH` in the
-prompt builds the week towards **a figure somebody else published** — the CDC's
-150 minutes of moderate activity a week plus muscle-strengthening on about two
-days — which is the *same recommendation already quoted verbatim* under these
-rows by `goal_evidence.py`'s `aerobic_activity` and `strength_activity`
-entries. `test_the_published_figure_in_the_prompt_is_the_one_in_the_register`
-pins the two together so there is one copy of the number.
-
-- ⛔ **It is a ceiling to build towards, never a target to announce.** The
-  prompt forbids writing "150" into a row and forbids saying what reaching it
-  would do for anyone — a figure on a person's screen with a benefit attached
-  is the app authoring a health claim, which is the line this whole feature is
-  built around.
-- ⛔ **Never propose more than it.** Above a published adult recommendation
-  there is nothing to appeal to but MedHelp's own judgement about this
-  person's capacity, which it does not have.
-- **It starts lower by default.** Where somebody said their week is full, said
-  they have tried and stopped, described pain, injury or illness, wrote a very
-  small goal, or said nothing at all about their time — the plan starts under
-  the figure. Only a person who described room gets built towards it.
-
-⛔ **Read `SCALE` as it is now worded, not as it was.** The rule used to be the
-flat `NEVER ANSWER A BIGGER GOAL WITH A HARDER PLAN`. It is now split, because
-the flat version is what produced the reported plan: it forbade a bigger goal
-from buying anything at all.
-
-| A bigger goal may buy | It may never buy |
-|---|---|
-| more rows | intensity — harder, faster, heavier, through pain |
-| more days per row | a figure to reach (weight, BP, blood sugar, calories) |
-| more of the day covered | anything under `WHAT YOU MUST NEVER PROPOSE` |
-| more weekly minutes, **up to the published figure** | more than the published figure |
-
-*A bigger goal earns a fuller week. It does not earn a harder day.* How hard a
-person should push is a clinician's call; how much of their week a plan
-occupies is an ordinary planning decision.
-`test_scale_may_fill_more_of_the_week_and_may_never_make_a_day_harder` and
-`test_the_prompt_still_refuses_every_clinical_decision` hold both halves,
-because the prompt is still the only guard on this path and "answer a bigger
-goal with more of the week" is one careless reading from "answer it harder".
-
-#### `WEEK_SHAPE_BY_COMPLEXITY`: the half of "sized to the goal" a row count cannot see
-
-`ROWS_BY_COMPLEXITY` bounded how many things a plan contained. Nothing bounded
-how much of anyone's week those things touched — so **four rows on one day
-each, a plan present on four days out of seven, satisfied "major"**. That is
-precisely the reported plan, and five rows would not have improved it.
-
-A **day-slot** is one row on one day; a plan's total is the sum over its rows.
-`_validate_plan` now requires that total to match the reading the model
-declared, and discards the plan when it does not.
-
-⛔ **The floor and the ceiling count different things, and that is the whole
-point.** Two measures of a week disagree in exactly the case that matters:
-
-| | "walk daily" + 3 weekend errands | the reported plan (4 rows, Mon–Thu) |
-|---|---|---|
-| day-slots | 10 | 4 |
-| **days of the week it is on** | **7** | **4** |
-
-A slot floor high enough to reject the reported plan also rejects the first
-one — a good answer to a year-long goal — and hands that person an empty
-editor. So a **floor counts days touched**, which is literally what "present
-on most days" means, and a **ceiling counts day-slots**, because what a
-ceiling rules out is total volume. Days touched cannot do a ceiling's job: one
-daily habit is on all seven days and is a perfectly good small plan.
-
-| reading | rows | floor: days on | ceiling: day-slots |
-|---|---|---|---|
-| `small` | 1–3 | — | **14** — no week-long programme for something meant once |
-| `moderate` | 3–4 | **2** — not a plan that touches one day | 28 |
-| `major` | 4–5 | **5** — a year's work is present most days | 35 |
-
-- ⛔ **It bounds coverage, not effort**, and that distinction is the whole
-  design. Coverage is arithmetic this module can perform; effort is a
-  clinician's call. A model that reads a goal as major and answers with one
-  punishing row still gets past this, exactly as it gets past
-  `ROWS_BY_COMPLEXITY`. `test_the_coverage_bands_never_measure_how_hard_a_row_is`
-  puts three gentle rows and three gruelling ones on the same schedule and
-  asserts the same verdict — it exists so nobody later reads these bands as a
-  safety control.
-- **Each band has one working end and the other is slack on purpose.** A
-  single row on two days is a perfectly good small plan, and a major goal
-  answered on every day of the week is not wrong. A floor for `small` or a
-  ceiling for `major` would reject real plans to enforce nothing.
-- ⛔ **A discard costs the person their plan**, so the bands are wide. They
-  catch a plan that ignored the goal's size outright, not one that read the
-  goal a notch differently from how somebody else would.
-- ⛔ **Read the two tables together, because nothing else does.**
-  `ROWS_BY_COMPLEXITY` bounds how many rows; this one bounds what shape of
-  week they make. A bound on one that quietly excludes an ordinary plan under
-  the other looks like nothing at all from either table, and that has happened
-  twice on this change alone — `moderate` shipped for one commit at a slot
-  ceiling of 21, silently rejecting four daily habits for a goal about an
-  ordinary week; and a slot *floor* for `major` rejected a daily walk plus
-  three weekend errands. Both would have been an empty editor for a real
-  person. `test_the_bands_reject_only_the_shapes_they_are_meant_to` enumerates
-  every (rows × days) the row band allows and asserts exactly which set the
-  shape band turns away, so the rejected shapes are a reviewable list rather
-  than an emergent property of four numbers nobody compares.
-- ⛔ **That enumeration is a uniform grid and real plans are not**, which is
-  how the second bug got past it. The uneven cases are written out as their
-  own tests
-  (`test_a_major_plan_of_one_daily_row_and_a_few_weekly_ones_is_kept`), and a
-  new bound needs one too.
-- **The cost of the check is swept, not reasoned about.**
-  `test_no_plausible_plan_is_rejected_for_a_reason_its_band_does_not_enforce`
-  builds every plan from the day-patterns real plans use, at every allowed row
-  count — ~74,000 shapes, offline — and asserts each rejection is attributable
-  to that band's one working end. As shipped, **94.6% / 99.9% / 94.8%** of
-  plausible plans are kept, and every rejection is the intended kind.
-- ⛔ **Attribution alone is not enough, and that was checked rather than
-  assumed.** Both bugs above were re-introduced to see whether the test
-  catches them. Attribution catches the moderate ceiling. It does **not**
-  catch a floor expressed on day-slots: set the major floor to 14 days and
-  "touched < fewest_days" explains every rejection, because a days floor of 14
-  can never be met — so everything is refused and everything is
-  'attributable'. The test therefore also asserts each band **keeps** more
-  than half of the sweep, and that a floor never exceeds the length of a week.
-  With both checks in place each bug is caught.
-- **The eval harness gates on the same number**, records `days_touched`
-  separately from the per-row counts because one cannot be derived from the
-  other, and a test asserts `measure.MAJOR_FLOOR_DAYS` equals the table's.
-
-#### Vagueness is asked for, not checked — and that asymmetry is the honest part
-
-`EVERY ROW HAS TO BE DOABLE WITHOUT DECIDING ANYTHING ELSE FIRST` gives three
-tests a row must pass: **checkable** (yes or no at the end of the day),
-**located** (it says where, or with what), and **the first move is obvious**
-(startable in ten seconds without looking anything up or choosing between
-options the plan left open).
-
-The two rows the owner was actually shown — `"drink a glass of water after
-waking"` and `"go to bed at the same time each night"` — are named in the
-prompt as the failure, not offered as examples. ⛔ **An example in a prompt is
-a suggestion, not an illustration**; that has now cost this feature three bugs
-(the generic titles, the copied `WHAT TO PROPOSE` rows, and these), so each set
-is written in as a thing that came back rather than a thing to aim at.
-`test_the_prompt_names_the_reported_template_rows_as_the_failure` keeps them
-there.
-
-⛔ **Be clear about what this half is.** A prompt asks and a check enforces, and
-there is no deterministic check for vagueness — "drink a glass of water after
-waking" is a perfectly concrete row that happens to answer nothing. Telling a
-row that fits this goal from a row that fits every goal is a judgement, which
-is why this is the half that remains an instruction. A template-row veto was
-considered and **not** built: the measured baseline shows the model emits these
-when it has to originate a plan, not from a fixed vocabulary a list could hold,
-and a blunt phrase veto here is how `_FORBIDDEN` made health goals unanswerable
-in the first place.
-
-#### It is measured — on a new axis, and still not run
-
-`goal_plan_eval` now records each plan's `days` and `complexity` and reports
-**day-slots per plan**, broken down by the reading, plus `thin_major_plans` —
-major goals answered on under fourteen day-slots, which is the reported bug by
-name.
-
-- ⛔ **A run that recorded no schedule reports coverage as absent, never as
-  zero.** The committed BEFORE baseline predates the field; printing it as a
-  mean of 0.0 would read as a finding about those plans rather than a fact
-  about the run, and the before/after would compare two different things.
-  `test_a_run_that_recorded_no_days_reports_no_coverage_at_all` pins it.
-- **Both new figures are gated by `--strict`**, not merely printed.
-  `MAJOR_FLOOR_SLOTS` fails a run containing a plan read as major on under
-  fourteen day-slots — the reported bug, by name. ⛔ **A metric nobody fails on
-  is a metric nobody reads**: the coverage figures were reported and ungated
-  when first added, which would have let exactly that plan pass a `--strict`
-  run in silence.
-- **The prior question is measured too: did the planner read the two goals as
-  different sizes at all?** The contrast-pair overlap only sees the failure
-  once the ROWS coincide. Four corpus goals now carry a `not_below` /
-  `not_above` bound — a year-long, tried-and-stopped goal may not be read as
-  less than major; a single-day goal may not be read as major — and a
-  violation is both printed and gated by `--strict`.
-  ⛔ **Bounds, never gold labels, and only where the goal states its own scale
-  in so many words.** The other twelve carry neither, because "is this
-  moderate or major" is exactly the judgement this app should not score itself
-  on, and a test asserts an unbounded goal can never be reported. Same
-  standing as `triage_eval`'s gold tiers: consistency with this file's
-  documented intent, assigned by an engineer, not correctness.
-- **Vagueness has a crude proxy too**, since it is the half no check enforces:
-  `situated_share`, the share of rows that say **when or where** they happen,
-  gated at 70%. Rows like "eat better" and "be more active" cannot score.
-  ⛔ **Read what it cannot see.** "Drink a glass of water after waking" — one
-  of the two rows actually reported — *passes*, because it does name a moment.
-  It measures whether a row is placed in a day, never whether it answers the
-  goal; that is what `repeat_share` and the contrast pairs are for, and it is
-  the same reason no deterministic vagueness check exists in
-  `goal_structuring`. A high figure here is necessary and nowhere near
-  sufficient; a low one is the finding worth acting on.
-  `test_a_concrete_row_that_answers_no_goal_still_counts_as_situated` pins the
-  limit so the number is not over-read.
-- **Re-measuring the committed baseline reports 54% situated**, which is a
-  real finding about the pre-fix plans and consistent with the report. It is
-  the only number on this change that exists today.
-- ⛔ **The AFTER numbers still have not been taken**, for the same reason as
-  the section above: the branch is not deployed and there is no key on this
-  machine. Both halves of this change are reasoned about rather than counted
-  until somebody runs `measure.py`, and the coverage half is the one where a
-  count would actually settle it.
-
-#### The citation is folded away on the screen people open every day
-
-Reported in the same message:
-
-> *"when we do the research to support why the AI is picking these plans, it
-> gets too overwhelming in the text… once they've already set the goals, I
-> feel like it's a little redundant to include that information right there."*
-
-Correct, and the split is the right one. `GoalCreateScreen` renders the
-citation open, because there it is part of deciding whether to accept a row.
-`HealthGoalsScreen` — opened every day to tick two boxes — folds it behind
-**"Where this comes from"**, per row, closed by default.
-
-- ⛔ **Folded, not dropped, and that is what makes it permissible.** The rule
-  in `goal_evidence.py` is that every surface rendering a citation carries
-  `EVIDENCE_CAVEAT`. Closed, the screen renders **no publisher, no document
-  and no quotation**, so there is nothing to read as an endorsement; opened, it
-  renders all four exactly as the editor does. The two tests are a pair and
-  must stay one.
-- ⛔ **Never put the publisher's name on the closed control.** "CDC ›" would be
-  a government name under a MedHelp-written row with no room for the caveat to
-  follow it, which is the exact thing the caveat exists to prevent.
-- **The detail stays visible.** It says *how* to do the row on the day, which
-  is the part that earns its place on a screen someone opens every morning.
-  The citation says where the kind of activity came from, which is a question
-  you ask once.
-- State held per activity in component state, not persisted: which sources
-  somebody expanded yesterday is not a preference.
-- ⛔ **The open/closed state is said in the accessible label, not only in
-  `accessibilityState`.** Found by opening this screen in a real browser with
-  the whole suite green: React Native Web **drops
-  `accessibilityState={{ expanded }}` entirely** — the rendered control
-  carries no `aria-expanded` at all — and `accessibilityLabel` *overrides* the
-  visible text for a screen reader. So a reader heard one unchanging label
-  while a sighted user watched "Where this comes from" become "Hide where this
-  comes from". Same defect and same fix as the goal editor's day buttons.
-
-  The test asserts the **label**, not `accessibilityState`, because asserting
-  the latter is exactly what let this through: it passes in jsdom and means
-  nothing in a browser.
-- ⛔ **The tick itself had the same bug, and it is worse.** `HealthGoalsScreen`
-  labelled each checkbox with the activity text alone, so a ticked row and an
-  unticked one announced **identically** — on the one screen whose entire
-  purpose is ticking things off. Now fixed the same way: the label says
-  "ticked off for today" or "not ticked off". ⛔ Never "missed", "skipped" or
-  "incomplete", in the label any more than in the visible copy — an unticked
-  row means nothing was ticked, and this is not an adherence record. A test
-  asserts the forbidden words never appear in the accessible name.
-
-### ⛔ `accessibilityState` does nothing on web. Say state in the label.
-
-Not a quirk of one component — a property of the library. **React Native Web
-0.19.13 never reads `accessibilityState` at all**: it is absent from
-`forwardedProps` and from `createDOMProps`, which take `aria-checked`,
-`aria-expanded` and `aria-selected` instead. The only places it is read are
-the legacy `TouchableWithoutFeedback` and `isDisabled`, so on a `Pressable`
-it is silently dropped and the DOM carries no state attribute at all.
-
-It is still the right thing on native, so **keep it and add the state to
-`accessibilityLabel`** — that is the one thing that works on every platform
-regardless of what the library emits. `GoalCreateScreen`'s day chips,
-`HealthGoalsScreen`'s ticks and its source disclosure all do this.
-
-⛔ **A test that asserts `accessibilityState` is not evidence about a
-browser.** It passes in jsdom whether or not anything reaches the DOM, which
-is how both goals bugs survived a green suite. Assert the label.
-
-#### The other six are fixed too, and a test now holds the rule
-
-Found by grepping `accessibilityState` across `mobile/src` after the two goals
-bugs. Checking each against React Native Web's source rather than assuming
-split them in two:
-
-| Call site | Verdict |
-|---|---|
-| `screens/intake/SymptomIntakeScreen.tsx` | **was broken** — a reader could not tell whether the consent box was ticked |
-| `components/AppNav.tsx`, `components/SegmentedControl.tsx` | **was broken** — every tab announced identically |
-| `ProviderSearchScreen`, `BookingIdentityScreen`, `MedicationRemindersScreen` | **was broken** — three radio groups announcing no selection |
-| `components/AppButton.tsx` | fine: it passes `disabled`, and RNW's `Pressable` sets `aria-disabled` from **that prop** |
-| `components/TextField.tsx` | fine: it passes `editable`, and RNW's `TextInput` derives the DOM state from **that prop** |
-
-The consent checkbox was the worst of them: a control whose entire job is to
-make agreement unambiguous, on the most sensitive text in the app. ⛔ That edit
-changes no disclaimer and no escalation copy, but it is still text on the
-intake screen, so it belongs in the clinical reviewer's read of that screen —
-the same standing as the URGENT hand-off.
-
-`mobile/__tests__/accessibleState.test.ts` holds the rule for everything
-added later. ⛔ **It reads the source rather than rendering**, because in jsdom
-`accessibilityState` is on the element whether or not anything reaches the DOM
-— that is exactly why the ticks' own test passed while a reader was told
-nothing. It anchors each region on `accessibilityRole` (unique per call site)
-and asserts the label varies. Two cruder detectors were tried and both
-reported already-fixed sites: slicing to the next `>` truncates on `=>` and on
-these files' own ⛔ comments, and a plain character window reaches back into
-the previous element and finds *its* label.
-
-⛔ **`EXEMPT` is not a snooze button.** It is for call sites where the state
-genuinely reaches the DOM another way, each entry has to say which route, and
-a test asserts the reasons are real. Adding a file to it to make the suite
-green is how a list like this becomes the place bugs go to be forgotten.
-
-### The structuring rule is checked, not trusted
+### ⛔ The structuring rule is checked, not trusted
 
 Every activity read out of the person's own words must carry a `source_phrase`
 that occurs in the submitted text, and `core/goal_structuring.py` discards the
-*whole draft* if any does not. A model that wants to add stretching to a
+**whole draft** if any does not. A model that wants to add stretching to a
 walking goal has to quote "stretch" out of text that never contained it.
+**No digit may appear in an activity unless the person wrote it** — an invented
+number is the likely shape of an invented duration, distance or dose.
 
-Four further checks follow the same principle, most importantly that **no digit
-may appear in an activity unless the person wrote it** — an invented number is
-the likely shape of an invented duration, distance or dose. It is also why a
-`structure` row carries no clock time: a time is digits nobody wrote.
+⛔ This applies to the **fallback path only**. Suggested rows are exempt by
+construction, since nothing was written to quote. `_validate_plan` checks shape
+— a title, a day list, an `"HH:MM"` — and does not look at content at all.
 
-⛔ **This applies to the fallback path only.** Suggested rows are exempt from
-the quoting and digit rules by construction, since nothing was written to
-quote. The veto list used to guard them instead; it was removed on 2026-09-12,
-so nothing deterministic guards them now. `_validate_plan` checks shape — a
-title, a day list, an `"HH:MM"` — and does not look at content at all.
-
-Rules for anyone extending this:
+### ⛔ Further goal rules
 
 - **Never add a progression engine.** Nothing may increase a target because a
-  week went well; that is authoring, one week at a time, and it is exactly
-  what the substring check exists to prevent.
+  week went well; that is authoring, one week at a time, and it is exactly what
+  the substring check exists to prevent.
 - **Never add a second model to review the first.** A gate whose failure mode
-  is a silent pass is not a safety layer. The checks here are deterministic
-  for the same reason the triage rule layer is a phrase list a person can read.
-- **A refusal returns a code, never a sentence.** The four strings a person
-  reads live in `_REFUSAL_NOTICES` in `api/goals.py`, because user-facing text
-  in a health app is reviewed text. `core/goal_structuring.py` must never
-  return prose.
+  is a silent pass is not a safety layer. The checks here are deterministic for
+  the same reason the triage rule layer is a phrase list a person can read.
+- **A refusal returns a code, never a sentence.** The strings a person reads
+  live in `_REFUSAL_NOTICES` in `api/goals.py`, because user-facing text in a
+  health app is reviewed text. `core/goal_structuring.py` must never return
+  prose.
 - **Failure is never a plan.** No endpoint, an outage, or a failed check all
-  yield an empty editor plus the server's own sentence. There is no generated
-  fallback, for the same reason a model outage in triage is never SELF_CARE.
-  Those three are one sentence to the person and three different repairs to an
-  operator, so `_discard()` logs **which check** caught a draft — the check's
-  name only, never the value that failed it, which is the person's own health
-  text. A `source_phrase is not in the submitted text` line means the model
-  paraphrased instead of quoting: the check working as designed, and worth
-  looking at the prompt only if it fires for everybody.
-- **Emergency screening runs first**, in `api/goals.py`, before the model is
-  called. A goal box takes "stop feeling dizzy on the stairs" as readily as
-  intake does, and guidance is returned alongside a refusal or an outage
-  rather than instead of it.
-- ⛔ **This is not an adherence record.** A tick is a note the person made for
-  themselves. An unticked activity means nothing was ticked — not that
-  anything was missed, skipped or failed. **No streaks, no percentages, no "3
-  of 4 done" tiles**, the same mistake CLAUDE.md warns about for the home
-  screen's panels. `mobile/__tests__/GoalScreens.test.tsx` asserts the words
-  never appear.
+  yield an empty editor plus the server's own sentence. `_discard()` logs
+  **which check** caught a draft — the check's name only, never the value that
+  failed it, which is the person's own health text.
+- **This is not an adherence record.** A tick is a note the person made for
+  themselves; an unticked activity means nothing was ticked, not that anything
+  was missed. **No streaks, no percentages, no "3 of 4 done" tiles** — a test
+  asserts the words never appear. A tick reads "ticked off for today" or "not
+  ticked off"; ⛔ never "missed", "skipped" or "failed".
+- **An activity with no days is unscheduled, not daily.** It reads "Whenever
+  you choose" and is never marked due — nobody chose those days. Due rows read
+  ⛔ **"Due today", not "Today"**, because the tab bar already has a tab called
+  Today and one word meaning two things is worse for a screen reader.
+- **A time is a local wall clock, never a UTC instant**, and is refused rather
+  than guessed. A row with no usable day list or time discards the whole plan —
+  a silently half-scheduled plan is harder to notice than an absent one.
+  `cadence` and `times_per_week` are **derived from `days`** server-side, so a
+  plan cannot say "three times a week" beside four ticked days.
+- A `structure` row carries **no schedule at all** — a clock time is digits
+  nobody wrote.
 - A completion is a **local calendar day** sent by the client, never a UTC
-  instant — the same rule as a reminder being a wall-clock "HH:MM".
-- Deleting a goal deletes its activities and every tick, in the endpoint as
-  well as by foreign key. SQLite does not enforce the cascade, so the test
-  asserts against the table.
+  instant. Deleting a goal deletes its activities and every tick, in the
+  endpoint as well as by foreign key.
 
-### A saved goal can be edited (2026-09-16)
+### ⛔ Editing a saved goal
 
-`PUT /goals/{goal_id}` and `GoalEditScreen`. Before this the only way to change
-a goal was to delete it and write it again, which threw away every tick along
-with it — playtesting reported it as the obvious missing thing.
+- **Rows are matched by `id`, and that is the whole design.** A `GoalCompletion`
+  points at an activity id, so replacing the activity rows on every save — the
+  easy implementation — would silently discard the person's ticks for every goal
+  they ever edited. A row that keeps its id is edited in place and keeps its
+  history; a row with no id is new; a row the payload omits is deleted along
+  with its completions, explicitly, because SQLite does not enforce the cascade.
+- **An id that is not on this goal is a 400, never a new row.** Treating it as
+  new would let a stale client detach a row from its ticks with nothing
+  appearing to go wrong. Sending one id twice is refused for the same reason —
+  the loser would vanish in silence.
+- **The editor proposes nothing.** No description box and no call to
+  `draftGoal`; the model is not consulted from that screen at all. Editing is
+  not an occasion for MedHelp to write more health content. A saved row is never
+  relabelled "Suggested by MedHelp" — the person confirmed every row when they
+  pressed save, so the label would be false.
+- **`description` is not editable and must not become so.** It is the text the
+  person originally wrote and what `structure`'s quoting check ran against — the
+  record of what was asked for, not a field.
+- ⛔ **`detail` and `evidence_domain` are assigned on every edit, and every
+  column on `goal_activities` must be.** Leaving them out was silent data loss:
+  an edit that changed only a time would have stripped the "how" line and the
+  published citation off *every row of the goal*, with nothing on screen saying
+  so. Two tests pin it.
+- **The clearing of those two is deliberate and belongs to the client.** A
+  citation attributes published guidance to the sentence MedHelp wrote, so when
+  somebody replaces that sentence, leaving the publisher's name under it would
+  attribute their guidance to words the publisher never saw.
+  `GoalPlanEditor.updateText` clears them. That is why the server **assigns
+  rather than merges** — a "keep what was there" merge could not express it.
+- ⛔ **`ActivityOut` returns `evidence_domain` beside the resolved `evidence`.**
+  `evidence` is rebuilt server-side on every read, which keeps one copy of every
+  quotation in this app, and it cannot be turned back into an id. Without the id
+  no editor could say "this row is unchanged". Only the id travels in either
+  direction; the publisher, quotation and link stay the server's.
+- ⛔ **`GoalCreateScreen` does not use `GoalPlanEditor`, and the duplication is
+  known.** The create screen renders a draft's provenance, none of which applies
+  to a saved goal. What is duplicated is the day chips, the time check and the
+  React Native Web accessibility workaround. Folding them together is worth
+  doing; it was not worth doing inside a merge resolution.
+- `GoalPlanEditor`'s rows carry their own `source` and `suggested` labels rather
+  than parallel arrays indexed by position, which is what stops a label landing
+  on the wrong line after a removal. A correctness question, not a cosmetic one.
 
-⛔ **Rows are matched by `id`, and that is the whole design.** A
-`GoalCompletion` points at an activity id, so replacing the activity rows on
-every save — the easy implementation — would silently discard the person's
-ticks for every goal they ever edited, including today's. A row that keeps its
-id is edited in place and keeps its history; a row with no id is new; a row the
-payload leaves out is deleted along with its completions, explicitly, because
-SQLite does not enforce the cascade.
-
-⛔ **An id that is not on this goal is a 400, never a new row.** Treating it as
-new would let a stale client detach a row from its ticks with nothing appearing
-to go wrong. Sending one id twice is refused for the same reason: the loser
-would vanish in silence.
-
-⛔ **The editor proposes nothing.** There is no description box and no call to
-`draftGoal` — the model is not consulted from that screen at all. Editing is
-not an occasion for MedHelp to write more health content, which keeps
-origination to the one screen this file describes. A test asserts it, and
-another asserts a saved row is never relabelled "Suggested by MedHelp": the
-person confirmed every row when they pressed save, so the label would be false.
-
-⛔ **`description` is not editable and must not become so.** It is the text the
-person originally wrote and what `structure`'s quoting check ran against — the
-record of what was asked for, not a field.
-
-`cadence` and `times_per_week` are derived from `days` server-side, exactly as
-`_validate_plan` derives them, so an edit cannot produce "three times a week"
-beside four ticked days whatever the client sends.
-
-`GoalPlanEditor` is the editor both screens share. Its rows carry their own
-`source` and `suggested` labels rather than parallel arrays indexed by
-position, which is what stops a "Suggested by MedHelp" label landing on the
-wrong line after a removal — a correctness question, not a cosmetic one.
+The goals screens deliberately do **not** use `DisclaimerBanner` — which
+screens show it is fenced, and adding it to a new screen is a reviewer's call.
+⛔ They carry a plain statement instead, rewritten on 2026-09-12, and **the old
+wording must not come back**: "MedHelp tracks what you decide to do, does not
+decide what your goals should be" stopped being true the moment the app began
+proposing plans. A test asserts the current text.
 
 **Not built, deliberately:** reminders for a goal, and any weekly review.
-Neither is hard — a reminder would reuse the local-only `notificationService`
-— but both add surface to an instrument no clinician has read.
+Neither is hard, but both add surface to an instrument no clinician has read.
 
-### Approval, and what it does not cover
-
-The repository owner asked for this feature in conversation on 2026-09-07,
-having been shown that the originally proposed design (a model authoring
-weekly plans, with a second model checking them for safety) could not be
-built here. That is approval to **build it on a branch**.
-
-They asked again on **2026-09-12**, in conversation, for the blocking to be
-removed and for the section to produce a plan and a daily schedule for any
-health goal typed in. That is the approval this change rests on, and it was
-given after being told plainly that removing `_FORBIDDEN` leaves the prompt as
-the only guard. Same basis as the other entries this file records: a person
-answering in their own words, outside the agent pipeline.
-
-⛔ Neither is clinical sign-off, and the 2026-09-12 one makes that review more
-urgent rather than less. `SYSTEM_PROMPT`, `PLAN_SYSTEM_PROMPT` and the cadence
-copy in `core/goal_structuring.py` are a software engineer's construction and
-belong in the same review as `followup.py` and `dose_schedule.py`. It is
-**not** approval to merge to `main` or to deploy — this file fences those
-separately and they need their own answer.
-
-The goals screens deliberately do **not** use `DisclaimerBanner`. Which
-screens show it is fenced by this file, and adding it to a new screen is a
-reviewer's call, not a layout one. They carry a plain statement about the
-software instead.
-
-⛔ **The authorship sentence is conditional; the rest of that footnote is
-not.** Found 2026-09-14 by exercising the no-model path, which is what every
-deployment without a key produces: `draft` returns nothing, the person types
-the plan themselves, and the screen then told them their own choices were
-"suggestions written by MedHelp". Untrue, on the one thing on that screen
-whose job is to say what a person is looking at.
-
-⛔ **A test was pinning it.** That test drafted with *no* suggestions and then
-asserted the suggestion wording — green, and enforcing something false. It now
-covers each state, and a second test covers the no-model one. Only the
-authorship clause differs: "nobody medically qualified has checked" this and
-"speak to a healthcare professional" about a condition, a medicine or a big
-change to eating or exercise are required in **both** and must not become
-conditional.
-
-⛔ **That statement was rewritten on 2026-09-12 and the old one must not come
-back.** It used to read "MedHelp tracks what you decide to do, does not decide
-what your goals should be" — which stopped being true the moment the app began
-proposing plans. `GoalCreateScreen` now says the suggestions were written by
-MedHelp rather than by a doctor or nurse, that nobody medically qualified has
-checked them, and to speak to a professional before acting on a goal about a
-medical condition, a medicine, or a big change to eating or exercise. With the
-refusal gone, that footnote is the only thing on the screen telling a person
-what they are looking at. A test asserts it.
-
-### Goals may use a different model endpoint from triage
+### ⛔ Goals may use a different model endpoint from triage
 
 `GOALS_LLM_BASE_URL` / `GOALS_LLM_MODEL` / `GOALS_LLM_API_KEY`, each falling
-back to its `LLM_*` counterpart when empty.
+back to its `LLM_*` counterpart when empty. One set of settings used to serve
+every model caller, so pointing them at a hosted provider to get goal
+suggestions also started sending **symptom descriptions** there — the most
+sensitive free text in the app, belonging to the feature with the standing
+release blocker. **A data-handling decision must not happen as a side effect of
+switching on a different feature.**
 
-**Why this is not gratuitous config.** One set of settings used to serve every
-model caller, so pointing them at a hosted provider to get goal suggestions
-also started sending *symptom descriptions* there — the most sensitive free
-text in the app, belonging to the feature with the standing release blocker.
-A data-handling decision must not happen as a side effect of switching on a
-different feature.
-
-- **Unset, the overrides change nothing.** A deployment that never sets them
-  behaves exactly as it did before the split. Asserted by a test, because that
+- **Unset, the overrides change nothing** — asserted by a test, because that
   property is the whole reason this was safe to add.
-- `llm.Endpoint` carries a `label`, so the transmission warning names *which*
-  data is leaving — "Health goal descriptions" or "Symptom descriptions".
-- The warning fires **once per host**, not once per process. Two endpoints
-  mean a warning about one is not a warning about the other.
-- ⛔ **`tests/conftest.py` must blank these too.** The autouse `_no_live_model`
-  guard exists because the suite once made real calls from a developer's
-  `.env`; a second set of settings is a second hole in it, and
-  `tests/test_llm_endpoints.py` asserts the guard covers them.
+- **A Groq key on its own is enough**, read in `goals_endpoint()` ⛔ **and
+  nowhere else, and it must stay that way.** A key that switched on both
+  features at once would make the most sensitive free text in the app a side
+  effect of switching on goal suggestions, which is precisely what the split
+  exists to prevent. Precedence: an explicit `GOALS_LLM_BASE_URL` wins, then
+  `GROQ_API_KEY`, then `LLM_*` — so a leftover key cannot redirect goals away
+  from an endpoint someone chose deliberately, including a local one. A bare key
+  is only reassigned when it carries Groq's own `gsk_` prefix and has no base
+  URL beside it, so the vendor is read off the key rather than assumed.
+- The shortcut is through the configuration, never the disclosure: a hosted
+  endpoint still logs the transmission warning naming Groq and the goal text.
+- ⛔ **`tests/conftest.py` must blank every one of these.** The autouse
+  `_no_live_model` guard exists because the suite once made real calls from a
+  developer's `.env`; each new setting is a new hole in it.
+- **Nothing from a response body reaches the application log.** Failures report
+  a type, an HTTP status, and a provider error *code* only when it is on the
+  allowlist — ⛔ it is an allowlist, not "log whatever we were given", because a
+  provider error message can quote the request, which is the user's own health
+  text. A test asserts an unfamiliar body contributes nothing but its status.
+- `llm.completions_url()` corrects only the two base URLs people actually
+  mistype. ⛔ Nothing else is guessed — rewriting an unknown host would hide the
+  real mistake.
 
-#### A Groq key on its own is enough, wherever it is set
+## ⛔ The suite is checked against itself
 
-Setting the three `GOALS_LLM_*` variables is the general form — any provider,
-stated in full. A Groq key is the one-setting form of the same thing:
-`llm.groq_endpoint_or_none()` pairs it with `GROQ_BASE_URL` and
-`GROQ_DEFAULT_MODEL`, both constants of that vendor, so goal drafting works
-from a pasted key.
+`backend/scripts/mutation_check.py` and `mobile/scripts/mutation_check.mjs`
+break a rule on purpose and confirm a test fails. **A passing suite is evidence
+about the tests, not about the code** — four of this repository's tests were
+green for the wrong reason. Detail: `docs/mutation-testing.md`.
 
-This exists because of a reported failure with a silent symptom. The
-`GOALS_LLM_*` fallback is all-or-nothing on purpose — see above — so a key set
-without a base URL beside it was ignored *entirely*, and goals fell through to
-`LLM_*`. Where that names an Ollama that is not running — a dev machine with
-nothing started, or a hosted instance where nothing listens on localhost — the
-result is an outage, and an outage here is the sentence "MedHelp has no
-suggestions right now" with a working key set three inches away.
+- ⛔ **It never touches the working tree.** Every mutation is applied to a
+  scratch copy. The client's scratch copy lives under `mobile/` rather than the
+  system temp directory.
+- ⛔ **The triage group reads fenced modules and changes none of them**, and all
+  five safety properties are covered.
+- ⛔ **A mutation that changes nothing reports SURVIVED and looks exactly like a
+  missing test.** An anchor that does not apply is reported, never counted as
+  caught.
+- ⛔ **A survivor is not fixed by deleting the mutation. Fix the test.**
+- ⛔ **This is not clinical validation and does not touch the release blocker.**
 
-`llm.groq_key_source()` therefore reads a Groq key from three places, in
-order: `GROQ_API_KEY`; `GOALS_LLM_API_KEY` with no `GOALS_LLM_BASE_URL` beside
-it; `LLM_API_KEY` with no `LLM_BASE_URL` beside it. The last two are read
-**only** when the key carries Groq's own `gsk_` prefix, so the vendor is read
-off the key rather than assumed, and an OpenRouter or Google key parked in the
-same slot is never posted to Groq. A key that is already beside a base URL is
-doing a job and is never reassigned.
+## ⛔ `accessibilityState` does nothing on web. Say state in the label.
 
-- **Precedence: an explicit `GOALS_LLM_BASE_URL` wins, then `GROQ_API_KEY`,
-  then `LLM_*`.** Naming a provider in full is the more specific instruction,
-  so a leftover key cannot redirect goals away from an endpoint someone chose
-  deliberately — including a local one, the only choice that transmits nothing.
-- **`GOALS_LLM_MODEL` still names the model** when it is set, so a different
-  Groq model is one setting rather than a second code path.
-- ⛔ **The key is read in `goals_endpoint()` and nowhere else, and must stay
-  that way.** The reason this shortcut is safe is that it cannot move symptom
-  descriptions: those go wherever `LLM_*` says, which is nowhere by default.
-  A key that switched on both features at once would make the most sensitive
-  free text in the app a side effect of switching on goal suggestions, which
-  is precisely what the endpoint split exists to prevent. Tested.
-- The shortcut is through the configuration, never through the disclosure:
-  the endpoint is not local, so the transmission warning names Groq and the
-  goal text exactly as any other hosted endpoint does. Also tested.
-- ⛔ `tests/conftest.py` blanks this too, for the same reason it blanks the
-  others — it is a third way to reach a live endpoint from a developer's
-  `.env`.
+Not a quirk of one component — a property of the library. **React Native Web
+0.19.13 never reads `accessibilityState` at all**, so on a `Pressable` it is
+silently dropped and the DOM carries no state attribute.
 
-**A wrong value fails as loudly as a missing one.** Both of these reach the
-person as the same sentence — "MedHelp has no suggestions right now" — and used
-to reach an operator as an indistinguishable `HTTP 404`:
+It is still right on native, so **keep it and add the state to
+`accessibilityLabel`** — the one thing that works on every platform.
 
-- `llm.completions_url()` corrects the two base URLs people actually mistype:
-  one that already ends in `/chat/completions` (copied from a provider's curl
-  example, and otherwise doubled), and `https://api.groq.com` with no path,
-  which is the vendor's name for itself rather than its OpenAI-compatible base.
-  ⛔ Nothing else is guessed — an unknown host with an unexpected path is sent
-  exactly as configured, because rewriting it would hide the real mistake.
-- `llm.chat` names the provider's own error **code** when it is one of the
-  handful in `_KNOWN_ERROR_CODES`, so a retired model name and a revoked key
-  stop looking alike. ⛔ It is an allowlist, not "log whatever we were given":
-  the rule that nothing from a response body is read unless it is known to be
-  safe still holds, because a provider error message can quote the request —
-  which is the person's own health text. A test asserts an unfamiliar body
-  contributes nothing but its status code.
+⛔ **A test that asserts `accessibilityState` is not evidence about a browser.**
+It passes in jsdom whether or not anything reaches the DOM, which is how two
+goals bugs survived a green suite. **Assert the label.**
+`mobile/__tests__/accessibleState.test.ts` holds the rule by reading the source
+rather than rendering. ⛔ **`EXEMPT` is not a snooze button** — each entry must
+name the route by which state genuinely reaches the DOM, and a test asserts the
+reasons are real. Adding a file to it to make the suite green is how a list
+like this becomes the place bugs go to be forgotten.
 
-**A misconfiguration here is no longer invisible.** `report_goals_endpoint()`
-in `app/main.py` logs at boot which model goals resolved to and which setting
-the key came from — never the key itself — or says plainly that there is none.
-`GET /health` reports `health_goals_model_configured`, a boolean beside
-`symptom_intake_configured` and held to the same rule: it says a credential
-source exists and never which vendor or which key. Both exist because drafting
-answers with an empty editor for a missing key, an unreachable endpoint and a
-refusal alike, so "is a model even configured?" could not be answered from a
-deployment nobody can attach a debugger to.
-
-### PHI status
-
-`health_goals`, `goal_activities` and `goal_completions` say that a named
-person intends to do a named thing and did or did not tick it on a named day.
-**Not encrypted at rest** — the same open finding as `medications`,
-`intake_assessments` and `appointments.reason_for_visit`.
-
-Goal text is health free text about an identified user, so a non-local
-`LLM_BASE_URL` transmits it to a third party this project has no BAA with.
-`llm.endpoint_is_local()` makes the distinction visible; it does not make it
-safe. With no endpoint configured the feature still works — the person types
-their own activities and nothing leaves the machine.
+⛔ The consent-checkbox fix is text on the intake screen, so it belongs in the
+clinical reviewer's read of that screen — the same standing as the URGENT
+hand-off. Detail: `docs/accessibility.md`.
 
 ## Application security posture (implemented)
 
-What actually protects the data, and what each control does not cover. Read
-this before touching auth, CORS, or how the server is served.
+Full detail, including what each control does not cover and the nine closed
+findings with their fixes: `docs/security-posture.md`.
 
-### The signing key is the whole of authentication
+⛔ **The signing key is the whole of authentication.** Every per-user filter
+trusts one thing: a bearer token signed with `JWT_SECRET_KEY`, so a weak or
+public key defeats all of them at once. `.env.example` once published a working
+default, which is not a secret — it is in every clone. `Settings` now rejects a
+missing, short (<32 char) or placeholder key. Outside development that is a
+**refusal to boot**, not a warning, because a health API that comes up with a
+published signing key looks fine from the outside. Inside development the key
+is replaced with a random one per process. **No usable default may be
+reintroduced.**
 
-Every per-user filter in `app/api` — medications, reminders, appointments,
-intake — trusts one thing: a bearer token signed with `JWT_SECRET_KEY`. A
-weak or public key defeats all of them simultaneously, because a forged token
-is indistinguishable from a real one.
+⛔ **The algorithm is fixed at HS256 in code and is not configurable.** It used
+to be read from the environment, which is how algorithm-confusion and
+`alg: none` forgery start. `iss`, `aud`, `typ`, `exp` and `iat` are *verified*,
+not merely present, and `strict_aud` is on — without it PyJWT accepts an `aud`
+list that merely contains ours. The library is PyJWT, deliberately not
+python-jose (which dragged in `ecdsa` and its unfixed advisory). ⛔ **The two
+libraries spell claim requirements differently and PyJWT ignores option keys it
+does not recognise**, so jose-style `require_exp` would read like it demanded a
+claim while demanding nothing — and a token with no `exp` never expires.
+`test_a_token_missing_a_required_claim_is_rejected` pins each one.
 
-`.env.example` used to publish a working default
-(`dev-only-placeholder-secret-change-me`), and `config.py` used it as its
-field default. That is not a secret — it is in every clone of this repository —
-so anyone who had read the repo could mint a token for any user id and read
-that person's health data.
+⛔ **There is still no revocation.** `logout()` forgets the token on the device;
+a stolen one stays valid at the server until it expires (60 minutes). `jti` is
+minted so a denylist can be added without invalidating every issued token.
 
-- There is **no usable default** any more. `Settings` rejects a missing,
-  short (<32 char) or placeholder key.
-- Outside a development `ENVIRONMENT` this is a **refusal to boot**, not a
-  warning. A health API that comes up with a published signing key is worse
-  than one that does not come up, because nothing about it looks wrong from
-  the outside.
-- Inside development the key is **replaced with a random one per process**.
-  Sessions stop surviving a restart, which is the correct trade: no running
-  copy of this app anywhere accepts a token signed with a value in source
-  control.
+### ⛔ The session survives a reload, and dies with the tab
 
-### Tokens
-
-- **The algorithm is fixed at HS256 in code and is not configurable.** It used
-  to be read from `JWT_ALGORITHM` in the environment. An algorithm anything
-  else can influence is how algorithm-confusion and `alg: none` forgery start.
-- `iss`, `aud`, `typ`, `exp` and `iat` are **verified**, not merely present, so
-  a token minted for something else does not authenticate here. `jti` is
-  recorded but not yet read — it is there so a revocation list can be added
-  without invalidating every issued token.
-- ⛔ **There is still no revocation.** `logout()` forgets the token on the
-  device; a stolen one stays valid at the server until it expires (60 minutes
-  by default). Session invalidation remains a Known Gap.
-- **The library is PyJWT, and it was python-jose.** python-jose drags in
-  `ecdsa`, which carries an unfixed Minerva timing advisory with no patched
-  release to move to — the only way off it was to stop depending on it. It was
-  never reachable here (HS256 only; no EC key is ever loaded), but the same
-  library had already cost this file two CVE notes in a year, and "unreachable"
-  is an argument you have to re-make at every audit. Same algorithm, same
-  verified claims.
-  - ⛔ **The two libraries spell claim requirements differently, and PyJWT
-    ignores option keys it does not recognise.** jose's `require_exp` /
-    `require_iat` / `require_sub` are one `"require": [...]` list in PyJWT.
-    Carried over verbatim they would have read like they demanded those claims
-    while demanding nothing — and a token with no `exp` and no expiry check is
-    a token that never expires. It fails silently, so
-    `test_a_token_missing_a_required_claim_is_rejected` pins each claim.
-  - `strict_aud` is now on. Without it PyJWT accepts an `aud` **list** that
-    merely contains ours, so a token minted for another service that also
-    listed this one would authenticate here. Every token minted here has a
-    string `aud`.
-
-### The session survives a reload, and dies with the tab
-
-The token used to live in a module variable and nowhere else, so a browser
-refresh — the ordinary way this app is used, served to a phone over the LAN —
-signed the user out mid-task. It is now also written to storage, and read back
-once at startup by `restoreSession()` in `authService.ts`.
-
-Where it is written is platform-split, the same shape as the scanner, the
-notification service and location:
-
-| | Store | Survives a reload | Survives the app or tab closing |
-|---|---|---|---|
-| `tokenStorage.ts` (iOS/Android) | Keychain / Keystore, `WHEN_UNLOCKED_THIS_DEVICE_ONLY` | yes | yes |
-| `tokenStorage.web.ts` (browser) | `sessionStorage` | yes | **no** |
-
-Rules for anyone extending this:
+Native keeps the token in the Keychain/Keystore, `WHEN_UNLOCKED_THIS_DEVICE_ONLY`
+so a credential for health data stays out of iCloud sync and encrypted backups.
+The browser keeps it in `sessionStorage`.
 
 - ⛔ **Do not move the browser's copy to `localStorage`.** This is a bearer
-  credential for one person's medications, appointments and symptom
-  assessments, in an app with no revocation. `sessionStorage` ends with the
-  tab, which is what should happen when someone walks away from a shared or
-  borrowed computer, and it costs the user nothing: the token is only valid
-  for an hour, so persisting it for longer mostly stores something the server
-  will refuse anyway. Neither store is protected from script running on the
-  page — the defence against that is the CSP, not the choice of store.
-- On native the keystore entry is deliberately **this device only**, so a
-  credential for health data is kept out of iCloud Keychain sync and encrypted
-  device backups.
-- **The navigator decides which screen to open on before it mounts.**
-  `initialRouteName` is read once, and reading the store is asynchronous, so
-  `RootNavigator` renders a spinner until `restoreSession()` answers.
-  Rendering the sign-in screen first and redirecting afterwards would show a
-  signed-in user a login form they never had to fill in.
-- **Only the server decides whether a token is valid.** The client reads
-  `exp` for one reason: not to restore a session it can already see is dead,
-  which would land someone on the home screen and fail on their first tap. A
-  token it cannot parse is restored and allowed to fail as a 401 — being
-  unable to read a token is not evidence that it is bad.
-- **A 401 clears the store**, in all three request paths (`apiClient`,
-  `medicationService`, `intakeService`). A token the server has refused is
-  worthless, and leaving it behind would restore a dead session on the next
-  launch.
-- **Sign out exists because the session now persists.** `HomeScreen` resets
-  the navigation stack to `Login` rather than navigating, so the back gesture
-  cannot walk into signed-in screens. It ends the session on the device only —
-  there is no revocation, so the token stays valid at the server until it
-  expires.
-- `mobile/e2e/web-session-persistence.mjs` (`npm run e2e:web:session`) drives
-  real Chrome through sign-in, two reloads, sign-out and an expired token. A
-  reload in jsdom is a fresh module registry either way, so a fake store and a
-  real one look identical there; this is the only place the behaviour is
-  actually observed. It needs no backend — the sign-in call is stubbed.
+  credential for one person's medications, appointments and symptom assessments,
+  in an app with no revocation. `sessionStorage` ends with the tab, which is what
+  should happen when someone walks away from a shared computer, and it costs the
+  user nothing: the token is only valid for an hour. Neither store is protected
+  from script on the page — the defence against that is the CSP. (The emergency
+  card's `localStorage` is the deliberate exception, argued above.)
+- **The navigator decides which screen to open before it mounts.**
+  `RootNavigator` renders a spinner until `restoreSession()` answers, rather
+  than showing a signed-in user a login form they never had to fill in.
+- **Only the server decides whether a token is valid.** The client reads `exp`
+  for one reason — not to restore a session it can already see is dead — and a
+  token it cannot parse is restored and allowed to fail as a 401.
+- **A 401 clears the store**, in all three request paths.
+- **Sign out resets the navigation stack** to `Login` rather than navigating, so
+  the back gesture cannot walk into signed-in screens. It ends the session on
+  the device only. ⛔ It deliberately does **not** clear the emergency card, and
+  the screen says so.
 
-### Sign-in
+### Sign-in, CORS, headers, transport
 
-- Both `/auth/login` and `/auth/signup` spend from a per-address budget
-  (`app/core/rate_limit.py`). Before this, an 8-character password could be
-  guessed at network speed with only bcrypt's cost factor in the way.
-- **Read that module's limits.** It is per process, in memory, keyed on the
-  socket address, and deliberately does **not** trust `X-Forwarded-For` — a
-  client can put anything in that header, so honouring it without a proxy you
-  control would let an attacker reset their own counter every request. It is
-  the floor under a reverse proxy or WAF, not a replacement for one.
-- Login costs the **same work whether or not the account exists**
-  (`verify_password_for_missing_user`). The identical error message was
-  already there; without this the response *time* answered the question the
-  message was written to avoid answering.
-- ⛔ **Signup still discloses that an address is registered.** That is user
-  enumeration, kept on purpose: without an email-verification flow, hiding it
-  means telling someone their account was created when it was not. Closing it
-  properly means adding verification, which is a feature decision.
-
-### Symptom intake is deliberately NOT rate limited
-
-A 429 on `POST /intake/assess` is a refusal to screen someone who may be
-describing chest pain, and emergency guidance is the one thing this app must
-never withhold. The cost exposure that argues for a limit is real, so the
-limit belongs at a reverse proxy tuned by someone who has read the safety
-architecture — not bolted onto the endpoint.
-
-### CORS
-
-`allow_origins=["*"]` is gone. Origins are an explicit allowlist
-(`CORS_ALLOW_ORIGINS`), `allow_credentials` is off because the app
-authenticates with a bearer token rather than a cookie, and `*` is refused
-outright outside a development environment. In development only, any
-loopback/private/LAN/mesh origin is also accepted, which is what keeps
-`http://192.168.1.5:8081` working without editing `.env` on every network
-change. That regex mirrors the client-side rule in
-`mobile/src/services/baseUrl.ts` — **keep the two in step.**
-
-### Response headers
-
-Every response carries `nosniff`, `X-Frame-Options: DENY`,
-`Referrer-Policy: no-referrer`, a `default-src 'none'` CSP (skipped for the
-docs pages, which are real HTML), and `Cache-Control: no-store`. The last one
-is not boilerplate: the responses of this API are one person's medications,
-appointments and symptom assessments, and a browser disk cache is a place
-health data leaks from later. HSTS is sent only when the request already
-arrived over TLS — pinning a host to https before a certificate exists locks
-you out of your own dev server.
-
-### The server is served over http by default, and that is a real exposure
-
-Run over `http://192.168.x.x` — the way this app is used without an Apple
-developer account — email, password and every symptom description cross the
-LAN in the clear. `backend/scripts/generate_dev_cert.py` generates a
-self-signed certificate with the machine's LAN addresses as SANs, and README
-has the uvicorn and `serve` invocations for both halves.
-
-**State the property precisely.** A self-signed certificate **encrypts but
-does not authenticate**: traffic on the wire becomes unreadable, and nothing
-proves the server is the one you meant, so it does not stop someone on the
-network impersonating it. Real users need a CA-issued certificate against a
-real hostname. The private key lives in `backend/certs/`, which is gitignored
-along with `*.pem` and `*.key`.
-
-### API docs
-
-`/docs`, `/redoc` and `/openapi.json` are served only in a development
-environment. An unauthenticated machine-readable map of every route and field
-is free reconnaissance, and this API has no public consumers.
+- Both `/auth/login` and `/auth/signup` spend from a per-address budget. ⛔ Read
+  `app/core/rate_limit.py`'s limits before relying on it: per process, in
+  memory, keyed on the socket address, and it deliberately does **not** trust
+  `X-Forwarded-For` — honouring that without a proxy you control would let an
+  attacker reset their own counter every request. It is the floor under a
+  reverse proxy, not a replacement for one.
+- Login costs the **same work whether or not the account exists**. The
+  identical error message was already there; without this the response *time*
+  answered the question that message was written to avoid answering.
+- ⛔ **Signup still discloses that an address is registered.** Kept on purpose:
+  without an email-verification flow, hiding it means telling someone their
+  account was created when it was not.
+- **CORS is an explicit allowlist** (`CORS_ALLOW_ORIGINS`), `allow_credentials`
+  off because the app uses a bearer token rather than a cookie, and `*` refused
+  outside development. The development-only loopback/LAN regex mirrors
+  `mobile/src/services/baseUrl.ts` — ⛔ **keep the two in step.**
+- Every response carries `nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer`, a `default-src 'none'` CSP (skipped for the
+  docs pages), and `Cache-Control: no-store` — the last is not boilerplate,
+  because these responses are one person's health data and a browser disk cache
+  is a place it leaks from later. HSTS is sent only when the request already
+  arrived over TLS.
+- `/docs`, `/redoc` and `/openapi.json` are development-only. An unauthenticated
+  map of every route and field is free reconnaissance.
+- ⛔ **Served over http on a LAN, credentials and every symptom description
+  cross the network in the clear.** `scripts/generate_dev_cert.py` helps, but
+  state the property precisely: a self-signed certificate **encrypts without
+  authenticating** — it does not stop someone on the network impersonating the
+  server. Real users need a CA-issued certificate against a real hostname.
 
 ## Public deployment (implemented)
 
-The app is deployable to a public URL from one Render blueprint at
-`render.yaml`: a static site for the web build, the FastAPI backend, and
-Postgres. Procedure and failure modes: `docs/deployment.md`.
-
-### ⛔ The approval this required, and what it does not extend to
-
-This file fences "merging to `main`, releasing, or deploying anywhere" behind
-explicit human approval obtained outside the agent pipeline. **That approval
-was given directly by the repository owner in conversation on 2026-09-02**,
-after being told that a public link means anyone who finds it can create an
-account and type real symptoms into an instrument no clinician has reviewed.
-They also chose open sign-up over an invite code, having been offered both.
-
-The approval covers **deploying this demo**. It is not an approval of anything
-the release blockers above cover, and no agent may read it as one:
-
-- It does not make the app safe to put in front of real patients. Every
-  blocker in "⛔ BLOCKING: symptom intake requires clinical and legal sign-off"
-  is untouched.
-- It does not authorise switching on `MEDLINEPLUS_TOPICS_ENABLED`, setting
-  `TRIAGE_LOG_CLASSIFICATIONS`, flipping `delivery_available()`, or any other
-  gated thing that happens to be reachable now that a deployment exists.
-- It does not authorise a second deployment, a custom domain, or merging to
-  `main`. Ask again.
-
-### What publishing changed, and what it did not
-
-Exactly one open finding closed, and it closed because of the host rather than
-because of any code here: traffic is now encrypted **and authenticated** in
-transit by a CA-issued certificate. The self-signed certificate the LAN setup
-uses encrypts without authenticating, so it never stopped someone on the
-network impersonating the server. As a side effect the browser's Geolocation
-API works for the first time, because a real https origin is a secure context
-and `http://192.168.x.x` is not.
-
-Nothing else moved. Still open, and unchanged by deploying: encryption at
-rest, token revocation, an audit log of reads, the BAA question with every
-vendor, and clinician review of the triage instrument, the emergency phrase
-lists, the follow-up questions and the dose-schedule phrase lists.
-
-Two things get *worse* in a way worth stating plainly, because they were
-previously bounded by the LAN:
-
-- **The rate limiter is now the only thing between a public address and the
-  sign-in endpoint.** It is per-process and in-memory (open finding 6), which
-  on one free instance means it is exactly what it says it is, and no more.
-- **The dev-only findings are no longer dev-only in practice.** Finding 3 — a
-  real email address in a development database — is about a database on this
-  machine, but the same mistake made on a public deployment is a live one.
-  Synthetic data only, there as here.
-
-### How the pieces find each other
-
-- **Two services, not one.** The API's response headers are deliberately
-  hostile to HTML: `default-src 'none'` would stop the bundle loading and
-  `geolocation=()` would switch off the "Use my location" button. Serving the
-  web build from FastAPI would mean relaxing a reviewed security control to
-  save a configuration line. See the ⛔ note in `app/main.py`, which
-  anticipated exactly this.
-- **The app is told where the API is at build time.** `EXPO_PUBLIC_*` is
-  inlined by babel, so `render.yaml` composes `EXPO_PUBLIC_API_BASE_URL` from
-  the API service's real hostname via `fromService` and passes it to
-  `expo export`. Without it, `baseUrl.ts` would look for the API on port 8000
-  of the host that served the page — right on a LAN, wrong here. **A rename of
-  the API service therefore needs the web service rebuilt, not restarted.**
-- **CORS is a literal in the blueprint**, because the web service already
-  references the API and Render will not resolve a cycle. If Render suffixes
-  the site's URL, `CORS_ALLOW_ORIGINS` has to be corrected by hand — the
-  symptom is an app that loads and then fails every request. `docs/deployment.md`
-  says so where someone will actually hit it.
-- `ENVIRONMENT=production`, so `config.py` applies its production rules: a weak
-  signing key is a refusal to boot, a `*` origin is refused, `/docs` is not
-  served, and `sslmode=require` is appended to the database URL.
-- **Tables are created by the start command**, running
-  `scripts/create_missing_tables.py` before uvicorn. Alembic is still not wired
-  up (see "Known Gaps"), and `create_all` creates what is missing without
-  altering what exists. That is a demo's answer, not a release process: a
-  column added to an existing model still needs a hand-written script.
-
-## Visual direction: paper ground, prominence ladder (implemented)
-
-The 2026 visual pass. Two halves, and they are separable — the surface came
-from one explored direction and the structure from another.
-
-**The surface.** The ground moved from a cool blue-grey to a warm paper
-(`background` `#F6F2EA`), the type to **Literata** over **Public Sans**, and
-depth from drop shadows to hairline rules — `elevation.sm`, which every
-resting card used, is now flat. The reasoning is specific to this app rather
-than fashionable: every claim MedHelp makes is hedged, so a document that
-reads as *written down and attributable* fits it better than a card floating
-on a shadow, which reads as a product asserting something.
-
-**The structure.** Every block sits at one of four prominence levels and a
-screen gets **exactly one filled action** (`PROMINENCE_LEVELS` in `theme.ts`).
-The home screen's four destination cards used to be drawn identically, so
-nothing was primary and a reader had to read all four before choosing; it is
-now one filled `NavCard variant="primary"` above a `NavGroup` of three rows.
-
-### ⛔ The reviewed safety colours did not move
-
-`emergencyText`, `emergencySurface`, `emergencyBorder`, the `notice*`,
-`error*` and `success*` families are byte-for-byte what they were. Only the
-neutrals, the type and the depth changed. **Do not restyle a safety family to
-match a future direction** — a direction is a preference and those are a
-decision someone signed off on.
-
-Also untouched: `DisclaimerBanner.tsx`, the intake disclaimer's copy, palette
-and position above the input, `INTAKE_DISCLAIMER`/`ESCALATION_GUIDANCE`, and
-every triage and emergency module. Which screens show a disclaimer is
-unchanged.
-
-### ⛔ The emergency palette is exempt from the one-filled-action rule
-
-`EmergencyCallBar`'s "Call 911" and the emergency card's contact call stay
-filled wherever they appear, however many other filled controls share the
-screen. The ladder exists to stop the app shouting; the one thing it may
-always shout about is how to get help. On the emergency card that is why
-"Edit these details" is `variant="outline"` — it is the third button on a
-screen whose other two must not be made ordinary.
-
-### ⛔ Set `fontFamily`, never `fontWeight` or `fontStyle`
-
-Each weight is a separate font file. Asking Android for a bold weight of a
-face that is already bold gets a synthetically smeared double-bold, and
-`fontStyle: "italic"` shears an upright face rather than using the italic. The
-type tokens name families for this reason, and `fonts.serifItalic` exists so
-the emergency card's "Not provided" is a real italic.
-
-### ⛔ Import font faces by their per-weight subpath
-
-`@expo-google-fonts/*` package roots `require()` every weight they ship — 16
-faces each, italics included — so importing four names from the root bundles
-all 32. The first web export after this change carried ~2 MB of fonts nobody
-asks for. `App.tsx` imports
-`@expo-google-fonts/literata/600SemiBold` and friends instead; the export now
-carries exactly the eight faces `theme.ts` names.
-
-`expo-font` is pinned to `~12.0.10`. npm will happily resolve it to 57.x,
-which does not work on Expo 51.
-
-### Nothing renders until the faces load, but a font failure never blocks
-
-`App.tsx` gates on `useFonts`. Every type token names a family, so a screen
-painted before the faces land is painted at the wrong metrics and reflows
-under the reader. A *failure* is different from a wait: if the faces cannot
-load at all the app opens anyway on the system font, because blocking the
-emergency card behind a font download would be indefensible.
-
-### The serif is the app quoting; the sans is the app speaking
-
-Literata is used only for text a person wrote or a source published — what
-the user typed into the symptom field (`typography.bodyQuoted`, applied to
-any `multiline` `TextField`), the values on their emergency card, a
-destination's name. Single-line fields stay in the sans: an email or a ZIP is
-data, not prose.
-
-### Two things a reviewer should be told
-
-- **`typography.overline` stayed at 13px.** The direction drew section labels
-  at 11px; that was not adopted, because the 13px floor is an accessibility
-  decision — small uppercase type is the first thing to fail for anyone with
-  low vision — and it outranks a mockup.
-- **One line of new user-facing copy** was added under the symptom field:
-  "Your own words. Nothing here is rewritten before it is assessed." It
-  describes existing behaviour (keyword extraction only chooses which article
-  to look up), and it is asserted by a test so that anything which later
-  paraphrases a description on the way in has to remove the claim too. It is
-  not clinical content, but it is a statement about the instrument and
-  belongs in the same reviewer's read as the intake screen.
-
-## The web layout fills the window it is given (implemented)
-
-Every screen used to be one column capped at 620pt, on a phone and on a
-1440pt browser window alike, so the browser build was a narrow strip of
-content with empty background either side.
-
-`useBreakpoint()` (`mobile/src/hooks/useBreakpoint.ts`) reports which of three
-shapes the layout should take, from the **window width** — not from
-`Platform.OS`, which would be the wrong question twice: a browser window
-dragged narrow should get the phone layout, and a tablet should get the wide
-one. `BREAKPOINT` lives in `theme.ts`.
-
-- Below `medium` (760): unchanged. Every screen is the single stacked column
-  it has always been, and every existing test renders at this width.
-- At `medium`: the home screen's destination cards sit two across.
-- At `expanded` (1040): the home screen splits into columns, and sign-in and
-  sign-up become two panels — what the app is on the left, the form on the
-  right.
-
-`CONTENT_WIDTH.page` and `Screen`'s `page` prop exist for the second case only.
-⛔ Do not pass `page` to make a lonely-looking form or list wider: `form` and
-`wide` are line-length limits, and a 1140pt line of body text is harder to read
-than a 660pt one. Only a screen whose children actually split into columns
-should use it.
-
-### ⛔ What may fill the space
-
-The panels added to the home screen (`InfoPanel`) are **statements about the
-software**: what the app does, what it deliberately does not do, and where data
-goes. Each restates something the repository already says rather than adding a
-new claim — the "will not do" list is this file's App Scope, and the data lines
-are the on-device-scanning and provider-search rules.
-
-Two things must never fill this space, and the note at the top of `InfoPanel`
-says so where someone would be editing:
-
-- **Clinical content.** An agent may not author symptom, condition or dosage
-  text at all, and the sourced text the app does show is rendered verbatim
-  with attribution — which is not what a decorative panel does.
-- **Numbers about the user's health.** MedHelp does not know whether a dose was
-  taken. A "3 of 4 taken today" tile would invent a clinical fact about the
-  user, and is the same mistake the home screen's hero comment has always
-  warned against.
-
-The intake screens were deliberately left alone. Their disclaimer placement is
-part of what this file fences ("which screens show them"), and moving a
-required disclaimer into a side column changes its prominence, which is a
-reviewer's call and not a layout one.
-
-## The home screen is four things you can press (implemented)
-
-The home screen used to be a dashboard: four destination cards, three
-explanatory panels, a hero and a sign-out button, all visible at once. It is
-now a small set of primary actions, with everything else one tap deeper on
-`MoreScreen`.
-
-| Home | More |
-|---|---|
-| Not feeling well? → `SymptomIntake` | My medications → `MedicationList` |
-| Add medication → `MedicationEdit` | Medication reminders → `MedicationReminders` |
-| Upcoming appointments → `AppointmentList` | All appointments → `AppointmentList` |
-| More → `MoreScreen` | Find a provider → `ProviderSearch` |
-| Emergency card → `EmergencyCard` | Emergency card, and editing it |
-| | Sign out, and the two scope panels |
-
-### ⛔ This is a move, not a removal
-
-Every destination that came off the home screen is on `MoreScreen`, named in
-full, one tap away. **No route was renamed, removed, or re-parameterised**, so
-nothing that navigated anywhere before the reshuffle navigates anywhere
-different now — the intake-to-booking flow in particular is untouched.
-
-`__tests__/navigationReachability.test.ts` holds this mechanically. It reads
-the navigator's registrations and every `navigate` / `replace` / `reset`
-target across `src`, and fails when a registered route has no way in, or when
-something navigates to a route that is not registered. The failure mode of a
-reshuffle is not a crash — it is a screen that is still registered, still
-tested, still perfect, and that nothing reaches any more, so everything passes
-and nobody notices.
-
-`ROOTS` in that file names the routes entered without anyone navigating to
-them (`Login` and `Home`, which is what `initialRouteName` chooses between).
-Adding to that list is how a route is declared intentionally unreachable by
-`navigate`; it should stay short.
-
-Nothing is nested deeper than More. A flat list of named destinations is
-findable; a menu of menus is not.
-
-### ⛔ A screen that hides the navigator header owns its own way back
-
-Reachability has two directions, and the first version of that test only
-checked one. It asked whether every route could be navigated *to*; it never
-asked whether you could get *out*.
-
-`EmergencyCard` sets `headerShown: false`, so its red header is not doubled by
-the navigator's — which also removes the back button. **A browser has no
-back gesture to fall back on, so the screen had no way out at all**: every
-control on it went deeper. Nothing failed, no test caught it, and the whole
-suite was green. It was found by opening the screen in a browser.
-
-The screen now draws its own "‹ Back" inside the red header, above the title
-so it is reachable without scrolling however long the card grows.
-`navigationReachability.test.ts` reads the navigator for screens that set
-`headerShown: false` and asserts each one calls `goBack` itself, and
-`EmergencyCardScreen.test.tsx` presses it.
-
-**Anything that turns the header off inherits this obligation.** The three
-other headerless screens are exempt for a real reason rather than by
-oversight: `Login` and `Home` are what `initialRouteName` chooses between, so
-there is nothing behind either of them, and `Login` and `Signup` each carry an
-explicit link to the other in the body of the screen. `EmergencyCard` had
-neither property, which is what made it a dead end.
-
-### ⛔ "Add medication" opens the form, not the list
-
-The card names an action, so it performs it: `MedicationEdit` with no
-parameters, which is the add form. Routing it through the list would make it
-two taps for the thing the card says. The list is on More.
-
-### ⛔ The inline appointment is not "the next one"
-
-`IntakeResultScreen`'s URGENT hand-off and the appointment list both rest on
-the fact that **MedHelp does not know when an appointment is**.
-`preferred_time` is free text by design ("Thursday morning", "as soon as
-possible"), and there is no scheduled datetime on the record — the appointment
-rules fence adding one ("Do not add a slot picker, a 'Book now' button, or a
-time, until a real scheduling integration exists behind it") precisely because
-a time this app invents is a time someone turns up for.
-
-So the home screen shows the most recently *recorded* open appointment, under
-the label **MOST RECENTLY RECORDED**, with the provider name and the preferred
-time rendered verbatim. It does not say "Next", and a test asserts it does not.
-This is the one part of the requested design that could not be built as
-described, and the reason is a fence rather than an oversight.
-
-It also repeats "MedHelp has not contacted anyone" for a REQUESTED
-appointment, which is the same line the list carries on every card and for the
-same reason: a list is skimmed, and whether the clinic knows is the one thing
-a user must not misread.
-
-The lookup **fails silently**. The home screen's job is to be four things you
-can press; an error notice there would put a red box on the first screen of
-the app over a line of supporting detail, and `AppointmentListScreen` reports
-its own failures properly when opened.
-
-### What filled the space, and what moved
-
-The panels are unchanged in content — see "⛔ What may fill the space" above,
-which still governs them. What changed is where they are:
-
-- **"What MedHelp will not do" stayed**, beside the actions on a wide window
-  and stacked under them on a phone. It restates App Scope, and that is the
-  thing worth saying on the way in.
-- **"How MedHelp works" and "Where your information goes" moved to More.**
-  They are onboarding rather than everyday content.
-- ⛔ The panel that stayed is kept at **every** width. Dropping it below
-  `BREAKPOINT.expanded` would have been a tidier consolidation and would have
-  quietly made the scope statement a desktop-only feature —
-  `responsiveLayout.test.tsx` already asserted against exactly that, on the
-  grounds that a narrower screen is not a reason to stop saying what the app
-  will not do. That assertion was kept rather than rewritten.
-
-The short scope note at the foot of the screen is unchanged and still present
-at every width. The reviewed `DisclaimerBanner` is not on this screen and was
-not moved onto or off it — which screens show it is fenced.
-
-### Sign out moved to More, and does not clear the emergency card
-
-`MoreScreen` resets the navigation stack to `Login` rather than navigating, so
-the back gesture cannot walk into signed-in screens — unchanged behaviour,
-new location.
-
-⛔ It deliberately does **not** clear the emergency card, which lives in a
-separate store and is meant to outlive a session. The screen says so, because
-on a shared computer that is a surprise worth naming, and points at "Erase
-this card".
+Deployable to a public URL from one Render blueprint at `render.yaml`: a static
+site for the web build, the FastAPI backend, and Postgres. Procedure and
+failure modes: `docs/deployment.md`.
+
+⛔ **Approved on 2026-09-02 for this demo only**, after the owner was told that
+a public link means anyone who finds it can create an account and type real
+symptoms into an instrument no clinician has reviewed. It does **not** authorise
+switching on `MEDLINEPLUS_TOPICS_ENABLED`, setting `TRIAGE_LOG_CLASSIFICATIONS`,
+flipping `delivery_available()`, a second deployment, a custom domain, or
+merging to `main`.
+
+Publishing closed exactly one finding, and because of the host rather than any
+code here: traffic is now encrypted **and authenticated** by a CA-issued
+certificate, which as a side effect makes the browser Geolocation API work for
+the first time. Nothing else moved. Two things got **worse**: the rate limiter
+is now the only thing between a public address and the sign-in endpoint, and
+the dev-only findings are no longer dev-only in practice. **Synthetic data
+only, there as here.**
+
+⛔ **Two services, not one.** The API's response headers are deliberately
+hostile to HTML — `default-src 'none'` would stop the bundle loading and
+`geolocation=()` would switch off the "Use my location" button. Serving the web
+build from FastAPI would mean relaxing a reviewed security control to save a
+configuration line. The app is told where the API is **at build time**
+(`EXPO_PUBLIC_*` is inlined by babel), so ⛔ **a rename of the API service needs
+the web service rebuilt, not restarted.** CORS is a literal in the blueprint
+because Render will not resolve a cycle; if the site's URL is suffixed, correct
+it by hand — the symptom is an app that loads and then fails every request.
+
+## Visual direction and layout (implemented)
+
+Paper ground, Literata over Public Sans, hairline rules instead of shadows, and
+a four-level prominence ladder with **exactly one filled action per screen**.
+Reasoning, the responsive breakpoints and the home-screen reshuffle:
+`docs/visual-design.md`. Brand: `docs/brand-guidelines.md`.
+
+⛔ **Rules:**
+
+- **The reviewed safety colours did not move.** `emergencyText`,
+  `emergencySurface`, `emergencyBorder`, and the `notice*` / `error*` /
+  `success*` families are byte-for-byte what they were. **Do not restyle a
+  safety family to match a future direction** — a direction is a preference,
+  those are a decision someone signed off on. Also untouched:
+  `DisclaimerBanner.tsx`, the intake disclaimer's copy, palette and position
+  above the input, and which screens show them.
+- **The emergency palette is exempt from the one-filled-action rule.** "Call
+  911" and the emergency card's contact call stay filled wherever they appear,
+  however many other filled controls share the screen. The ladder exists to
+  stop the app shouting; the one thing it may always shout about is how to get
+  help.
+- **Set `fontFamily`, never `fontWeight` or `fontStyle`.** Each weight is a
+  separate font file; asking Android to bolden a face that is already bold gets
+  a synthetically smeared double-bold, and `fontStyle: "italic"` shears an
+  upright face rather than using the italic.
+- **Import font faces by their per-weight subpath.** `@expo-google-fonts/*`
+  package roots `require()` every weight they ship — the first web export after
+  the redesign carried ~2 MB of fonts nobody asks for. `expo-font` is pinned to
+  `~12.0.10`; npm will resolve it to 57.x, which does not work on Expo 51.
+- **Nothing renders until the faces load, but a font *failure* never blocks** —
+  a screen painted before the faces land is painted at the wrong metrics, but
+  blocking the emergency card behind a font download would be indefensible.
+- `typography.overline` stays at **13px**. The direction drew section labels at
+  11px; small uppercase type is the first thing to fail for anyone with low
+  vision, and that accessibility floor outranks a mockup.
+- ⛔ **Do not pass `page` to make a lonely-looking form or list wider.** `form`
+  and `wide` are line-length limits, and a 1140pt line of body text is harder
+  to read than a 660pt one. Only a screen whose children actually split into
+  columns should use `page`.
+- ⛔ **What may never fill the extra space:** clinical content of any kind, and
+  **numbers about the user's health**. A "3 of 4 taken today" tile would invent
+  a clinical fact about the user. The panels that do fill it are statements
+  about the software, each restating something this file already says.
+- The intake screens were deliberately left alone. Moving a required disclaimer
+  into a side column changes its prominence, which is a reviewer's call and not
+  a layout one.
+- The serif is the app quoting and the sans is the app speaking: Literata only
+  for text a person wrote or a source published. Single-line fields stay sans —
+  an email or a ZIP is data, not prose.
+
+### ⛔ Navigation rules
+
+- **The home-screen reshuffle was a move, not a removal.** Every destination
+  that came off the home screen is on `MoreScreen`, named in full, one tap away.
+  **No route was renamed, removed, or re-parameterised.**
+  `__tests__/navigationReachability.test.ts` reads the navigator's registrations
+  and every `navigate`/`replace`/`reset` target across `src`, and fails when a
+  registered route has no way in, or something targets an unregistered route —
+  because the failure mode of a reshuffle is not a crash, it is a screen that is
+  still registered, still tested, still perfect, and that nothing reaches any
+  more. `ROOTS` names routes entered without navigation; keep it short. Nothing
+  is nested deeper than More.
+- **A screen that hides the navigator header owns its own way back.**
+  Reachability has two directions and the first version of that test checked
+  only one. `EmergencyCard` set `headerShown: false`, which also removed the
+  back button, and **a browser has no back gesture** — so every control on it
+  went deeper and it had no way out at all, with the whole suite green. It was
+  found by opening the screen in a browser. Anything setting
+  `headerShown: false` must call `goBack` itself; a test asserts it. `Login`,
+  `Signup` and `Home` are exempt for real reasons, not by oversight.
+- **"Add medication" opens the form, not the list.** The card names an action,
+  so it performs it — `MedicationEdit` with no parameters. Routing it through
+  the list would make it two taps for the thing the card says.
+- **The inline appointment is not "the next one."** MedHelp does not know when
+  an appointment is: `preferred_time` is free text by design ("Thursday
+  morning"), and the appointment rules fence adding a scheduled datetime. So the
+  home screen shows the most recently *recorded* open appointment under **MOST
+  RECENTLY RECORDED**, and a test asserts it does not say "Next". It repeats
+  "MedHelp has not contacted anyone" for a REQUESTED appointment, because a list
+  is skimmed and whether the clinic knows is the one thing a user must not
+  misread. The lookup **fails silently** — an error notice on the first screen
+  of the app, over a line of supporting detail, is the wrong trade, and
+  `AppointmentListScreen` reports its own failures properly.
+- The scope panel is kept at **every** width. Dropping it below the expanded
+  breakpoint would quietly make the scope statement a desktop-only feature.
 
 ## Open data-handling findings
 
-### Closed (fixed, with tests)
+Nine are closed with tests, listed with their fixes in `docs/security-posture.md`.
+⛔ **Re-run `pip-audit` and `npm audit` rather than trusting a paragraph** —
+advisory counts are a snapshot.
 
-1. ~~**Passwords are echoed in 422 responses.**~~ The
-   `RequestValidationError` handler in `app/main.py` strips `input` from every
-   validation error, so a rejected password or symptom string is not returned.
-2. ~~**`GET /medications/reminders` is unscoped.**~~ Reminders were rewritten
-   in `app/api/reminders.py` scoped to the caller from the outset, with a test
-   that a second user cannot see the first user's rows.
-3. ~~**`decode_access_token` is never called.**~~ `get_current_user` in
-   `app/core/dependencies.py` guards every route that touches user data, and a
-   validly-signed token for a deleted account does not authenticate.
-4. ~~**CORS is `allow_origins=["*"]`.**~~ Explicit allowlist, credentials off,
-   wildcard refused outside development. See "CORS" above.
-5. ~~**A 500 traceback writes the symptom description to the log.**~~ Fixed at
-   the source rather than per-route: `app/db/session.py` creates the engine
-   with `hide_parameters=True`, so SQLAlchemy no longer puts bound values into
-   its own exception text. This is the load-bearing fix — Starlette re-raises
-   server errors so uvicorn can log them, so an exception handler alone would
-   not have stopped it. `app/main.py` also returns one fixed sentence for any
-   unhandled failure, so nothing crosses the wire either.
-6. ~~**The signing key is the published placeholder.**~~ See "The signing key
-   is the whole of authentication" above.
-7. ~~**The deployed API ran on dependencies with 18 known advisories.**~~
-   `pip-audit` now reports none. The reachable ones were in code that runs
-   *before* a route is chosen, so they were exposed to anyone who could reach
-   the API: nine against `starlette` 0.38.6 (Host-header and request-path
-   injection into `request.url` reconstruction, unbounded multipart buffering,
-   `form()` limits being ignored) and seven against `python-multipart` 0.0.9
-   (parsing denial of service, field-separator confusion). Closing the
-   starlette ones needed `fastapi` to move first — 0.115.0 held starlette below
-   0.39, and every fix lands in 1.x — so the pinned pair is now
-   `fastapi==0.141.1` with `starlette>=1.3.1,<1.7`, verified against the whole
-   backend suite. `pytest` moved to 9.0.3 for a predictable-tmpdir advisory
-   that only ever affected developer machines. The last one, `ecdsa`, had no
-   fix to move to and was removed with the library that pulled it in — see
-   "Tokens".
+**Still open — each needs a call before the app holds real user data:**
 
-   **Re-run `pip-audit` rather than trusting this paragraph.** Advisory counts
-   are a snapshot; this one is from 2026-09-06.
-
-### Still open — each needs a call before the app holds real user data
-
-1. **The app connects to Postgres as the `postgres` superuser**, using a
-   password stored in `backend/.env` (gitignored, but plain text on disk).
-   Create a least-privilege role owning only the app's tables before this runs
-   anywhere but a dev machine. Transport to the database is now forced —
-   `sslmode=require` is appended to a Postgres URL that does not specify TLS
-   whenever `ENVIRONMENT` is not a development one — but the *identity* the app
-   connects as is unchanged.
+1. **The app connects to Postgres as the `postgres` superuser**, with the
+   password in plain text on disk. Create a least-privilege role owning only the
+   app's tables. Transport is forced (`sslmode=require` outside development);
+   the *identity* the app connects as is unchanged.
 2. **Nothing is encrypted at rest.** `medications`, `intake_assessments`,
-   `medication_reminders` and `appointments.reason_for_visit` hold health data
-   in plaintext columns. This is the largest remaining gap and is not fixable
-   with application code alone — it needs a column-encryption or
-   encrypted-storage decision.
-3. **The dev database holds a real email address** entered through the sign-up
-   UI. CLAUDE.md requires synthetic-only dev data; either treat this database
+   `medication_reminders`, `appointments.reason_for_visit`, the goals tables,
+   and the emergency card in a browser's `localStorage`. **This is the largest
+   remaining gap** and is not fixable with application code alone.
+3. **The dev database holds a real email address.** Either treat that database
    as containing real PII or clear it.
-4. **There is no token revocation and no refresh flow.** A stolen access token
-   is valid until it expires. `jti` is minted so a denylist can be added.
-   The token is now also at rest on the device between page loads — in the
-   platform keystore on native, in `sessionStorage` in a browser — so a
-   compromised device yields a live session as well as a live process. See
-   "The session survives a reload, and dies with the tab".
-5. **Signup discloses whether an address is registered.** Kept deliberately;
-   closing it means adding email verification. See "Sign-in" above.
-6. **The rate limiter is per-process and in-memory.** Two uvicorn workers mean
-   two budgets. Put a real limiter at a reverse proxy before this is reachable
-   by anyone untrusted.
-7. **Nothing writes an access log or an audit trail of reads.** There is no
-   record of who read which record, which is normally a requirement wherever
-   the BAA question above is being asked.
-8. **The mobile build tree has known-vulnerable dev dependencies**, via Expo
-   51's CLI and React Native 0.74's. `npm audit` reported 43; it now reports 6,
-   after `overrides` in `mobile/package.json` pinned the patched transitive
-   versions of `tar`, `postcss`, `ajv`, `send`, `uuid`, `fast-xml-parser`,
-   `@xmldom/xmldom` and `decode-uri-component`.
-
-   ⛔ **This finding used to say "none ships in the app bundle". That was
-   wrong**, and the correction is the reason the overrides exist rather than
-   being deferred with the rest. `decode-uri-component` is reached at runtime
-   through `query-string` ← `@react-navigation/core`, and its code was verified
-   present in the exported web bundle by grepping for the library's own
-   regexes. Its advisory is a denial of service via exponential decoding of
-   malformed percent-encoded input — reachable from a crafted URL, so it was a
-   real property of the deployed site, not of the build machine. The patched
-   0.5.0 replaces that with a single left-to-right scan; the old matcher is
-   gone from the bundle and the new one is in, both checked by grep.
-
-   The remaining 6 are one chain: `image-size` ← `metro` ← `metro-config` /
-   `metro-transform-worker` ← `@react-native/community-cli-plugin` ←
-   `react-native`. **`image-size` has no fixed release at all** — every
-   published version including the latest (2.0.2) sits inside the advisory's
-   vulnerable range, so there is nothing to pin. It is Metro's, used at build
-   time, and clears only with the React Native upgrade.
-
-   Everything still deferred here is genuinely build tooling — Expo CLI, Metro,
-   the native-prebuild tooling, the dev static server — so the risk is to the
-   machine that builds, not to a user's data. The real fix remains an Expo
-   major upgrade, still to be scheduled rather than forced; the overrides are a
-   stopgap and are commented as one.
-
-   ⛔ **The overrides are verified against `npm test` and
-   `expo export --platform web` only.** Neither exercises `expo prebuild` or an
-   EAS native build, which is where forcing majors into `@expo/plist`, `xcode`
-   and the RN CLI would surface first. Anyone doing a native build should
-   expect to re-check them there.
-9. **A dev-only classification log exists** (`backend/app/core/triage_log.py`,
-   flag `TRIAGE_LOG_CLASSIFICATIONS`). It writes the description and the
-   follow-up answers to the application log, which CLAUDE.md otherwise
-   forbids. It is off by default and refuses to run when
-   `ENVIRONMENT=production`, regardless of the flag. It exists to tune the
-   classifier against **synthetic input only**. Switching it on anywhere a
-   real user has typed into the app would be a reportable data-handling
-   failure — and the production check guards one environment name, not you.
+4. **No token revocation and no refresh flow.** The token is also at rest on the
+   device between page loads, so a compromised device yields a live session as
+   well as a live process.
+5. **Signup discloses whether an address is registered.** Kept deliberately.
+6. **The rate limiter is per-process and in-memory.** Two workers mean two
+   budgets. Put a real limiter at a reverse proxy.
+7. **Nothing writes an access log or an audit trail of reads.** No record of who
+   read which record — normally a requirement wherever the BAA question is asked.
+8. **The mobile build tree has 6 known-vulnerable dev dependencies**, down from
+   43 via `overrides` in `mobile/package.json`. The remainder is one chain
+   ending at `image-size`, which **has no fixed release at all** — every
+   published version sits inside the advisory range — and clears only with the
+   React Native upgrade. ⛔ The overrides are verified against `npm test` and
+   `expo export --platform web` **only**; anyone doing a native build should
+   expect to re-check them against `expo prebuild` and EAS.
+9. **A dev-only classification log exists** (`triage_log.py`, flag
+   `TRIAGE_LOG_CLASSIFICATIONS`). It writes descriptions and follow-up answers
+   to the application log, which this file otherwise forbids. Off by default,
+   and it refuses to run when `ENVIRONMENT=production`. ⛔ It is for **synthetic
+   input only** — switching it on anywhere a real user has typed into the app
+   would be a reportable data-handling failure, and the production check guards
+   one environment name, not you.
 
 ⛔ **None of this makes the app safe to put in front of real patients.** The
-release blockers above it — clinical sign-off on the triage instrument, legal
-sign-off on medical-device status, a BAA with every vendor, encryption at rest
-— are unchanged by any of these fixes. What changed is that the app is no
-longer trivially breakable by someone who has read its source or joined its
-Wi-Fi.
+release blockers — clinical sign-off on the triage instrument, legal sign-off on
+medical-device status, a BAA with every vendor, encryption at rest — are
+unchanged by any of these fixes. What changed is that the app is no longer
+trivially breakable by someone who has read its source or joined its Wi-Fi.
+
+## Where the detail lives
+
+Read the relevant file before changing that area. Each carries the reasoning,
+the measurements, the rejected alternatives and the bug history behind the
+rules above.
+
+| File | Covers |
+|---|---|
+| `docs/triage.md` | the release blocker in full, the two-layer architecture, `deduction.py` and the free endpoint, follow-up questions, both measurement harnesses and the reported under-triages, emergency routing, concept combinations, the phrase-matching bug history |
+| `docs/medical-content.md` | MedlinePlus retrieval, `search_terms.py` and why each rule exists, `names_match`, the measured accuracy, the NLM BAA position |
+| `docs/symptom-picker.md` | the four rules the vocabulary is built on, why it runs on the device, the separator as a safety property, and why a picked phrase weighs the same as a typed one |
+| `docs/health-goals.md` | what the 2026-09-12 removal deleted, the structuring checks, the schedule, ambition bounds and `WEEK_SHAPE_BY_COMPLEXITY`, `goal_evidence.py`, goal editing, the endpoint split and the Groq shortcut |
+| `docs/health-goals-prompt.md` | prompt reasoning and the reviewer's open questions |
+| `docs/mutation-testing.md` | the two mutation checkers, the rules each covers, and the four tests that were green for the wrong reason |
+| `docs/accessibility.md` | why `accessibilityState` is dropped on web, the seven call sites, and how the test holds the rule |
+| `docs/appointments.md` | NPPES, distance computation, location per platform, identity pass-through, the gated booking path |
+| `docs/appointment-booking.md` | the option analysis for real booking |
+| `docs/medication-reminders.md` | dose-schedule phrase lists, delivery per platform, arming, refill forecasting |
+| `docs/label-scanning.md` | the two OCR engines, the parser rules, the corpus and the two defects it found |
+| `docs/emergency-card.md` | storage per platform, the mirrored medication list, the palette exception, the rejected lock-screen widget |
+| `docs/security-posture.md` | auth, tokens, session persistence, CORS, headers, transport, and all nine closed findings with their fixes |
+| `docs/deployment.md` | the Render blueprint, the procedure, the failure modes, what publishing changed |
+| `docs/visual-design.md` | the visual direction, the responsive breakpoints, the home-screen reshuffle |
+| `docs/free-model-setup.md` | configuring a local or hosted model endpoint |
+| `docs/brand-guidelines.md` | the brand work |
+
+⛔ **When you move a rule into this file or out of it, move the whole rule.** A
+fence that survives only in a doc is a fence the next agent will not read.
 
 ## Local Dev
 
