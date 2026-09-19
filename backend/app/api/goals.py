@@ -532,6 +532,18 @@ def update_goal(
         activity.preferred_time = row.preferred_time
         activity.days = days
         activity.time_of_day = row.time_of_day
+        # ⛔ Written from the payload, not left alone. Omitting these was a
+        # silent data loss: an edit that touched only a row's time would have
+        # cleared the "how" line and the citation off every row in the goal,
+        # because the columns exist and nothing was writing them.
+        #
+        # The client clears both whenever the person rewrites a row's text —
+        # a citation attached to a sentence somebody has since replaced is
+        # attributing guidance to words the publisher never saw. Sending them
+        # back is how that clearing is recorded, so this must stay a plain
+        # assignment rather than a "keep what was there" merge.
+        activity.detail = row.detail.strip() if row.detail else None
+        activity.evidence_domain = row.evidence_domain
         activity.position = position
         kept.append(activity)
 
@@ -624,6 +636,7 @@ def _to_out(goal: HealthGoal, *, on: date, db: Session) -> GoalOut:
                 # that has since been removed from the register becomes no
                 # citation, which is what an absent one looks like too.
                 evidence=_evidence_out(activity.evidence_domain),
+                evidence_domain=activity.evidence_domain,
                 completed_today=activity.id in ticked,
             )
             for activity in goal.activities

@@ -695,6 +695,122 @@ def test_a_row_dropped_from_an_edit_takes_its_ticks_with_it(
     )
 
 
+def test_an_edit_keeps_the_detail_and_the_citation_on_a_row_it_sends_back(
+    client, auth_headers
+):
+    """
+    ⛔ Regression test for silent data loss found while merging.
+
+    `detail` and `evidence_domain` were added to `goal_activities` after this
+    endpoint was written, and `update_goal` was not assigning them — so an edit
+    that changed nothing but a time would have stripped the "how" line and the
+    published citation off **every row of the goal**, with nothing on screen
+    saying so.
+
+    `evidence_domain` is also why `ActivityOut` returns the id beside the
+    resolved citation: `evidence` is rebuilt server-side on every read and
+    cannot be turned back into an id, so without it no client could say "this
+    row is unchanged".
+    """
+    created = client.post(
+        "/goals",
+        json={
+            "title": "Walking",
+            "description": WALKING,
+            "activities": [
+                {
+                    "text": "Walk in the mornings",
+                    "cadence": "daily",
+                    "preferred_time": "morning",
+                    "detail": "Put your shoes by the door the night before.",
+                    "evidence_domain": "aerobic_activity",
+                }
+            ],
+        },
+        headers=auth_headers,
+    ).json()
+    row = created["activities"][0]
+    assert row["detail"]
+    assert row["evidence_domain"] == "aerobic_activity"
+
+    body = client.put(
+        f"/goals/{created['id']}",
+        json={
+            "title": "Walking",
+            "activities": [
+                {
+                    "id": row["id"],
+                    "text": row["text"],
+                    "cadence": row["cadence"],
+                    "preferred_time": row["preferred_time"],
+                    "days": ["monday"],
+                    "time_of_day": "09:00",
+                    # Sent back unchanged, which is the whole point.
+                    "detail": row["detail"],
+                    "evidence_domain": row["evidence_domain"],
+                }
+            ],
+        },
+        headers=auth_headers,
+    ).json()
+
+    edited = body["activities"][0]
+    assert edited["time_of_day"] == "09:00"
+    assert edited["detail"] == "Put your shoes by the door the night before."
+    assert edited["evidence_domain"] == "aerobic_activity"
+
+
+def test_an_edit_that_drops_them_clears_them(client, auth_headers):
+    """
+    The other half: the client clears both when the person rewrites a row.
+
+    A citation attributes published guidance to the sentence MedHelp wrote. If
+    somebody replaces that sentence, leaving the publisher's name under it
+    would attribute their guidance to words the publisher never saw — so the
+    assignment is a plain one and omitting the fields really does clear them.
+    """
+    created = client.post(
+        "/goals",
+        json={
+            "title": "Walking",
+            "description": WALKING,
+            "activities": [
+                {
+                    "text": "Walk in the mornings",
+                    "cadence": "daily",
+                    "preferred_time": "morning",
+                    "detail": "Put your shoes by the door the night before.",
+                    "evidence_domain": "aerobic_activity",
+                }
+            ],
+        },
+        headers=auth_headers,
+    ).json()
+    row = created["activities"][0]
+
+    body = client.put(
+        f"/goals/{created['id']}",
+        json={
+            "title": "Walking",
+            "activities": [
+                {
+                    "id": row["id"],
+                    "text": "Something else entirely",
+                    "cadence": "daily",
+                    "preferred_time": "morning",
+                }
+            ],
+        },
+        headers=auth_headers,
+    ).json()
+
+    edited = body["activities"][0]
+    assert edited["text"] == "Something else entirely"
+    assert edited["detail"] is None
+    assert edited["evidence"] is None
+    assert edited["evidence_domain"] is None
+
+
 def test_an_edit_can_add_a_row(client, auth_headers):
     """A new row arrives without an id, and gets one."""
     goal = _save_walking_goal(client, auth_headers)

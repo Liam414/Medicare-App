@@ -1,21 +1,25 @@
 /**
  * The editable plan: a goal's name, its activities, and each one's schedule.
  *
- * Extracted from `GoalCreateScreen` when goals became editable after saving.
- * Playtesting reported that changing a goal meant deleting it and writing it
- * again, and the same editor is needed in both places — duplicating it would
- * have meant two copies of the day chips, the time validation and the
- * accessibility note below, drifting apart from the day they were copied.
+ * Written for `GoalEditScreen`, when goals became editable after saving.
+ *
+ * ⛔ **`GoalCreateScreen` deliberately does not use this, and the duplication
+ * is known.** The two screens have diverged: the create screen renders a
+ * draft's provenance — where each row was quoted from, whether MedHelp wrote
+ * it, and the published guidance it was attributed to — none of which applies
+ * to a goal the person already saved and confirmed. It also keeps four lists
+ * in step to do that. Folding the two together is worth doing and is not worth
+ * doing inside a merge; what is duplicated today is the day chips, the time
+ * check and the accessibility note below.
  *
  * ## The rows carry their own labels
  *
- * `source` and `suggested` used to be arrays held beside `activities` in the
- * create screen and indexed by position, so every add and remove had to
- * re-slice all three in step. One row object holds all of it here, which is
- * what stops a "Suggested by MedHelp" label ending up on the wrong line after
- * a removal. ⛔ That label is required on any row the app wrote — see
- * CLAUDE.md — so which row it belongs to is a correctness question, not
- * cosmetics.
+ * `source` and `suggested` live on the row rather than in arrays indexed by
+ * position, which is what stops a "Suggested by MedHelp" label ending up on
+ * the wrong line after a removal. ⛔ That label is required on any row the app
+ * wrote — see CLAUDE.md — so which row it belongs to is a correctness
+ * question, not cosmetics. (The create screen still uses parallel arrays; that
+ * is the other half of the merge worth folding together.)
  *
  * `id` is carried through untouched. It is what tells the server to edit a row
  * in place and keep the person's ticks rather than replace it; see
@@ -50,6 +54,8 @@ export function blankActivity(): EditableActivity {
     preferredTime: "unspecified",
     days: [],
     timeOfDay: null,
+    detail: null,
+    evidenceDomain: null,
   };
 }
 
@@ -107,9 +113,22 @@ export function GoalPlanEditor({
     onActivitiesChange(
       activities.map((row, at) =>
         at === index
-          ? // Once edited it is the person's line: it no longer quotes anything
-            // and it stops being labelled as MedHelp's.
-            { ...row, text, source: null, suggested: false }
+          ? // Once edited it is the person's line: it no longer quotes
+            // anything and it stops being labelled as MedHelp's.
+            //
+            // ⛔ The citation and the "how" line go with it. Guidance was
+            // attributed to the sentence MedHelp wrote; leaving a publisher's
+            // name under a sentence the person has since replaced would
+            // attribute that guidance to words the publisher never saw. Same
+            // rule, and same line, as `GoalCreateScreen`.
+            {
+              ...row,
+              text,
+              source: null,
+              suggested: false,
+              detail: null,
+              evidenceDomain: null,
+            }
           : row
       )
     );
@@ -172,6 +191,18 @@ export function GoalPlanEditor({
             <Text style={styles.suggested}>
               Suggested by MedHelp — edit it or remove it
             </Text>
+          ) : null}
+
+          {/*
+            The row's "how" line, shown and not editable.
+
+            It is part of the row and it survives an edit, so hiding it would
+            let someone change a row while a sentence they cannot see still
+            describes it. Editing the activity text clears it — see
+            `updateText` — which is the only way it changes from here.
+          */}
+          {activity.detail ? (
+            <Text style={styles.detail}>{activity.detail}</Text>
           ) : null}
 
           {/*
@@ -262,6 +293,7 @@ const styles = StyleSheet.create({
   sectionLabel: { ...typography.titleSmall, color: colors.textPrimary },
   activityRow: { gap: spacing.xs },
   source: { ...typography.caption, color: colors.textSecondary },
+  detail: { ...typography.caption, color: colors.textSecondary },
   suggested: { ...typography.caption, color: colors.accent },
   scheduleLabel: {
     ...typography.caption,
