@@ -73,6 +73,49 @@ DEV_CONFIG_HINT = (
 )
 
 
+#: Longest a single picked phrase may be. The vocabulary's own entries are far
+#: shorter; this only bounds what a client can post under this field.
+MAX_SYMPTOM_PHRASE = 120
+
+
+def merge_selected_symptoms(description: str, selected: list[str] | None) -> str:
+    """
+    Fold phrases the user picked from the symptom list into the description.
+
+    ⛔ THE SEPARATOR IS THE SAFETY PROPERTY HERE, NOT A FORMATTING CHOICE.
+
+    Every phrase in `emergency.py` and `rules_triage.py` is compiled with word
+    boundaries, so two phrases run together match NOTHING. That is a bug this
+    repository has already had in production: a pasted list arriving as
+    "Chest painShortness of breath" was screened as neither, and fell to the
+    URGENT default instead of EMERGENT. `normalize_query` splits a
+    lowercase-to-uppercase boundary afterwards and would catch that particular
+    shape, but it cannot catch "a feverchills", and a feature whose whole job
+    is to build a list must not be the thing that manufactures the glue.
+
+    So the join is ". " — the same separator `followup.merge` uses, and for
+    the same reason: the combined text goes through emergency screening, the
+    rules and the lookup as one description, and every phrase in it has to be
+    reachable by a word-boundary match.
+
+    The order is the client's, which is the vocabulary's own order rather than
+    tap order — see `labelsFor` on the device. Deterministic input, because
+    everything downstream of here is deterministic.
+    """
+    if not selected:
+        return description
+
+    parts = [description.strip()]
+    for phrase in selected:
+        cleaned = " ".join(phrase.split())[:MAX_SYMPTOM_PHRASE].strip()
+        # A phrase that is only punctuation contributes nothing and would leave
+        # a stray ". ." in text the rules are about to read.
+        if cleaned and any(character.isalnum() for character in cleaned):
+            parts.append(cleaned)
+
+    return ". ".join(part for part in parts if part)
+
+
 async def _related_topics(description: str) -> list[SymptomTopicOut]:
     """
     Reading material for whatever the user described, from a vetted source.
@@ -142,6 +185,7 @@ async def create_assessment(
     rounds_asked = followup.rounds_completed(payload.follow_up_answers)
     answers = payload.follow_up_answers or {}
     description = followup.merge(payload.description, answers) if answers else payload.description
+    description = merge_selected_symptoms(description, payload.selected_symptoms)
 
     try:
         # ⛔ OFF THE EVENT LOOP. `assess` is synchronous and, when a model

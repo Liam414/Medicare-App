@@ -37,9 +37,37 @@ from app.services.provider_directory import (
 )
 from app.services.provider_geo import distances_for
 from app.services.request_delivery import delivery_available
+from app.services.scheduling_links import link_for
 from app.services.zip_geography import nearest_zip
 
 router = APIRouter(prefix="/providers", tags=["providers"])
+
+
+def _with_scheduling(row: ProviderOut, provider) -> ProviderOut:
+    """
+    Attach where this provider takes bookings on their own site, if known.
+
+    ⛔ THE ONLY INPUT IS THE PROVIDER'S PUBLISHED NAME. Nothing the user typed
+    reaches `link_for` — not the ZIP they searched, not a reason for visit —
+    and the URL that comes back is a constant from the registry with nothing
+    appended. So this adds no outbound transmission of any kind and raises no
+    BAA question; it is a fact about the clinic, printed next to the clinic.
+
+    ⛔ It does not reorder anything. Results are sorted by distance only, and a
+    provider that happens to have a booking page must not rise above one that
+    does not — that would be MedHelp ranking clinics on a convenience of its
+    own, which this file does not do.
+    """
+    link = link_for(provider.name, is_organization=provider.is_organization)
+    if link is None:
+        return row
+    return row.model_copy(
+        update={
+            "scheduling_url": link.url,
+            "scheduling_system": link.system_name,
+            "scheduling_kind": link.kind,
+        }
+    )
 
 
 @router.get("/care-settings", response_model=dict[str, str])
@@ -90,19 +118,28 @@ def search(
     # `provider_geo` for why a zero is the one answer worth suppressing.
     distances = distances_for(providers, postal_code, db)
 
+    # ⛔ ATTACHED AFTER ORDERING, AND ORDERING IS NOT TOUCHED.
+    #
+    # Results stay sorted by distance only. A provider with a known booking
+    # page must not float above one without — that would be MedHelp ranking
+    # clinics on a convenience of ours, and this file does not rank providers
+    # at all. See the MedlinePlus topic filter for the same rule.
     return ProviderSearchOut(
         providers=[
-            ProviderOut(
-                npi=provider.npi,
-                name=provider.name,
-                specialty=provider.specialty,
-                phone=provider.phone,
-                address=provider.full_address,
-                city=provider.city,
-                state=provider.state,
-                postal_code=provider.postal_code,
-                source_name=provider.source_name,
-                distance_miles=distances.get(provider.npi),
+            _with_scheduling(
+                ProviderOut(
+                    npi=provider.npi,
+                    name=provider.name,
+                    specialty=provider.specialty,
+                    phone=provider.phone,
+                    address=provider.full_address,
+                    city=provider.city,
+                    state=provider.state,
+                    postal_code=provider.postal_code,
+                    source_name=provider.source_name,
+                    distance_miles=distances.get(provider.npi),
+                ),
+                provider,
             )
             for provider in providers
         ],

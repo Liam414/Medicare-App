@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.symptom import EmergencyGuidanceOut, SymptomTopicOut
 
@@ -11,7 +11,18 @@ class IntakeRequest(BaseModel):
     sensitive free text in the app.
     """
 
-    description: str = Field(..., min_length=1, max_length=2000)
+    # ⛔ MAY BE EMPTY, BUT ONLY WHEN `selected_symptoms` CARRIES SOMETHING.
+    #
+    # This was `min_length=1` until 2026-09-17, because typing was the only way
+    # in. The repository owner asked for the symptom list to be usable on its
+    # own — "you can only use that if you want to" — and a person who taps
+    # three phrases and types nothing submits exactly this shape.
+    #
+    # The floor did not move to zero, it moved to `_at_least_one_input` below.
+    # A request with neither is still refused: estimating urgency from nothing
+    # at all would return the safe default with no basis under it, and a tier
+    # nobody described is worse than an error.
+    description: str = Field(default="", max_length=2000)
     # Explicit, per-submission consent. Defaults to False so a client that
     # forgets the field stores nothing.
     consent_to_store: bool = False
@@ -23,6 +34,39 @@ class IntakeRequest(BaseModel):
     # which round this is from the ids present, so the cap on asking cannot be
     # talked past by a client that reports its own round number.
     follow_up_answers: dict[str, str] | None = None
+    # Symptom phrases the user picked from the on-device list, as text.
+    #
+    # THE PHRASES TRAVEL, NOT IDS, AND THAT IS DELIBERATE. The vocabulary lives
+    # in the mobile bundle (mobile/src/services/symptomVocabulary.ts) so that a
+    # partially typed symptom never leaves the device. Sending ids would mean a
+    # second copy of a clinical vocabulary here to resolve them, and two copies
+    # drift — one of them would eventually be offering a phrase the other had
+    # removed. The server treats these as what they are: plain text the user
+    # endorsed, merged into the description and screened with it.
+    #
+    # They are capped rather than trusted. A client can put anything here, but
+    # it could put the same thing in `description`, so this opens no new door.
+    selected_symptoms: list[str] | None = Field(default=None, max_length=40)
+
+    @model_validator(mode="after")
+    def _at_least_one_input(self) -> "IntakeRequest":
+        """
+        Something has to have been said, in one box or the other.
+
+        ⛔ THE MESSAGE NAMES NO VALUE, AND THAT IS NOT A STYLE CHOICE. The
+        `RequestValidationError` handler in `app/main.py` strips the submitted
+        input from every validation error precisely because this endpoint's
+        input is the most sensitive free text in the app. An error string that
+        quoted what was sent would put a symptom description back on the wire
+        through the one path built to keep it off.
+        """
+        described = bool(self.description and self.description.strip())
+        picked = bool(self.selected_symptoms)
+        if not described and not picked:
+            raise ValueError(
+                "Describe your symptoms or pick at least one from the list."
+            )
+        return self
 
 
 class FollowUpQuestionOut(BaseModel):

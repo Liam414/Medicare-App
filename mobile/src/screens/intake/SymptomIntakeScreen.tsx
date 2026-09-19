@@ -8,9 +8,11 @@ import { ErrorNotice } from "@/components/ErrorNotice";
 import { AppNav } from "@/components/AppNav";
 import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
+import { SymptomPicker } from "@/components/SymptomPicker";
 import { TextField } from "@/components/TextField";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { IntakeError, submitIntake } from "@/services/intakeService";
+import { composeDescription, labelsFor } from "@/services/symptomVocabulary";
 import { MIN_TAP_TARGET, colors, fonts, radius, spacing, typography } from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
 
@@ -19,6 +21,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "SymptomIntake">;
 export function SymptomIntakeScreen({ navigation, route }: Props) {
   const [description, setDescription] = useState("");
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
+  const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
@@ -47,6 +50,10 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
 
     setDescription("");
     setDescriptionError(null);
+    // The picked symptoms go with the description they were picked for.
+    // Carrying them onto a second complaint would silently attach the first
+    // complaint's symptoms to it.
+    setSelectedSymptoms([]);
     setConsent(false);
     setError(null);
     setIsOffline(false);
@@ -62,10 +69,48 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
     if (submitting) return;
 
     const trimmed = description.trim();
-    if (!trimmed) {
-      setDescriptionError("Describe what's going on so we can estimate how soon you may need care.");
+    const picked = labelsFor(selectedSymptoms);
+
+    /*
+      ⛔ TYPING IS OPTIONAL. EITHER INPUT IS ENOUGH; NEITHER IS NOT.
+
+      This used to require typed prose, on the reasoning that "a picked symptom
+      is not a substitute for a description" — the list was built as an aid to
+      someone already writing. The repository owner asked on 2026-09-17 for the
+      opposite: that a person be able to answer entirely by tapping, "so you can
+      only use that if you want to". CLAUDE.md records that reversal and the
+      reasoning on both sides.
+
+      What the old comment got right, and what had to be handled rather than
+      waved away: the follow-up questions are written to elicit prose, so a
+      tap-only submission that the rules do not recognise lands on a
+      questionnaire asking where it is and how long it has been going on. That
+      still works — those questions are answerable by someone who never typed
+      anything, and two of the four are already multiple choice — but it is the
+      reason this is a reversal with a consequence rather than a free one.
+
+      What is NOT relaxed: something has to be said. An empty submission would
+      be asking the classifier to estimate urgency from nothing at all, and the
+      safe default would hand back URGENT with no basis whatsoever.
+    */
+    if (!trimmed && picked.length === 0) {
+      setDescriptionError(
+        "Tell us what's going on — type a description, or pick from the list below. Either is enough."
+      );
       return;
     }
+
+    /*
+      What the server will actually assess: the typed text and the picked
+      phrases joined the way `merge_selected_symptoms` joins them.
+
+      The server composes this itself and is authoritative. This copy exists
+      because the screens downstream need a description to carry — and when
+      somebody typed nothing, the picked phrases are the only description
+      there is. Passing `trimmed` here would hand the appointment flow an empty
+      reason for visit and the follow-up screen an empty complaint.
+    */
+    const composed = composeDescription(trimmed, selectedSymptoms);
 
     setDescriptionError(null);
     setError(null);
@@ -73,21 +118,21 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
     setSubmitting(true);
 
     try {
-      const result = await submitIntake(trimmed, consent);
+      const result = await submitIntake(trimmed, consent, undefined, picked);
       if (result.status === "needs_detail") {
         // The server could not make sense of this and is asking rather than
         // guessing. A red-flag description never lands here — it comes back
         // as an assessment with its emergency guidance already attached.
         navigation.navigate("IntakeFollowUp", {
           followUp: result,
-          description: trimmed,
+          description: composed,
           consent,
         });
       } else {
         navigation.navigate("IntakeResult", {
           assessment: result,
           // Carried so the appointment flow can prefill the reason for visit.
-          description: trimmed,
+          description: composed,
         });
       }
     } catch (caught) {
@@ -113,7 +158,16 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
       <PageHeader
         icon="symptom"
         title="What's going on?"
-        subtitle="Describe how you're feeling in your own words. Include when it started and anything that's changed."
+        /*
+          ⛔ THIS SAYS BOTH WAYS IN, AND IT HAS TO.
+
+          It used to read "Describe how you're feeling in your own words",
+          which was the only way in when it was written. Typing is optional
+          now, and a screen that opens by telling someone to describe things in
+          their own words has already turned away the person who came here
+          because they did not want to write anything.
+        */
+        subtitle="Type it in your own words, tap it from a list, or do both. Include when it started and anything that's changed."
       />
 
       {/*
@@ -136,15 +190,44 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
       )}
 
       <TextField
-        label="Describe your symptoms"
+        // Says optional, because it is. A required-looking field is the thing
+        // that stops somebody scrolling to the list underneath it.
+        label="Describe your symptoms (optional)"
         placeholder="e.g. I've had a headache for two days and light hurts my eyes"
         value={description}
         onChangeText={setDescription}
         error={descriptionError}
-        hint="Your own words. Nothing here is rewritten before it is assessed."
+        /*
+          ⛔ THIS SENTENCE CHANGED WHEN THE SYMPTOM LIST WAS ADDED, AND THE OLD
+          ONE MUST NOT COME BACK.
+
+          It used to read "Your own words. Nothing here is rewritten before it
+          is assessed." That was true of a screen where the only input was
+          prose the user typed. It stopped being true the moment MedHelp began
+          offering phrases of its own to add.
+
+          What is still true, and what this says instead: the text the person
+          types is never altered, and anything the app contributed is visible
+          as a separate chip they can remove. Do not restore a claim that the
+          app adds nothing — it does now.
+        */
+        hint="Your own words — what you type is never rewritten. Anything you add from the list below is shown separately, and you can remove it."
         multiline
         autoCapitalize="sentences"
         editable={!submitting}
+      />
+
+      {/*
+        The list sits under the field rather than over it: it reacts to what
+        has been typed, and a panel that opened on top of the input would
+        cover the words it is reacting to. It renders nothing until there is
+        something to offer, so an empty screen stays empty.
+      */}
+      <SymptomPicker
+        description={description}
+        selectedIds={selectedSymptoms}
+        onChange={setSelectedSymptoms}
+        disabled={submitting}
       />
 
       <View style={styles.dictationRow}>
