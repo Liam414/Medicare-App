@@ -43,6 +43,26 @@ class ProviderOut(BaseModel):
     # renders it with a "~".
     distance_miles: float | None = None
 
+    # Where this provider takes bookings on their OWN website, when one is
+    # known. See `app/services/scheduling_links.py`.
+    #
+    # ⛔ THIS IS NOT `online_booking_available`, AND THE TWO MUST NEVER MERGE.
+    # That flag answers "can MedHelp send a booking request?" — false, and it
+    # stands for a signed BAA and a scheduling partnership. This answers "does
+    # this provider take bookings on their own site?", which commits MedHelp to
+    # nothing and says nothing about our capabilities. One flag covering both
+    # would let a later edit read "we can book" out of "they have a website".
+    #
+    # The URL is a constant from the registry. Nothing about the user is ever
+    # appended — no ZIP, no reason for visit, no tier — so opening it transmits
+    # nothing and raises no BAA question. A test asserts it byte-for-byte.
+    scheduling_url: str | None = None
+    #: Whose site that is, for the button's label. Never MedHelp.
+    scheduling_system: str | None = None
+    #: "direct" (their own booking page) or "directory" (a finder to search).
+    #: The UI says which, because the two are a different promise.
+    scheduling_kind: str | None = None
+
 
 class ResolveLocationIn(BaseModel):
     """

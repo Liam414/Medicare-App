@@ -1496,6 +1496,88 @@ call the person had just finished.
   `updateAppointment` sends null for anything omitted — a convenience button
   that silently erased the user's own note would be the opposite of the point.
 
+### Handing off to a provider's own booking page (2026-09-18)
+
+MedHelp still cannot book. What it can do is say **where the hospital takes
+bookings**, and let the person book there.
+`backend/app/services/scheduling_links.py`.
+
+⛔ **A hand-off is a different thing from booking, and that is why it is
+allowed.** The blocker on real booking is that it transmits an identified
+patient and a reason for care to a third party. A hand-off transmits nothing:
+
+- The URL is a **constant**. Nothing about the user is appended — no ZIP, no
+  reason for visit, no tier, no assessment id. Tests assert it on both sides,
+  including one that renders the screen *with* an intake context and checks
+  the opened URL contains none of it.
+- The match is made on the **provider's own published name**, public CMS data.
+  `link_for` takes a name and a boolean and nothing else, and a test asserts
+  the signature — so personalising the link would have to add a parameter, and
+  that fails the build rather than slipping through.
+- Opening it is the user pressing a button that names the destination. MedHelp
+  sends no request and learns nothing about the outcome.
+
+Same reasoning that lets the app link to a phone number. No vendor becomes a
+processor of anything; no BAA question arises.
+
+⛔ **`scheduling_url` is NOT `online_booking_available`, and they must never
+merge.** `delivery_available()` answers "can MedHelp send a booking request?"
+— false, standing for a signed BAA and a partnership. `scheduling_url` answers
+"does this provider take bookings on their own site?", which commits MedHelp to
+nothing. One flag covering both would let a later edit read "we can book" out
+of "they have a website". A test asserts the module does not even import the
+delivery path, checked against the **imports** rather than the source text —
+the docstring names `delivery_available()` on purpose, to explain the
+distinction.
+
+#### Where the links come from
+
+⛔ **Every URL appeared in a live search result, and none was constructed by
+pattern.** Guessing that a system books at `/appointments` because another one
+does is inventing a destination, and a link that 404s while somebody is trying
+to get care is worse than no link. Same rule as the label parser refusing to
+snap a misread drug name to the nearest real one: a visible gap beats a
+plausible error. **Do not add an entry from memory** — search for it, follow
+it, record the date.
+
+Verifying by fetching does not work: hospital sites return 403 to automated
+requests, which is how this rule got written.
+
+**The registry is deliberately small; the fallback is what gives coverage.**
+Epic runs a public, searchable directory of MyChart organisations at
+`mychart.org` with no login (verified 2026-09-18), and Epic is dominant in US
+hospitals. For a hospital MedHelp does not know, that is a real answer.
+
+⛔ **The directory is offered for organisations only.** A solo physician is
+unlikely to appear in it under a name the user would recognise, and a link that
+usually fails teaches people to ignore the button. `Provider.is_organization`
+is NPPES's own distinction, not a judgement made here, and ⛔ it must never be
+used to rank or filter results.
+
+#### What the screen may and may not say
+
+- ⛔ **Never "book" in MedHelp's voice.** The button says "Open <System>" or
+  "Search <System>"; the body says the booking happens on their site and that
+  MedHelp is not involved and will not know the result. Three screens already
+  say MedHelp contacts nobody, and one button reading "Book your appointment"
+  would undo all of them at the moment it matters most. Tested.
+- **A directory is a search, not a booking page**, and the copy distinguishes
+  them. A button saying "Open" that lands on a search box is a small betrayal
+  this screen cannot afford.
+- ⛔ **Results are not reordered.** Providers stay sorted by distance only. A
+  clinic with a known booking page must not float above one without — that
+  would be MedHelp ranking on a convenience of its own. The link is attached
+  after ordering.
+- **Calling stays above booking online.** Calling always works; a clinic's site
+  may be down, may not offer what the person needs, or may demand an account.
+- No badge on the search list, deliberately. It would nudge people to choose a
+  provider by whether MedHelp happens to know their booking page, which is
+  ranking by another name.
+
+The client re-checks the scheme and accepts **https only**, because this is the
+value handed to `Linking.openURL` on a phone — `javascript:`, `file:` and
+Android `intent:` URLs are not booking pages. A dropped link costs one button.
+
 #### Third-party vendor: Zocdoc Care Access Network — status
 
 ⛔ **`docs/appointment-booking.md` was wrong and is corrected.** It recorded

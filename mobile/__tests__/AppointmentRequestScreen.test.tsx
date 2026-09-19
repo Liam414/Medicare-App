@@ -28,6 +28,9 @@ const PROVIDER: Provider = {
   postalCode: "10001",
   sourceName: "NPPES NPI Registry, US Centers for Medicare & Medicaid Services",
   distanceMiles: 1.2,
+  schedulingUrl: null,
+  schedulingSystem: null,
+  schedulingKind: null,
 };
 
 function savedAppointment(overrides = {}) {
