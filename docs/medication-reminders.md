@@ -266,3 +266,115 @@ hand-written script" case the deployment section already warns about.
   tested against a mock, never observed firing. The web path has been checked
   end to end, including a notification firing at the armed minute.
 
+
+
+---
+
+## Carried out of CLAUDE.md on 2026-09-19
+
+*CLAUDE.md was still 90,636 characters after the first restructure — over the
+limit, which means truncated, which means the fences at the bottom were not
+reliably being read. The section below is that file's own text on this topic,
+moved here verbatim. It may restate material already above it, because in
+CLAUDE.md it was the summary of this document. Nothing was dropped; CLAUDE.md
+now keeps the hard rules and points here.*
+
+### Medication reminders (implemented)
+
+
+A user sets daily times for a medication and is notified at each one. The times
+come from a suggestion the user confirms; nothing schedules itself. Detail,
+including refill alerts: `docs/medication-reminders.md`.
+
+### ⛔ MedHelp proposes times. It never sets them.
+
+`frequency` is the sig line, carried verbatim. Turning "TWICE DAILY" into two
+alarms is a decode of dosing instructions — the thing the verbatim rule
+forbids. So the feature is read-then-confirm: `dose_schedule.py` proposes from
+an explicit phrase list a clinician can check line by line, the suggestion
+endpoint **writes nothing** (a test asserts a suggestion leaves the user with
+no reminders), and reminders exist only after the user presses save with the
+printed directions unedited beside the draft.
+
+**It declines far more readily than it guesses.** Anything not on the lists
+returns no suggestion and a reason the user is shown. Deliberately refused:
+**"as needed" / PRN** — recognised only in order to refuse it, because an
+interval on a PRN label is a *maximum*, not a schedule, and an alarm built from
+it would tell someone to take a medicine they may not need (the most important
+refusal here); anything not a daily rhythm; and food or route qualifiers, which
+stay in the verbatim text and never become mealtimes. Times are rejected, never
+reinterpreted: `8am`, `0800` and `8:00` are refused, because "8" could be
+either end of the day. The default clock hours are neutral waking-hours
+conveniences, **not clinical choices**, and the UI says so.
+
+⛔ **Further reminder rules:**
+
+- **A reminder time is a local wall-clock "HH:MM", never a UTC instant.**
+  Converting through a timezone would move a medication time when the person
+  travels. Same rule for goal activity times.
+- **This is not an adherence record.** A time that has gone by shows as
+  "earlier today", never "missed". Nothing tracks, scores, or reports
+  adherence.
+- **Deleting a medication deletes its reminders**, in the endpoint as well as
+  by foreign key — a leftover row is not untidy data, it is an alarm telling
+  someone to take a medication they have stopped. SQLite does not enforce the
+  cascade, so the test asserts against the table, not the listing.
+- **These are local notifications only.** No push token is requested, nothing
+  is registered with Expo's push service, FCM or APNs. ⛔ **Do not add
+  `getExpoPushTokenAsync` or Web Push without a BAA decision** — a payload
+  naming a person's medication makes those services processors of PHI.
+- **Never ask for notification permission without a user gesture.** Same rule
+  and reason as location: an unprompted request is suppressed by browsers, and
+  a blocked site never prompts again. `getPermission()` only reads what is
+  already granted; a button is the only thing that asks.
+- `medication_reminders` stores **no medication name** — it joins for that. A
+  second copy would be a second place health data leaks from.
+- The **on-screen list is the part that is always correct**; the notification
+  is the bonus on top. The notification body names the medication, which makes
+  it visible on a lock screen — accepted for now.
+
+### ⛔ Arming: one function, every time, the complete set
+
+`scheduleAll(reminders, { refillAlerts })` is called from
+`mobile/src/services/reminderArming.ts` **and nowhere else.** Dose reminders
+and refill alerts cannot be armed separately — `cancelAll()` clears everything
+and does not distinguish between them, so two arming functions would take turns
+cancelling each other's work, and the symptom is a notification type that
+silently stops firing depending on which screen was opened last.
+
+More *callers* are fine — `rearm()` runs at app start from `RootNavigator` as
+well as from the reminders screen, because arming only on that screen meant a
+person who set their times and opened any other tab had nothing armed at all.
+A **partial arm** is what the rule forbids. Runs are serialised, because app
+start and a focus effect really do overlap. Both properties are tested. Arming
+is best-effort and never surfaces an error.
+
+### ⛔ Refill alerts: the estimate never borrows the record's authority
+
+`refill_date` is a date the user wrote down; `refill_estimate` is arithmetic
+MedHelp did. Separate fields, badges, wording and lead times — **do not
+collapse them.**
+
+- **The directions line is never read.** `forecast()` does not take a
+  `frequency` argument and `refill_forecast.py` does not import
+  `dose_schedule`; both are asserted by tests against the signature and the
+  module's imports, so adding one is a failing suite rather than a quiet change
+  of policy. `doses_per_day` comes from a number the user typed, or the count
+  of their enabled reminder times — rows that exist only because someone
+  reviewed a draft and pressed save.
+- **`is_estimate` is a property that cannot be constructed false**, and is true
+  whenever there is a date at all. The projection assumes every dose is taken
+  exactly on schedule, which MedHelp cannot check. Tests assert no surface says
+  "missed", "skipped" or "forgot".
+- **Declining is a normal outcome** — no quantity, no confirmed doses-per-day, a
+  count dated in the future, or more than a year's supply each return no date
+  and a reason meant for the user. A confident wrong run-out date is worse than
+  none for someone deciding whether to chase a prescription.
+- Nothing rounds up. The run-out date is parsed as **local midnight, not UTC** —
+  `new Date("2026-09-18")` is UTC by specification, which would move the alert a
+  day for most of the Americas. A refill alert is a **one-off and never
+  repeats**; a dose reminder repeats daily. The lead time is a **device**
+  setting, not an account one, because there is no user-settings table and
+  adding one would put a row about a named person's medication habits into a
+  database with no encryption at rest.
+

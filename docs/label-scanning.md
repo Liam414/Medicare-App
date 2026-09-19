@@ -110,3 +110,51 @@ urgency and authors no clinical content, so it is not covered by the intake
 blocker below — but the parsing heuristics have only been tested against
 synthetic labels written by an engineer, not against a corpus of real ones.
 
+
+
+---
+
+## Carried out of CLAUDE.md on 2026-09-19
+
+*CLAUDE.md was still 90,636 characters after the first restructure — over the
+limit, which means truncated, which means the fences at the bottom were not
+reliably being read. The section below is that file's own text on this topic,
+moved here verbatim. It may restate material already above it, because in
+CLAUDE.md it was the summary of this document. Nothing was dropped; CLAUDE.md
+now keeps the hard rules and points here.*
+
+### Medication label scanning (implemented)
+
+
+A user can photograph a prescription label instead of typing. Manual entry is
+unchanged and remains the primary path. **The OCR runs on the device** — Apple
+Vision on iOS and ML Kit on Android via `expo-mlkit-ocr`, Tesseract WASM in a
+browser. Both paths share one parser, so a label reads identically wherever it
+is scanned. Detail: `docs/label-scanning.md`.
+
+⛔ **Rules for anyone extending this:**
+
+- **Nothing scanned is ever saved without the user confirming it on screen.**
+  The scan screen cannot write a medication; every path out of it opens the
+  ordinary form, prefilled, and the user presses the same save button as
+  someone who typed it in. A misread dose that saved itself would change when a
+  person takes a medication with nobody having looked at it.
+- **Directions are carried across verbatim.** Do not expand BID/TID/QHS or
+  reword anything — decoding an abbreviation into dosing instructions would be
+  app-authored clinical content, and a wrong expansion changes medication
+  timing.
+- **Doses are never restated or converted.** "250 mg/5 mL" stays a
+  concentration. Only spacing and unit capitalisation are tidied.
+- **Drug names are never corrected against a dictionary.** A misread name stays
+  misread so the user can see it is wrong. Snapping OCR output to the nearest
+  real drug turns a legible mistake into a plausible one.
+- **Only the four fields the form already stores are extracted.** The patient's
+  name, address and Rx number are deliberately not read out, and the raw OCR
+  text is discarded inside `readLabel` rather than returned to any screen.
+- A failed or low-confidence read **falls back to manual entry with whatever
+  was extracted prefilled**, never to a dead end.
+- ⛔ **Do not copy "makes no network call" onto the web file.** The native path
+  makes none whatsoever; Tesseract downloads its WASM core and training data
+  from a CDN. What travels is the model coming down, never the image going up —
+  so no PHI is transmitted either way, but the two statements differ.
+

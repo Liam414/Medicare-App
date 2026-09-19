@@ -270,3 +270,103 @@ separate store and is meant to outlive a session. The screen says so, because
 on a shared computer that is a surprise worth naming, and points at "Erase
 this card".
 
+
+
+---
+
+## Carried out of CLAUDE.md on 2026-09-19
+
+*CLAUDE.md was still 90,636 characters after the first restructure — over the
+limit, which means truncated, which means the fences at the bottom were not
+reliably being read. The section below is that file's own text on this topic,
+moved here verbatim. It may restate material already above it, because in
+CLAUDE.md it was the summary of this document. Nothing was dropped; CLAUDE.md
+now keeps the hard rules and points here.*
+
+### Visual direction and layout (implemented)
+
+
+Paper ground, Literata over Public Sans, hairline rules instead of shadows, and
+a four-level prominence ladder with **exactly one filled action per screen**.
+Reasoning, the responsive breakpoints and the home-screen reshuffle:
+`docs/visual-design.md`. Brand: `docs/brand-guidelines.md`.
+
+⛔ **Rules:**
+
+- **The reviewed safety colours did not move.** `emergencyText`,
+  `emergencySurface`, `emergencyBorder`, and the `notice*` / `error*` /
+  `success*` families are byte-for-byte what they were. **Do not restyle a
+  safety family to match a future direction** — a direction is a preference,
+  those are a decision someone signed off on. Also untouched:
+  `DisclaimerBanner.tsx`, the intake disclaimer's copy, palette and position
+  above the input, and which screens show them.
+- **The emergency palette is exempt from the one-filled-action rule.** "Call
+  911" and the emergency card's contact call stay filled wherever they appear,
+  however many other filled controls share the screen. The ladder exists to
+  stop the app shouting; the one thing it may always shout about is how to get
+  help.
+- **Set `fontFamily`, never `fontWeight` or `fontStyle`.** Each weight is a
+  separate font file; asking Android to bolden a face that is already bold gets
+  a synthetically smeared double-bold, and `fontStyle: "italic"` shears an
+  upright face rather than using the italic.
+- **Import font faces by their per-weight subpath.** `@expo-google-fonts/*`
+  package roots `require()` every weight they ship — the first web export after
+  the redesign carried ~2 MB of fonts nobody asks for. `expo-font` is pinned to
+  `~12.0.10`; npm will resolve it to 57.x, which does not work on Expo 51.
+- **Nothing renders until the faces load, but a font *failure* never blocks** —
+  a screen painted before the faces land is painted at the wrong metrics, but
+  blocking the emergency card behind a font download would be indefensible.
+- `typography.overline` stays at **13px**. The direction drew section labels at
+  11px; small uppercase type is the first thing to fail for anyone with low
+  vision, and that accessibility floor outranks a mockup.
+- ⛔ **Do not pass `page` to make a lonely-looking form or list wider.** `form`
+  and `wide` are line-length limits, and a 1140pt line of body text is harder
+  to read than a 660pt one. Only a screen whose children actually split into
+  columns should use `page`.
+- ⛔ **What may never fill the extra space:** clinical content of any kind, and
+  **numbers about the user's health**. A "3 of 4 taken today" tile would invent
+  a clinical fact about the user. The panels that do fill it are statements
+  about the software, each restating something this file already says.
+- The intake screens were deliberately left alone. Moving a required disclaimer
+  into a side column changes its prominence, which is a reviewer's call and not
+  a layout one.
+- The serif is the app quoting and the sans is the app speaking: Literata only
+  for text a person wrote or a source published. Single-line fields stay sans —
+  an email or a ZIP is data, not prose.
+
+### ⛔ Navigation rules
+
+- **The home-screen reshuffle was a move, not a removal.** Every destination
+  that came off the home screen is on `MoreScreen`, named in full, one tap away.
+  **No route was renamed, removed, or re-parameterised.**
+  `__tests__/navigationReachability.test.ts` reads the navigator's registrations
+  and every `navigate`/`replace`/`reset` target across `src`, and fails when a
+  registered route has no way in, or something targets an unregistered route —
+  because the failure mode of a reshuffle is not a crash, it is a screen that is
+  still registered, still tested, still perfect, and that nothing reaches any
+  more. `ROOTS` names routes entered without navigation; keep it short. Nothing
+  is nested deeper than More.
+- **A screen that hides the navigator header owns its own way back.**
+  Reachability has two directions and the first version of that test checked
+  only one. `EmergencyCard` set `headerShown: false`, which also removed the
+  back button, and **a browser has no back gesture** — so every control on it
+  went deeper and it had no way out at all, with the whole suite green. It was
+  found by opening the screen in a browser. Anything setting
+  `headerShown: false` must call `goBack` itself; a test asserts it. `Login`,
+  `Signup` and `Home` are exempt for real reasons, not by oversight.
+- **"Add medication" opens the form, not the list.** The card names an action,
+  so it performs it — `MedicationEdit` with no parameters. Routing it through
+  the list would make it two taps for the thing the card says.
+- **The inline appointment is not "the next one."** MedHelp does not know when
+  an appointment is: `preferred_time` is free text by design ("Thursday
+  morning"), and the appointment rules fence adding a scheduled datetime. So the
+  home screen shows the most recently *recorded* open appointment under **MOST
+  RECENTLY RECORDED**, and a test asserts it does not say "Next". It repeats
+  "MedHelp has not contacted anyone" for a REQUESTED appointment, because a list
+  is skimmed and whether the clinic knows is the one thing a user must not
+  misread. The lookup **fails silently** — an error notice on the first screen
+  of the app, over a line of supporting detail, is the wrong trade, and
+  `AppointmentListScreen` reports its own failures properly.
+- The scope panel is kept at **every** width. Dropping it below the expanded
+  breakpoint would quietly make the scope statement a desktop-only feature.
+

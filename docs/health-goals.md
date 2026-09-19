@@ -880,3 +880,274 @@ Goal text is health free text about an identified user, so a non-local
 safe. With no endpoint configured the feature still works — the person types
 their own activities and nothing leaves the machine.
 
+
+
+---
+
+## Carried out of CLAUDE.md on 2026-09-19
+
+*CLAUDE.md was still 90,636 characters after the first restructure — over the
+limit, which means truncated, which means the fences at the bottom were not
+reliably being read. The section below is that file's own text on this topic,
+moved here verbatim. It may restate material already above it, because in
+CLAUDE.md it was the summary of this document. Nothing was dropped; CLAUDE.md
+now keeps the hard rules and points here.*
+
+### Health goals (implemented)
+
+
+A person writes down a goal, confirms the plan and daily schedule MedHelp
+proposes for it, and ticks the activities off. Detail: `docs/health-goals.md`;
+prompt reasoning and the reviewer's open questions: `docs/health-goals-prompt.md`.
+
+### ⛔ The blocking was removed on 2026-09-12. Read this first.
+
+**MedHelp now proposes a plan for any goal a person types, including a medical
+one, and no deterministic check screens what it proposes.** Two things were
+deleted at the repository owner's direct request: the `MEDICAL_GOAL` refusal
+(which is how "lose weight" and "get my blood pressure down" reached the person
+as a refusal instead of a plan), and `_FORBIDDEN`, the phrase-list veto where
+one match anywhere discarded the whole plan.
+
+⛔ **Be clear-eyed about the cost rather than reassured by what is left.** The
+only thing now constraining an authored plan is `PLAN_SYSTEM_PROMPT`. A prompt
+is an instruction that is usually followed; a phrase list was a check that
+always ran. A prompt fails open and silently. This is a materially weaker
+position than the one this file described before, and it was chosen
+deliberately — not arrived at by drift. Two tests pin the removal, so
+reinstating either is a failing suite and a conversation, not a tidy-up.
+
+⛔ **Suggestions are not clinically reviewed, and they are what everyone sees.**
+No clinician has read `PLAN_SYSTEM_PROMPT`, and since 2026-09-12 it is the
+whole of the guard rather than one layer of two. It belongs in the same review
+as `followup.py` and `dose_schedule.py` and is now clearly the most urgent of
+the three.
+
+⛔ **The safety checks are asymmetric, and origination is on the weaker side.**
+The quoting and digit checks cannot apply to a plan nobody wrote, so an
+originated row is guarded by the prompt alone, where a structured row is
+guarded by the prompt *and* the requirement that it quote the person. Almost
+every row a person sees is an originated one. **Reinstating a narrow, reviewed
+veto list is the cheapest safety work available in this feature** — it is
+deliberately not guessed at here, and it is the first thing to ask the clinical
+reviewer about.
+
+### ⛔ What still holds, and may not be removed
+
+1. **Every suggestion is labelled and confirmed.** `generated=True` reaches the
+   screen, the row reads "Suggested by MedHelp — edit it or remove it", and
+   editing a row's text clears the label because it has become the person's
+   own. Nothing is saved until they press save. **Never render a suggested row
+   without that label.**
+2. **No benefit claims.** Propose the activity and stop — "Walk after lunch",
+   never "walk after lunch to bring your blood sugar down". A benefit claim is
+   the app authoring a health claim, and it is the easiest line to break now
+   that the veto is gone.
+3. **Still no medication or clinical targets.** No dose, no supplement, no
+   change to anything prescribed, and no target figure for a weight, blood
+   pressure, blood sugar or calorie count. These are a clinician's call, and
+   refusing them is not the same as refusing to plan.
+4. **Emergency screening runs first and is untouched.** `api/goals.py` calls
+   `screen_for_emergency` before the model, and its guidance is returned
+   alongside whatever else happened.
+5. **The `structure` fallback is unchanged**, checks and all. Where the planner
+   fails, the person's own quoted words come back rather than an empty editor —
+   the same rule as a model outage in triage never being SELF_CARE.
+
+### ⛔ The prompt is an instrument: its examples, length and order are properties
+
+- **An example in a prompt is a suggestion, not an illustration.** This has cost
+  the feature two bugs. `WHAT TO PROPOSE` once illustrated a row with "Walk
+  after lunch", "Go to bed at the same time each night" and "Cook dinner at
+  home" — and those three came back *as* the plan, for goals that were not about
+  walking, sleep or cooking. The same shape produced generic titles one section
+  earlier. Copied rows are now **named as the failure rather than offered**.
+- **The absolute constraints bracket the ambition material.** Where a rule sits
+  in the prompt is part of the rule; do not reorder or pad without re-measuring.
+- **Vagueness is asked for, not checked, and that asymmetry is the honest
+  part.** A prompt asks and a check enforces. Do not describe the vagueness work
+  as a guard.
+
+### ⛔ Ambition is bounded by published guidance, never by us
+
+- **It is a ceiling to build towards, never a target to announce.** Never
+  propose more than a published adult recommendation.
+- **The floor and the ceiling count different things**, and `WEEK_SHAPE_BY_COMPLEXITY`
+  **bounds coverage, not effort** — that distinction is the whole design. A
+  discard costs the person their plan, so the bands are wide. ⛔ **Read `SCALE`
+  and the two tables as they are now worded, not as they were.**
+
+### ⛔ Citations attribute; they never assert
+
+`core/goal_evidence.py` is a closed register of published guidance. Detail:
+`docs/health-goals.md`.
+
+- **A citation claims one thing: that this KIND of activity is the subject of
+  published guidance.** It never claims the guidance endorses this plan, this
+  person, or this row's numbers.
+- **The model picks an id from a closed list and can never write a citation.**
+  It chooses which register entry applies; it does not author a publisher, a
+  quotation or a link.
+- **An unknown id becomes no citation, never the nearest one.** Same rule as a
+  misread drug name never being snapped to the nearest real drug.
+- **Only the id is stored.** The quotation and link are assembled on the way
+  out, so there is one copy of every quotation in this app.
+- **Rewriting a row drops its citation and its detail.** Both were written for
+  the sentence that was there; leaving them under new words attributes a
+  publisher's guidance to words the publisher never saw.
+- ⛔ **Nothing that estimates urgency may read this register.** A test asserts
+  it — the triage instrument and this are separate things and must stay so.
+- **Never put the publisher's name on the closed control.** "CDC ›" would lend
+  the app an authority it has not earned; the citation is folded away on the
+  screen people open every day, and ⛔ **the open/closed state is said in the
+  accessible label**, not only in the caret.
+
+### ⛔ `detail` says how, never why
+
+A row is the instruction; `detail` is one or two plain sentences saying how to
+do it on the day. Required of every suggested row — a row without one discards
+the plan, the same as a row without a schedule. **The moment a sentence
+explains what an activity will do for somebody's body or illness, the app is
+authoring a health claim.** `MAX_DETAIL_CHARS` is a crude proxy for that and is
+honest about being one: long enough to be an article is long enough to have
+started explaining.
+
+### ⛔ The structuring rule is checked, not trusted
+
+Every activity read out of the person's own words must carry a `source_phrase`
+that occurs in the submitted text, and `core/goal_structuring.py` discards the
+**whole draft** if any does not. A model that wants to add stretching to a
+walking goal has to quote "stretch" out of text that never contained it.
+**No digit may appear in an activity unless the person wrote it** — an invented
+number is the likely shape of an invented duration, distance or dose.
+
+⛔ This applies to the **fallback path only**. Suggested rows are exempt by
+construction, since nothing was written to quote. `_validate_plan` checks shape
+— a title, a day list, an `"HH:MM"` — and does not look at content at all.
+
+### ⛔ Further goal rules
+
+- **Never add a progression engine.** Nothing may increase a target because a
+  week went well; that is authoring, one week at a time, and it is exactly what
+  the substring check exists to prevent.
+- **Never add a second model to review the first.** A gate whose failure mode
+  is a silent pass is not a safety layer. The checks here are deterministic for
+  the same reason the triage rule layer is a phrase list a person can read.
+- **A refusal returns a code, never a sentence.** The strings a person reads
+  live in `_REFUSAL_NOTICES` in `api/goals.py`, because user-facing text in a
+  health app is reviewed text. `core/goal_structuring.py` must never return
+  prose.
+- **Failure is never a plan.** No endpoint, an outage, or a failed check all
+  yield an empty editor plus the server's own sentence. `_discard()` logs
+  **which check** caught a draft — the check's name only, never the value that
+  failed it, which is the person's own health text.
+- **This is not an adherence record.** A tick is a note the person made for
+  themselves; an unticked activity means nothing was ticked, not that anything
+  was missed. **No streaks, no percentages, no "3 of 4 done" tiles** — a test
+  asserts the words never appear. A tick reads "ticked off for today" or "not
+  ticked off"; ⛔ never "missed", "skipped" or "failed".
+- **An activity with no days is unscheduled, not daily.** It reads "Whenever
+  you choose" and is never marked due — nobody chose those days. Due rows read
+  ⛔ **"Due today", not "Today"**, because the tab bar already has a tab called
+  Today and one word meaning two things is worse for a screen reader.
+- **A time is a local wall clock, never a UTC instant**, and is refused rather
+  than guessed. A row with no usable day list or time discards the whole plan —
+  a silently half-scheduled plan is harder to notice than an absent one.
+  `cadence` and `times_per_week` are **derived from `days`** server-side, so a
+  plan cannot say "three times a week" beside four ticked days.
+- A `structure` row carries **no schedule at all** — a clock time is digits
+  nobody wrote.
+- A completion is a **local calendar day** sent by the client, never a UTC
+  instant. Deleting a goal deletes its activities and every tick, in the
+  endpoint as well as by foreign key.
+
+### ⛔ Editing a saved goal
+
+- **Rows are matched by `id`, and that is the whole design.** A `GoalCompletion`
+  points at an activity id, so replacing the activity rows on every save — the
+  easy implementation — would silently discard the person's ticks for every goal
+  they ever edited. A row that keeps its id is edited in place and keeps its
+  history; a row with no id is new; a row the payload omits is deleted along
+  with its completions, explicitly, because SQLite does not enforce the cascade.
+- **An id that is not on this goal is a 400, never a new row.** Treating it as
+  new would let a stale client detach a row from its ticks with nothing
+  appearing to go wrong. Sending one id twice is refused for the same reason —
+  the loser would vanish in silence.
+- **The editor proposes nothing.** No description box and no call to
+  `draftGoal`; the model is not consulted from that screen at all. Editing is
+  not an occasion for MedHelp to write more health content. A saved row is never
+  relabelled "Suggested by MedHelp" — the person confirmed every row when they
+  pressed save, so the label would be false.
+- **`description` is not editable and must not become so.** It is the text the
+  person originally wrote and what `structure`'s quoting check ran against — the
+  record of what was asked for, not a field.
+- ⛔ **`detail` and `evidence_domain` are assigned on every edit, and every
+  column on `goal_activities` must be.** Leaving them out was silent data loss:
+  an edit that changed only a time would have stripped the "how" line and the
+  published citation off *every row of the goal*, with nothing on screen saying
+  so. Two tests pin it.
+- **The clearing of those two is deliberate and belongs to the client.** A
+  citation attributes published guidance to the sentence MedHelp wrote, so when
+  somebody replaces that sentence, leaving the publisher's name under it would
+  attribute their guidance to words the publisher never saw.
+  `GoalPlanEditor.updateText` clears them. That is why the server **assigns
+  rather than merges** — a "keep what was there" merge could not express it.
+- ⛔ **`ActivityOut` returns `evidence_domain` beside the resolved `evidence`.**
+  `evidence` is rebuilt server-side on every read, which keeps one copy of every
+  quotation in this app, and it cannot be turned back into an id. Without the id
+  no editor could say "this row is unchanged". Only the id travels in either
+  direction; the publisher, quotation and link stay the server's.
+- ⛔ **`GoalCreateScreen` does not use `GoalPlanEditor`, and the duplication is
+  known.** The create screen renders a draft's provenance, none of which applies
+  to a saved goal. What is duplicated is the day chips, the time check and the
+  React Native Web accessibility workaround. Folding them together is worth
+  doing; it was not worth doing inside a merge resolution.
+- `GoalPlanEditor`'s rows carry their own `source` and `suggested` labels rather
+  than parallel arrays indexed by position, which is what stops a label landing
+  on the wrong line after a removal. A correctness question, not a cosmetic one.
+
+The goals screens deliberately do **not** use `DisclaimerBanner` — which
+screens show it is fenced, and adding it to a new screen is a reviewer's call.
+⛔ They carry a plain statement instead, rewritten on 2026-09-12, and **the old
+wording must not come back**: "MedHelp tracks what you decide to do, does not
+decide what your goals should be" stopped being true the moment the app began
+proposing plans. A test asserts the current text.
+
+**Not built, deliberately:** reminders for a goal, and any weekly review.
+Neither is hard, but both add surface to an instrument no clinician has read.
+
+### ⛔ Goals may use a different model endpoint from triage
+
+`GOALS_LLM_BASE_URL` / `GOALS_LLM_MODEL` / `GOALS_LLM_API_KEY`, each falling
+back to its `LLM_*` counterpart when empty. One set of settings used to serve
+every model caller, so pointing them at a hosted provider to get goal
+suggestions also started sending **symptom descriptions** there — the most
+sensitive free text in the app, belonging to the feature with the standing
+release blocker. **A data-handling decision must not happen as a side effect of
+switching on a different feature.**
+
+- **Unset, the overrides change nothing** — asserted by a test, because that
+  property is the whole reason this was safe to add.
+- **A Groq key on its own is enough**, read in `goals_endpoint()` ⛔ **and
+  nowhere else, and it must stay that way.** A key that switched on both
+  features at once would make the most sensitive free text in the app a side
+  effect of switching on goal suggestions, which is precisely what the split
+  exists to prevent. Precedence: an explicit `GOALS_LLM_BASE_URL` wins, then
+  `GROQ_API_KEY`, then `LLM_*` — so a leftover key cannot redirect goals away
+  from an endpoint someone chose deliberately, including a local one. A bare key
+  is only reassigned when it carries Groq's own `gsk_` prefix and has no base
+  URL beside it, so the vendor is read off the key rather than assumed.
+- The shortcut is through the configuration, never the disclosure: a hosted
+  endpoint still logs the transmission warning naming Groq and the goal text.
+- ⛔ **`tests/conftest.py` must blank every one of these.** The autouse
+  `_no_live_model` guard exists because the suite once made real calls from a
+  developer's `.env`; each new setting is a new hole in it.
+- **Nothing from a response body reaches the application log.** Failures report
+  a type, an HTTP status, and a provider error *code* only when it is on the
+  allowlist — ⛔ it is an allowlist, not "log whatever we were given", because a
+  provider error message can quote the request, which is the user's own health
+  text. A test asserts an unfamiliar body contributes nothing but its status.
+- `llm.completions_url()` corrects only the two base URLs people actually
+  mistype. ⛔ Nothing else is guessed — rewriting an unknown host would hide the
+  real mistake.
+

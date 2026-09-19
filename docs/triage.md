@@ -710,3 +710,165 @@ the tier is already URGENT by default, so "Suddenly" usually changes nothing.
 It bites only where round-one answers bring a self-care phrase into a
 description that had none, and round two then takes it back out.
 
+
+
+---
+
+## Carried out of CLAUDE.md on 2026-09-19
+
+*CLAUDE.md was still 90,636 characters after the first restructure — over the
+limit, which means truncated, which means the fences at the bottom were not
+reliably being read. The section below is that file's own text on this topic,
+moved here verbatim. It may restate material already above it, because in
+CLAUDE.md it was the summary of this document. Nothing was dropped; CLAUDE.md
+now keeps the hard rules and points here.*
+
+### ⛔ BLOCKING: symptom intake requires clinical and legal sign-off
+
+
+The symptom-intake feature estimates how soon a user should be seen —
+EMERGENT, URGENT, or SELF_CARE — from free text. **It must not be put in front
+of real users until both of the following are signed off and recorded here.**
+This is a release blocker, not a recommendation.
+
+1. **A licensed clinician** must review the tier definitions, the system
+   prompt, the deterministic red-flag lists, the follow-up questions and the
+   dose-schedule phrase lists, plus a corpus of real classifications. Nothing
+   in this feature was written or reviewed by a clinician; the tier boundaries
+   are a software engineer's construction.
+2. **Legal counsel** must determine whether this is a regulated medical device
+   in each target market. Software that recommends time-critical care ("go to
+   an ER now") from symptom input is materially different from reference
+   content, and the earlier informational-only posture of this app does not
+   cover it. Also unresolved: liability for an under-triage, and what the audit
+   trail must retain.
+
+What a reviewer must be told — each expanded in `docs/triage.md`:
+
+- The classifier has **no clinically validated error profile**. Two measurement
+  harnesses exist (`scripts/triage_eval/`, and the 10,000-description
+  `common_illness/` corpus). ⛔ **They establish consistency with this app's own
+  documented intent and nothing more.** Gold labels were assigned by a software
+  engineer, no figure from either may be reported as clinical accuracy, and the
+  release blocker is untouched.
+- ⛔ **A presentation is labelled EMERGENT in the corpus only where
+  `emergency.py` already defines a category covering it.** Appendicitis,
+  testicular torsion, ketoacidosis and a pulmonary embolism described without a
+  named red flag are labelled URGENT with `escalation_deferred`, because
+  inventing a thirteenth red-flag category is a clinician's call this file
+  fences. Those are reported, not fixed.
+- ⛔ **Under-triaged presentations are REPORTED, NOT FIXED.** Fixing them means
+  editing fenced phrase lists, which nobody has approved. They are pinned in
+  `KNOWN_UNDER_TRIAGED`, making the suite a **sensitivity ratchet**: a new
+  under-triaged case fails the build, and so does fixing a pinned one without
+  recording the approval.
+- The audit trail (`intake_assessments`) exists but **nobody is reviewing it**.
+  Assign that owner.
+- Intake descriptions are the most sensitive free text in the app and are **not
+  encrypted at rest**.
+- **The clarifying questions are part of the instrument**, not UI copy — which
+  questions get asked shapes what the classifier sees. So is the rule that
+  picks round two's third question, and the rule that skips a round-one
+  question the description already answered.
+- ⛔ **`model_confidence` is recorded and never acted on.** It must not become
+  an input to the tier without review: a confidence threshold that softened a
+  tier would invert the one-directional safety property the design rests on.
+- ⛔ **The follow-up questions can manufacture an escalation.** Round two offers
+  "Suddenly" as a choice and `_ESCALATING_MODIFIERS` contains it, so an answer
+  the app offered can override a self-care match. Over-triage is the intended
+  direction, so this is not a bug in the safety model — but a reviewer should
+  decide whether an offered answer should weigh the same as volunteered text.
+
+### How the safety architecture works
+
+Two layers. **The rule layer is the product; the model is an optional upgrade.**
+Read `backend/app/core/rules_triage.py`, `backend/app/core/triage.py` and
+`docs/triage.md` before changing any of it.
+
+**Layer 1 — rules (`rules_triage.py`). Always runs. No key, no network, no
+cost.** Explicit phrase lists a clinician can read line by line, evaluated in
+order: emergency red flags → urgent indicators → recognised self-limiting
+complaint → default. Deterministic, so the same input always gives the same
+tier — which is what a clinical review needs.
+
+**Layer 2 — the model (`triage.py`). Optional.** Consulted only when
+credentials exist; skipped silently otherwise. A missing key degrades quality,
+it does not break the feature. It has two interchangeable implementations — the
+agentic loop in `deduction.py` when `LLM_BASE_URL` + `LLM_MODEL` are set,
+otherwise a one-shot Anthropic call if those creds exist. Both return the same
+`ModelVerdict` and are reconciled the same way, so choosing a source is not
+choosing an answer.
+
+⛔ **Five properties hold, each asserted by tests. Do not weaken one:**
+
+1. **SELF_CARE must be positively earned.** It requires a match against a
+   recognised self-limiting complaint *and* no escalating modifier. Anything
+   unrecognised resolves to URGENT. Not understanding a description is not the
+   same as it being harmless — this is the single most important rule here.
+2. Emergency red-flag screening runs **first** and sets a floor of EMERGENT.
+3. Neither layer can **lower** the other's tier. They reconcile with `max()`,
+   so either can escalate and neither can de-escalate.
+4. The displayed reasoning never argues for a lower tier than the one shown.
+5. Failure is **never** SELF_CARE. A model outage falls back to the rule tier;
+   there is no path where an error produces reassurance.
+
+In the agentic path, `conclude` is refused until both screens have been read,
+the screens **take no arguments** so they always run over the description as
+submitted, and the loop is bounded — not concluding is an outage, not a tier.
+⛔ **There is one copy of the instrument**: the tier definitions live in
+`SYSTEM_PROMPT` in `triage.py` and are passed in. `deduction.py` is machinery,
+not judgement.
+
+**Adding or changing a rule** (needs approval — the modules are fenced): add
+the phrase to the right list in `rules_triage.py`, add a test, and remember the
+lists are lay language — people write "my face is drooping", not "face
+drooping". Match both orders.
+
+⛔ **The set of concept combinations in `symptom_concepts.py` is fenced.** A
+fourth combination is a new clinical claim; the three that exist were read out
+of emergency copy the app already shows. A test fails if one is added. The
+combinator runs only **after** every literal phrase has been tried, so it can
+only turn a `None` into guidance, and it defines **no user-facing copy at all**.
+
+⛔ **No protocol content may be committed to this repository** — not a sample,
+not a fixture. `protocol_content.py` is a loader for licensed,
+physician-reviewed content and ships empty. Engineer-written content loaded
+through it would be strictly worse than the phrase lists, which at least say
+plainly what they are. `PROTOCOL_CONTENT_DIR` is ⛔ **not a feature flag**; it
+stands for a signed content licence. It **fails closed** — one malformed
+protocol rejects the whole set — and requires each disposition to state its own
+tier, because deciding that "be seen within 24 hours" means URGENT is a
+clinical judgement.
+
+⛔ **Symptom intake is deliberately NOT rate limited.** A 429 on
+`POST /intake/assess` is a refusal to screen someone who may be describing
+chest pain. The cost exposure is real, but the limit belongs at a reverse proxy
+tuned by someone who has read this architecture.
+
+### Emergency routing (implemented)
+
+`backend/app/core/emergency.py` screens every symptom query for red-flag
+language before the content lookup runs: cardiac, breathing, stroke,
+bleeding/trauma, anaphylaxis, loss of consciousness, self-harm, and
+overdose/poisoning.
+
+- Screening is deliberately **over-inclusive**. A false positive costs the user
+  a few seconds; a miss could cost a life.
+- Guidance renders **above all other content**, and results are shown beneath
+  it rather than suppressed.
+- It routes to 911 (or 988 for self-harm) and never names a condition or a
+  treatment.
+- It is returned **even when MedlinePlus is down**, so a content outage can
+  never swallow the instruction to call for help.
+- The general "When to see a doctor" copy is intentionally non-specific.
+  Condition-specific criteria ("seek care if your fever exceeds X") would be
+  clinical content this app may not author.
+- `normalize_query` inserts a space at a lowercase-to-uppercase boundary before
+  matching, so a pasted list arriving glued together still screens. It can only
+  make screening *more* sensitive. ⛔ **Known limit:** an all-capitals glued
+  list has no case boundary to split on and is still missed.
+
+The phrase lists are signposting terms drawn from public emergency
+warning-sign guidance. **They have not been reviewed by a clinician** — that
+review is required before release.
+
