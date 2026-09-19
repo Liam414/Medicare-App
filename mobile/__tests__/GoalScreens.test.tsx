@@ -76,6 +76,7 @@ function goal(overrides: Partial<HealthGoal> = {}): HealthGoal {
         completedToday: false,
         detail: null,
         evidence: null,
+        evidenceDomain: null,
       },
     ],
     ...overrides,
@@ -668,6 +669,7 @@ describe("HealthGoalsScreen", () => {
             completedToday: true,
             detail: null,
             evidence: null,
+            evidenceDomain: null,
           },
         ],
       })
@@ -740,6 +742,7 @@ describe("HealthGoalsScreen", () => {
             completedToday: false,
             detail: null,
             evidence: null,
+            evidenceDomain: null,
           },
         ],
       }),
@@ -769,6 +772,7 @@ describe("HealthGoalsScreen", () => {
             completedToday: false,
             detail: null,
             evidence: null,
+            evidenceDomain: null,
           },
         ],
       }),
@@ -850,6 +854,7 @@ describe("HealthGoalsScreen", () => {
               completedToday: true,
               detail: null,
               evidence: null,
+              evidenceDomain: null,
             },
           ],
         })
@@ -907,6 +912,7 @@ describe("HealthGoalsScreen", () => {
             completedToday: false,
             detail: "Put your shoes by the door the night before.",
             evidence: CITATION,
+            evidenceDomain: "aerobic_activity",
           },
         ],
       });

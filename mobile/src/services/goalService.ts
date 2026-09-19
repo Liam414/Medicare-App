@@ -164,6 +164,15 @@ export interface GoalActivity {
   completedToday: boolean;
   detail: string | null;
   evidence: Evidence | null;
+  /**
+   * The id behind `evidence`, so an edit can send the row back unchanged.
+   *
+   * ⛔ `evidence` is the resolved citation and cannot be turned back into an
+   * id, so without this the edit screen would clear the citation off every row
+   * it saved. Only the id travels in either direction — the publisher, the
+   * quotation and the link stay the server's.
+   */
+  evidenceDomain: string | null;
 }
 
 export interface HealthGoal {
@@ -194,6 +203,7 @@ interface ApiActivity {
   completed_today: boolean;
   detail: string | null;
   evidence: ApiEvidence | null;
+  evidence_domain: string | null;
 }
 
 interface ApiGoal {
@@ -250,6 +260,7 @@ function toActivity(raw: ApiActivity): GoalActivity {
     completedToday: raw.completed_today,
     detail: raw.detail ?? null,
     evidence: toEvidence(raw.evidence),
+    evidenceDomain: raw.evidence_domain ?? null,
   };
 }
 
@@ -411,6 +422,13 @@ export async function updateGoal(
         days: activity.days,
         // "" would fail the server's HH:MM check; no time is null.
         time_of_day: activity.timeOfDay || null,
+        // ⛔ Sent, not omitted. The server assigns these rather than merging,
+        // so leaving them out would clear the "how" line and the citation off
+        // every row the person edited — and sending them back is also how the
+        // editor records that it *did* clear them, on a row whose text was
+        // rewritten.
+        detail: activity.detail || null,
+        evidence_domain: activity.evidenceDomain || null,
       })),
     }),
     fallbackMessage: "We couldn't save your changes. Please try again.",

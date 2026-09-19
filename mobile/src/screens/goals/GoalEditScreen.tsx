@@ -83,6 +83,11 @@ export function GoalEditScreen({ navigation, route }: Props) {
             preferredTime: activity.preferredTime,
             days: activity.days,
             timeOfDay: activity.timeOfDay,
+            // ⛔ Carried, not dropped. The server assigns these on an edit, so
+            // a row loaded without them would save back with its "how" line
+            // and its citation cleared — silently, on rows nobody touched.
+            detail: activity.detail,
+            evidenceDomain: activity.evidenceDomain,
             // A saved row is the person's own, whoever first drafted it: they
             // confirmed it by pressing save. Nothing here is relabelled as
             // MedHelp's suggestion on the way back in.
