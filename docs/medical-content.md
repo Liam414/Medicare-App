@@ -1,7 +1,8 @@
 # Medical content: where it comes from
 
-*Moved out of `CLAUDE.md` on 2026-09-19, verbatim, to bring that file back under its size limit. Nothing here was rewritten or dropped. `CLAUDE.md` keeps the rules a reader must not miss and points here for the reasoning.*
+Detail behind CLAUDE.md, section "Medical content". The rules in CLAUDE.md are binding; this file is the reasoning, the measurements and the known limits.
 
+## Medical content: where it comes from
 
 The app never authors medical content. All symptom and condition text is
 fetched from **MedlinePlus**, published by the US National Library of Medicine

@@ -1,7 +1,8 @@
-# Medication label scanning (implemented)
+# Medication label scanning
 
-*Moved out of `CLAUDE.md` on 2026-09-19, verbatim, to bring that file back under its size limit. Nothing here was rewritten or dropped. `CLAUDE.md` keeps the rules a reader must not miss and points here for the reasoning.*
+Detail behind CLAUDE.md, section "Medication label scanning".
 
+## Medication label scanning (implemented)
 
 A user can photograph a prescription label instead of typing the medication in.
 Manual entry is unchanged and remains the primary path.

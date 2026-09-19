@@ -41,6 +41,9 @@ function provider(overrides = {}) {
     postalCode: "10001",
     sourceName: "NPPES NPI Registry, US Centers for Medicare & Medicaid Services",
     distanceMiles: null,
+    schedulingUrl: null,
+    schedulingSystem: null,
+    schedulingKind: null,
     ...overrides,
   };
 }
@@ -141,6 +144,9 @@ describe("ProviderSearchScreen", () => {
           npi: "1000000002",
           name: "Unknown Distance Clinic",
           distanceMiles: null,
+          schedulingUrl: null,
+          schedulingSystem: null,
+          schedulingKind: null,
         }),
       ])
     );

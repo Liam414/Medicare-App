@@ -1,7 +1,8 @@
-# ⛔ BLOCKING: symptom intake requires clinical and legal sign-off
+# Symptom triage: the blocker, the architecture, and the history
 
-*Moved out of `CLAUDE.md` on 2026-09-19, verbatim, to bring that file back under its size limit. Nothing here was rewritten or dropped. `CLAUDE.md` keeps the rules a reader must not miss and points here for the reasoning.*
+Detail behind CLAUDE.md, sections "BLOCKING: symptom intake" and "Emergency routing". The release blocker and the fences are stated in CLAUDE.md and are binding; this file carries the reasoning, the measurement results, and the record of fixed and reported bugs.
 
+## ⛔ BLOCKING: symptom intake requires clinical and legal sign-off
 
 The symptom-intake feature (`backend/app/core/triage.py`) estimates how soon a
 user should be seen — EMERGENT, URGENT, or SELF_CARE — from free text, using a
@@ -243,6 +244,31 @@ Symptom descriptions are the most sensitive free text in this app.
   the request, which is the user's description. A test asserts it.
 - Defaults are empty, so out of the box there is no model layer and no
   transmission.
+
+## Emergency routing (implemented)
+
+`backend/app/core/emergency.py` screens every symptom query for red-flag
+language before the content lookup runs: cardiac, breathing, stroke,
+bleeding/trauma, anaphylaxis, loss of consciousness, self-harm, and
+overdose/poisoning.
+
+- Screening is deliberately **over-inclusive**. A false positive costs the
+  user a few seconds; a miss could cost a life.
+- Guidance renders **above all other content** on the screen, and results are
+  shown beneath it rather than suppressed.
+- It routes to 911 (or 988 for self-harm) and never names a condition or a
+  treatment.
+- It is returned **even when MedlinePlus is down**, so a content outage can
+  never swallow the instruction to call for help.
+
+The phrase lists are signposting terms drawn from public emergency
+warning-sign guidance. **They have not been reviewed by a clinician** — that
+review is required before release.
+
+The general "When to see a doctor" copy is intentionally non-specific.
+Condition-specific criteria ("seek care if your fever exceeds X") would be
+clinical content this app is not permitted to author.
+
 
 ### Natural phrasing missed by literal phrase matching (FIXED 2026-09-06/07)
 
@@ -683,29 +709,4 @@ questions are only asked when the rules recognised nothing, and in that case
 the tier is already URGENT by default, so "Suddenly" usually changes nothing.
 It bites only where round-one answers bring a self-care phrase into a
 description that had none, and round two then takes it back out.
-
-
-## Emergency routing (implemented)
-
-`backend/app/core/emergency.py` screens every symptom query for red-flag
-language before the content lookup runs: cardiac, breathing, stroke,
-bleeding/trauma, anaphylaxis, loss of consciousness, self-harm, and
-overdose/poisoning.
-
-- Screening is deliberately **over-inclusive**. A false positive costs the
-  user a few seconds; a miss could cost a life.
-- Guidance renders **above all other content** on the screen, and results are
-  shown beneath it rather than suppressed.
-- It routes to 911 (or 988 for self-harm) and never names a condition or a
-  treatment.
-- It is returned **even when MedlinePlus is down**, so a content outage can
-  never swallow the instruction to call for help.
-
-The phrase lists are signposting terms drawn from public emergency
-warning-sign guidance. **They have not been reviewed by a clinician** — that
-review is required before release.
-
-The general "When to see a doctor" copy is intentionally non-specific.
-Condition-specific criteria ("seek care if your fever exceeds X") would be
-clinical content this app is not permitted to author.
 

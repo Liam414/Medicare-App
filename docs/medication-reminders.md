@@ -1,7 +1,8 @@
-# Medication reminders (implemented)
+# Medication reminders and refill alerts
 
-*Moved out of `CLAUDE.md` on 2026-09-19, verbatim, to bring that file back under its size limit. Nothing here was rewritten or dropped. `CLAUDE.md` keeps the rules a reader must not miss and points here for the reasoning.*
+Detail behind CLAUDE.md, section "Medication reminders".
 
+## Medication reminders (implemented)
 
 A user can set daily times for a medication and be notified at each one. The
 times come from a suggestion the user confirms; nothing schedules itself.

@@ -1,7 +1,8 @@
-# Appointments and provider search (implemented)
+# Appointments and provider search
 
-*Moved out of `CLAUDE.md` on 2026-09-19, verbatim, to bring that file back under its size limit. Nothing here was rewritten or dropped. `CLAUDE.md` keeps the rules a reader must not miss and points here for the reasoning.*
+Detail behind CLAUDE.md, section "Appointments and provider search". The option analysis for real booking is in appointment-booking.md.
 
+## Appointments and provider search (implemented)
 
 A user can search a real provider directory, open a provider, and record an
 appointment. The record lands in the appointment list, which is the same

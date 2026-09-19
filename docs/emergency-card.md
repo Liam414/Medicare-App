@@ -1,7 +1,8 @@
-# Emergency card (implemented)
+# Emergency card
 
-*Moved out of `CLAUDE.md` on 2026-09-19, verbatim, to bring that file back under its size limit. Nothing here was rewritten or dropped. `CLAUDE.md` keeps the rules a reader must not miss and points here for the reasoning.*
+Detail behind CLAUDE.md, section "Emergency card".
 
+## Emergency card (implemented)
 
 A screen the user fills in once — allergies, known conditions, blood type, and
 who to call — that is readable in one tap from the home screen and works with

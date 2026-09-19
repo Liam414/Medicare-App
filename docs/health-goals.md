@@ -1,7 +1,8 @@
-# Health goals (implemented)
+# Health goals
 
-*Moved out of `CLAUDE.md` on 2026-09-19, verbatim, to bring that file back under its size limit. Nothing here was rewritten or dropped. `CLAUDE.md` keeps the rules a reader must not miss and points here for the reasoning.*
+Detail behind CLAUDE.md, section "Health goals". Prompt reasoning and the reviewer's open questions are in health-goals-prompt.md; the mutation-testing work that verifies these rules is in mutation-testing.md.
 
+## Health goals (implemented)
 
 A person writes down a goal, confirms the plan and daily schedule MedHelp
 proposes for it, and ticks the activities off. Reasoning and the reviewer's
@@ -92,162 +93,6 @@ Two tests hold the shape:
   duplication is the point, not waste**, and a test fails if either copy goes.
   Verified by deleting the early copy and watching it fail.
 
-#### ⛔ A passing suite is evidence about the tests, not about the code
-
-`backend/scripts/mutation_check.py` breaks each rule these features claim to
-enforce and checks the suite notices. A mutation that **survives** is a rule
-nothing is actually testing.
-
-    python backend/scripts/mutation_check.py            # everything
-    python backend/scripts/mutation_check.py goals
-    python backend/scripts/mutation_check.py triage
-
-⛔ **It never touches the working tree.** Every mutation is applied to a
-throwaway **copy** of `backend/`, and the suite runs there. The first version
-edited files in place and restored them in a `finally`, which leaves a window
-where an interrupted run strands a mutated source file — observed once, on a
-real run. Untidy for `goal_structuring.py`; unacceptable for `triage.py`, so
-the design changed rather than the reassurance.
-
-⛔ **The triage group reads fenced modules and changes none of them.** This
-file forbids modifying `triage.py`, `rules_triage.py` and `emergency.py`, and
-permits adding tests for them. This adds no test to them and modifies nothing:
-it copies, breaks the copy, and deletes it. `git status` after a run confirms
-it.
-
-⛔ **All five of the properties listed under "How the safety architecture
-works" are probed, and all five are genuinely caught.** That section says they
-are "each asserted by tests"; this is the first time that claim has been
-checked rather than trusted, and it holds:
-
-| | mutation | |
-|---|---|---|
-| 1 | the rules default to SELF_CARE instead of URGENT | caught |
-| 2 | a red-flag match returns URGENT instead of EMERGENT | caught |
-| 3 | `max()` becomes `min()` in `_reconcile` | caught |
-| 3b | the model tier simply replaces the rule tier | caught |
-| 4 | the model supplies the reasoning even when its tier lost | caught |
-| 5 | a model outage produces SELF_CARE instead of the rule tier | caught |
-
-Property 1 is the one this file calls "the single most important rule here",
-and property 5 is the one that guarantees a broken model never reassures
-anybody. Both are load-bearing.
-
-⛔ **This is not clinical validation and does not touch the release blocker.**
-It says the tests fail when the code stops doing what this file says it does.
-Whether what this file says is clinically right is the question a clinician has
-to answer, and nothing here goes near it.
-
-#### Three "closed" findings are now verified as actually closed
-
-The `privacy` group probes the data-handling rules this file states and
-attaches "a test asserts it" to. Five, all caught — and three of them are
-items listed above under **Closed (fixed, with tests)**, which until now had
-only ever been *recorded* as closed:
-
-| rule | |
-|---|---|
-| a rejected value is not echoed back in a 422 (closed finding 1) | caught |
-| SQLAlchemy does not put bound values into its exception text (closed finding 5) | caught |
-| `BookingIdentity.__repr__` is redacted | caught |
-| `appointments` gains no column that could hold an identity | caught |
-| `provider_locations` gains no column saying who looked | caught |
-
-The last two are the structural ones: the test checks the mapped table, so a
-column added by any route is caught — including the near-misses this file
-names, `patient_name` and a `user_id`. Adding either one now fails, which is
-what those tests promised.
-
-#### Data that must not outlive what it described
-
-The `integrity` group, four rules, all caught: deleting a medication takes its
-reminders, deleting a goal takes its ticks, `forecast()` never gains a
-`frequency` argument, and a **fourth** concept combination fails
-`test_the_set_of_combinations_is_fenced`. The first is the one this file calls
-"not untidy data, it is an alarm telling someone to take a medication they
-have stopped", and SQLite does not enforce the cascade — so that test is
-load-bearing in the literal sense.
-
-⛔ **A mutation that changes nothing reports SURVIVED, and looks exactly like
-a missing test.** That happened here: `db.query(...).delete()` was rewritten
-to `_unused = db.query(...)`, which still calls `.delete()` on the same chain.
-It read as a cascade nobody tested; the cascade was fine and the mutation was
-worthless. The anchor count catches a mutation that could not be applied;
-nothing can catch one that applied and meant nothing. **Read the diff a
-survivor implies before believing it** — the script's own docstring says so
-where someone will be looking.
-
-#### The client has one too
-
-`mobile/scripts/mutation_check.mjs`, same idea on the other side of the wire,
-and for the same reason: two of the four "green for the wrong reason" tests
-were here. Six rules, all caught:
-
-| rule, in this file's own words | |
-|---|---|
-| an empty emergency-card field renders "Not provided", never a missing row | caught |
-| the session token stays in `sessionStorage`, never `localStorage` | caught |
-| the goals screen is not an adherence record — no "3 of 4 done" | caught |
-| the tick says in its label whether it is ticked | caught |
-| the source disclosure says in its label whether it is open | caught |
-| a closed disclosure renders no citation at all | caught |
-| the emergency card is never posted to a server | caught |
-| a fired reminder never phones home with the medication name | caught |
-
-The second is worth singling out. This file claims both halves of the
-storage split are "asserted by tests so that 'fixing the inconsistency' in
-either direction fails the suite" — moving the token to `localStorage` does
-fail, so that claim holds.
-
-⛔ **The scratch copy lives under `mobile/` rather than the system temp
-directory**, because jest resolves `node_modules` by walking up from
-`rootDir`. It is removed in a `finally` and `.gitignore`d for the run that is
-interrupted anyway.
-
-It exists because that failure happened **four times in one sitting**, on this
-feature, under a green suite:
-
-- the goals screen's ticks asserted `accessibilityState`, which passes in jsdom
-  whether or not anything reaches the DOM;
-- the shape bands' attribution rule explained every rejection once the floor
-  was set to something unsatisfiable;
-- the prompt-ordering test matched a cross-reference instead of a heading, and
-  would have passed whatever the ordering was;
-- and **the two `complexity` tests, found by this script**. Both used a
-  one-row plan, so replacing the discard with `complexity = "moderate"` still
-  failed the moderate *row count*. They demonstrated "one row is not three
-  rows" while claiming to demonstrate "a missing reading is refused". They now
-  use a plan that moderate would accept, and
-  `test_the_fixture_those_two_rely_on_really_would_be_accepted` fails if that
-  stops being true.
-
-All eighteen mutations are caught as of 2026-09-14, including the caveat, the
-evidence register refusing a nearest match, emergency screening running first,
-and a suggested row staying labelled `generated`.
-
-⛔ **An anchor that does not apply is reported, never counted as caught.** Two
-were wrong on their first run and the guard said so instead of printing a
-pass: a multi-line anchor written with bare line feeds matched nothing against
-CRLF files, and `screen_for_emergency` matched three places (the docstring,
-the import, the call). The in-place version had silently replaced all three.
-
-- ⛔ **A survivor is not fixed by deleting the mutation.** Fix the test.
-- Not part of `pytest` — it runs the suite once per mutation.
-
-⛔ **Suggestions are not clinically reviewed, and they are what everyone
-sees.** They are written by a software engineer; no clinician has read
-`PLAN_SYSTEM_PROMPT`, and since 2026-09-12 it is the whole of the guard rather
-than one layer of two. It belongs in the same review as `followup.py` and
-`dose_schedule.py` and is now clearly the most urgent of the three.
-
-⛔ **The safety checks are asymmetric, and origination is on the weaker side.**
-The quoting and digit checks below cannot apply to a plan nobody wrote, so an
-originated row is now guarded by the prompt alone, where a structured row is
-guarded by the prompt *and* the requirement that it quote the person. Almost
-every row a person sees is an originated one. **Reinstating a narrow, reviewed
-veto list is the cheapest safety work available in this feature** — it is
-deliberately not guessed at here, and it is the first thing to ask the
-clinical reviewer about.
 
 ### The plan carries a daily schedule
 
@@ -749,58 +594,6 @@ citation open, because there it is part of deciding whether to accept a row.
   row means nothing was ticked, and this is not an adherence record. A test
   asserts the forbidden words never appear in the accessible name.
 
-### ⛔ `accessibilityState` does nothing on web. Say state in the label.
-
-Not a quirk of one component — a property of the library. **React Native Web
-0.19.13 never reads `accessibilityState` at all**: it is absent from
-`forwardedProps` and from `createDOMProps`, which take `aria-checked`,
-`aria-expanded` and `aria-selected` instead. The only places it is read are
-the legacy `TouchableWithoutFeedback` and `isDisabled`, so on a `Pressable`
-it is silently dropped and the DOM carries no state attribute at all.
-
-It is still the right thing on native, so **keep it and add the state to
-`accessibilityLabel`** — that is the one thing that works on every platform
-regardless of what the library emits. `GoalCreateScreen`'s day chips,
-`HealthGoalsScreen`'s ticks and its source disclosure all do this.
-
-⛔ **A test that asserts `accessibilityState` is not evidence about a
-browser.** It passes in jsdom whether or not anything reaches the DOM, which
-is how both goals bugs survived a green suite. Assert the label.
-
-#### The other six are fixed too, and a test now holds the rule
-
-Found by grepping `accessibilityState` across `mobile/src` after the two goals
-bugs. Checking each against React Native Web's source rather than assuming
-split them in two:
-
-| Call site | Verdict |
-|---|---|
-| `screens/intake/SymptomIntakeScreen.tsx` | **was broken** — a reader could not tell whether the consent box was ticked |
-| `components/AppNav.tsx`, `components/SegmentedControl.tsx` | **was broken** — every tab announced identically |
-| `ProviderSearchScreen`, `BookingIdentityScreen`, `MedicationRemindersScreen` | **was broken** — three radio groups announcing no selection |
-| `components/AppButton.tsx` | fine: it passes `disabled`, and RNW's `Pressable` sets `aria-disabled` from **that prop** |
-| `components/TextField.tsx` | fine: it passes `editable`, and RNW's `TextInput` derives the DOM state from **that prop** |
-
-The consent checkbox was the worst of them: a control whose entire job is to
-make agreement unambiguous, on the most sensitive text in the app. ⛔ That edit
-changes no disclaimer and no escalation copy, but it is still text on the
-intake screen, so it belongs in the clinical reviewer's read of that screen —
-the same standing as the URGENT hand-off.
-
-`mobile/__tests__/accessibleState.test.ts` holds the rule for everything
-added later. ⛔ **It reads the source rather than rendering**, because in jsdom
-`accessibilityState` is on the element whether or not anything reaches the DOM
-— that is exactly why the ticks' own test passed while a reader was told
-nothing. It anchors each region on `accessibilityRole` (unique per call site)
-and asserts the label varies. Two cruder detectors were tried and both
-reported already-fixed sites: slicing to the next `>` truncates on `=>` and on
-these files' own ⛔ comments, and a plain character window reaches back into
-the previous element and finds *its* label.
-
-⛔ **`EXEMPT` is not a snooze button.** It is for call sites where the state
-genuinely reaches the DOM another way, each entry has to say which route, and
-a test asserts the reasons are real. Adding a file to it to make the suite
-green is how a list like this becomes the place bugs go to be forgotten.
 
 ### The structuring rule is checked, not trusted
 
@@ -891,10 +684,38 @@ record of what was asked for, not a field.
 `_validate_plan` derives them, so an edit cannot produce "three times a week"
 beside four ticked days whatever the client sends.
 
-`GoalPlanEditor` is the editor both screens share. Its rows carry their own
-`source` and `suggested` labels rather than parallel arrays indexed by
-position, which is what stops a "Suggested by MedHelp" label landing on the
-wrong line after a removal — a correctness question, not a cosmetic one.
+⛔ **`detail` and `evidence_domain` are assigned on every edit, and every
+column on `goal_activities` must be.** Leaving them out was silent data loss
+caught while merging: an edit that changed only a time would have stripped the
+"how" line and the published citation off *every row of the goal*, with nothing
+on screen saying so. Two tests pin it — one that a row sent back unchanged
+keeps both, one that a row whose text was rewritten loses both.
+
+The clearing is deliberate and belongs to the client: a citation attributes
+published guidance to the sentence MedHelp wrote, so when somebody replaces
+that sentence, leaving the publisher's name under it would attribute their
+guidance to words the publisher never saw. `GoalPlanEditor.updateText` clears
+them, the same line `GoalCreateScreen` uses. That is why the server assigns
+rather than merges — a "keep what was there" merge could not express it.
+
+⛔ **`ActivityOut` returns `evidence_domain` beside the resolved `evidence`.**
+`evidence` is rebuilt server-side on every read, which is what keeps one copy
+of every quotation in this app, and it cannot be turned back into an id. Without
+the id no editor could say "this row is unchanged". Only the id travels in
+either direction; the publisher, quotation and link stay the server's.
+
+`GoalPlanEditor` is the edit screen's editor. Its rows carry their own `source`
+and `suggested` labels rather than parallel arrays indexed by position, which
+is what stops a "Suggested by MedHelp" label landing on the wrong line after a
+removal — a correctness question, not a cosmetic one.
+
+⛔ **`GoalCreateScreen` does not use it, and the duplication is known.** The two
+screens have diverged: the create screen renders a draft's provenance — the
+quoted phrase, the "suggested" label, the citation — none of which applies to a
+goal the person already saved, and it keeps four lists in step to do it. What is
+duplicated is the day chips, the time check and the React Native Web
+accessibility workaround. Folding them together is worth doing; it was not worth
+doing inside a merge resolution, which is how the duplication arrived.
 
 **Not built, deliberately:** reminders for a goal, and any weekly review.
 Neither is hard — a reminder would reuse the local-only `notificationService`

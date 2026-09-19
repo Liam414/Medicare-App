@@ -4,6 +4,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { AppButton } from "@/components/AppButton";
 import { ErrorNotice } from "@/components/ErrorNotice";
+import { QuickFillChips } from "@/components/QuickFillChips";
 import { Screen } from "@/components/Screen";
 import { TextField } from "@/components/TextField";
 import { ApiError, requestAppointment } from "@/services/appointmentService";
@@ -17,6 +18,54 @@ const TIER_LABELS: Record<string, string> = {
   URGENT: "Urgent — be seen soon",
   SELF_CARE: "Usually self-care",
 };
+
+/**
+ * Reasons offered as one tap instead of typing.
+ *
+ * ⛔ THESE ARE VISIT TYPES, NOT SYMPTOMS, AND THAT IS THE WHOLE POINT.
+ *
+ * "Follow-up visit" and "Prescription refill" say what KIND of appointment
+ * somebody wants. They name no condition, no symptom and no body part, so this
+ * list is administrative vocabulary rather than clinical vocabulary — which is
+ * why it can live here without the review the symptom picker needed.
+ *
+ * ⛔ Do not add a symptom to this list. The moment an option reads "Chest
+ * pain" or "Rash", this becomes a second app-authored clinical vocabulary,
+ * sitting on a screen that never went through the review the first one is
+ * still waiting for. Somebody who wants to say what is wrong types it, or
+ * arrives here from the symptom check with the reason already filled in.
+ * `AppointmentRequestScreen.test.tsx` asserts the list stays administrative.
+ */
+export const VISIT_REASONS: readonly string[] = [
+  "New problem",
+  "Follow-up visit",
+  "Check-up",
+  "Prescription refill",
+  "Test results",
+  "Vaccination",
+  "Referral",
+];
+
+/**
+ * Preferred times offered as one tap instead of typing.
+ *
+ * ⛔ NOT A SLOT PICKER, AND MUST NEVER BECOME ONE. See the note on
+ * `QuickFillChips`. These are words for a preference the user will say to a
+ * receptionist themselves; MedHelp has no availability data and anything it
+ * offered as an actual time would be invented. `preferred_time` stays the free
+ * text CLAUDE.md describes — "Thursday morning", "as soon as possible" — and
+ * nothing here turns it into a datetime.
+ */
+export const PREFERRED_TIMES: readonly string[] = [
+  "As soon as possible",
+  "Today if possible",
+  "Tomorrow",
+  "This week",
+  "Next week",
+  "Weekday morning",
+  "Weekday afternoon",
+  "After work",
+];
 
 export function AppointmentRequestScreen({ navigation, route }: Props) {
   const { provider, intake } = route.params;
@@ -117,6 +166,29 @@ export function AppointmentRequestScreen({ navigation, route }: Props) {
         autoCapitalize="sentences"
       />
 
+      {/*
+        ⛔ NOT SHOWN WHEN THE REASON CAME FROM THE SYMPTOM CHECK.
+
+        Tapping a chip replaces the field, and the carried-over description is
+        the one thing on this screen the person did not have to write twice.
+        Offering a button that silently wipes it would be a trap — and the
+        chips are a shortcut for somebody starting from an empty box, which is
+        exactly who this is not.
+      */}
+      {!intake && (
+        <QuickFillChips
+          label="Or pick a common reason"
+          options={VISIT_REASONS}
+          value={reason}
+          onSelect={(text) => {
+            setReason(text);
+            if (text) setReasonError(null);
+          }}
+          disabled={saving}
+          testGroup="reason"
+        />
+      )}
+
       <TextField
         label="Preferred time (optional)"
         value={preferredTime}
@@ -124,6 +196,15 @@ export function AppointmentRequestScreen({ navigation, route }: Props) {
         hint="For example, 'Thursday morning' or 'as soon as possible'."
         placeholder="Thursday morning"
         autoCapitalize="sentences"
+      />
+
+      <QuickFillChips
+        label="Or pick one"
+        options={PREFERRED_TIMES}
+        value={preferredTime}
+        onSelect={setPreferredTime}
+        disabled={saving}
+        testGroup="time"
       />
 
       <TextField

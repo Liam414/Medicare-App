@@ -29,9 +29,24 @@ The closest thing to a turnkey answer, and it does support real booking:
 - **Access:** not self-serve. There is no public developer portal that issues a
   key. You apply to the partner program, are vetted by a partnerships team, and
   sign an agreement first. Budget several weeks.
-- **Who gets approved:** US healthcare providers and software vendors building
-  tools *for providers*. Reporting from developers who have been through it
-  says consumer apps are generally **not** approved — which is what MedHelp is.
+- ⛔ **CORRECTED 2026-09-17. This bullet said consumer apps are generally not
+  approved. That is no longer accurate**, and it was the sentence that made
+  this whole section read as a dead end.
+
+  Zocdoc now runs the **Care Access Network**, whose own page lists eligible
+  partners as "search engines, AI experiences, health plans, **consumer apps**,
+  and more", and offers two integration shapes: *"build the booking flow
+  natively in your app, or hand off seamlessly to Zocdoc."* MedHelp is a
+  consumer app, so it is no longer excluded by category.
+
+  What has **not** changed: access is still partner-gated, still needs an
+  application and a signed agreement, still needs provider opt-in, and still
+  needs a BAA for the native flow. The page publishes no pricing, no approval
+  criteria and no BAA terms — the only action available is a contact form.
+
+  **So the honest answer to "can we plug into something that books
+  automatically" is: possibly yes, and it is a conversation to start, not a
+  ticket to pick up.** See §6.
 - **Provider opt-in:** you can only book with providers in Zocdoc's network who
   have enabled it. Coverage is real but partial, and concentrated in metros.
 - **Booking payload is heavy PHI:** first name, last name, date of birth, sex
@@ -182,7 +197,81 @@ In order:
 a scheduling partnership. Flipping it to see the UI starts transmitting patient
 identity and a reason for visit to a vendor with no agreement in place.
 
-## 5. Open questions for the user
+## 6. Fewer taps, while the partnership question is open (2026-09-17)
+
+Asked for directly: *"make the provider's appointment scheduler super easy...
+currently you still have to type in the information and make the call
+yourself."*
+
+Two complaints, and only one of them is fixable without a partnership.
+
+**The typing is fixed.** `QuickFillChips` fills the two free-text fields by tap:
+seven visit types for the reason, eight preference phrases for the time. A
+booking that used to need two paragraphs typed now needs two taps.
+
+- ⛔ **The reason chips are visit TYPES, not symptoms** — "Follow-up visit",
+  "Prescription refill". They name no condition, so this is administrative
+  vocabulary rather than a second app-authored clinical one. A test asserts it
+  stays that way. Somebody who wants to say what is wrong types it, or arrives
+  from the symptom check with the reason already filled in.
+- ⛔ **The time chips are not a slot picker**, and the distinction is the
+  fence in CLAUDE.md. A slot picker offers times the app claims are
+  *available*; MedHelp has no availability data and anything it offered would
+  be invented. These are words for a preference the user says out loud
+  themselves, and `preferred_time` stays free text. A test rejects any option
+  containing a clock time.
+- Reason chips are **hidden when the reason came from the symptom check**,
+  because tapping one replaces the field and that description is the one thing
+  the person did not have to write twice.
+
+**The call is not fixed, because it cannot be here.** What was done instead is
+to make it as short as possible: the confirmation screen now shows a "What to
+tell them" card next to the Call button — their reason, their preferred time,
+and the three administrative things worth asking — and a single "I've arranged
+a time" button that marks the appointment scheduled. That last one replaced
+four navigations after a phone call the person had just finished.
+
+⛔ The card is read **while a receptionist is on the line**, which is the worst
+possible moment to put a clinical suggestion in front of somebody. Every line
+is either what they already wrote or an administrative question. A test asserts
+it names no condition.
+
+⛔ Marking scheduled records **that a time was agreed, never what the time is**.
+`appointments` has no scheduled datetime and must not gain one.
+
+## 6a. The hand-off, built 2026-09-18
+
+Asked directly: *"is there anything I can do to automate hospital bookings?"*
+
+The three options were: apply to Zocdoc's partner programme; hand off to the
+hospital's own booking page; or find a health-system sponsor for an Epic
+integration. **The second was chosen and built**, because it is the only one
+that ships without anybody's permission.
+
+`backend/app/services/scheduling_links.py` maps a provider's published name to
+a booking page, and `ProviderDetailScreen` offers it under the call button.
+
+**Why this needs no BAA.** The link is a constant, the match reads only public
+CMS data, and MedHelp sends no request — so nothing about the user is
+transmitted. It is the same standing as linking to a phone number. This is
+*not* the booking integration §4 describes and does not move
+`delivery_available()`, which still returns False.
+
+**Coverage comes from the fallback, not the registry.** Epic's MyChart runs a
+public searchable directory of the organisations using it, no login required
+(verified 2026-09-18). Seven named systems have direct links; every other
+*organisation* gets the directory; individual clinicians get neither.
+
+⛔ **Every URL came from a live search result and none was constructed by
+pattern.** Hospital sites return 403 to automated fetches, so a URL cannot be
+verified by requesting it — which makes guessing one especially dangerous.
+Add entries by searching, following the link, and recording the date.
+
+**What it does not do.** It is automation only in the sense that it removes the
+phone call. The person still books, and MedHelp never learns whether they did —
+which is why the screen tells them to record the time themselves afterwards.
+
+## 7. Open questions for the user
 
 - ~~Whether MedHelp should hold patient identity at all.~~ **Decided:
   pass-through — collected per booking, transmitted, never stored.** Revisit

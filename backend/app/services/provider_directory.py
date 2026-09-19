@@ -98,6 +98,16 @@ class Provider:
     state: str | None
     postal_code: str | None
     source_name: str = SOURCE_NAME
+    #: True for an enumerated organisation (a hospital, a clinic), false for an
+    #: individual clinician. NPPES's own distinction — an organisation record
+    #: carries `organization_name` and an individual carries a first and last
+    #: name — not a judgement made here.
+    #:
+    #: Used only to decide whether the MyChart organisation directory is a
+    #: sensible place to send somebody; see `app/services/scheduling_links.py`.
+    #: ⛔ It says nothing clinical and must never be used to rank or filter
+    #: results — this file does not order providers on anything but distance.
+    is_organization: bool = False
 
     @property
     def full_address(self) -> str | None:
@@ -186,6 +196,7 @@ def _parse_provider(record: dict) -> Provider | None:
         city=_title_case(location.get("city")),
         state=(location.get("state") or "").strip() or None,
         postal_code=postal[:5] or None,
+        is_organization=bool(organization),
     )
 
 
