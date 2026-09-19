@@ -129,3 +129,53 @@ development build `expo-mlkit-ocr` already requires — not bolted on.
   `localStorage`**. That is a new instance of open finding 2 rather than an
   exception to it.
 
+
+
+---
+
+## Carried out of CLAUDE.md on 2026-09-19
+
+*CLAUDE.md was still 90,636 characters after the first restructure — over the
+limit, which means truncated, which means the fences at the bottom were not
+reliably being read. The section below is that file's own text on this topic,
+moved here verbatim. It may restate material already above it, because in
+CLAUDE.md it was the summary of this document. Nothing was dropped; CLAUDE.md
+now keeps the hard rules and points here.*
+
+### Emergency card (implemented)
+
+
+A screen the user fills in once — allergies, known conditions, blood type, who
+to call — readable in one tap from the home screen, working with no connection.
+`mobile/src/screens/emergency/`. Detail: `docs/emergency-card.md`.
+
+**This is not the emergency routing feature.** `app/core/emergency.py` is
+fenced; nothing here touches it, reads it, or feeds it. The card is a place to
+write something down.
+
+⛔ **Rules:**
+
+- **It is stored on the device and nowhere else.** No endpoint, no table, no
+  `fetch` on this path — a test asserts it. It has to work when nothing else
+  does, and the backend has no encryption at rest.
+- **`localStorage` on web is deliberate here, and is not the rule
+  `tokenStorage.web.ts` sets.** A card that vanishes when the tab closes is a
+  card that is not there when it is needed, and it grants nobody access to
+  anything. Both halves are asserted by tests, so "fixing the inconsistency" in
+  either direction fails the suite. The cost — on a shared computer the card
+  outlives sign-out — is written on the editor, with "Erase this card" offered.
+- **Nothing on the card is authored, checked or interpreted by MedHelp.** Every
+  field is free text, stored and rendered verbatim. No picker of conditions, no
+  list of common allergies, no validation of a blood type. Nothing reads the
+  card either — it is not an input to triage or to anything else.
+- **An empty field renders as "Not provided", never as a missing row.** The
+  single most important rule on the screen: a card with no allergies row reads
+  as *no allergies* to whoever is holding the phone. Asserted by a test.
+- The mirrored medication list is **name and dosage only**, at most 25 entries,
+  each field capped at 300 characters — which also keeps it inside Android
+  SecureStore's ~2048-byte limit, above which a write is lost silently.
+  `clearCard()` removes it too, and the card says it may be out of date.
+- `EmergencyCardLink` and `EmergencyCallBar` stay **different components**. One
+  opens a screen; the other routes to emergency services. Merging them would
+  blur the one instruction that has to be unambiguous.
+

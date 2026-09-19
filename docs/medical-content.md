@@ -129,3 +129,71 @@ carrying free-text health input written by the user.
 - Validation errors are stripped of the submitted value before being
   returned (`app/main.py`), so a rejected query is not echoed back.
 
+
+
+---
+
+## Carried out of CLAUDE.md on 2026-09-19
+
+*CLAUDE.md was still 90,636 characters after the first restructure — over the
+limit, which means truncated, which means the fences at the bottom were not
+reliably being read. The section below is that file's own text on this topic,
+moved here verbatim. It may restate material already above it, because in
+CLAUDE.md it was the summary of this document. Nothing was dropped; CLAUDE.md
+now keeps the hard rules and points here.*
+
+### Medical content: where it comes from
+
+
+The app never authors medical content. All symptom and condition text is
+fetched from **MedlinePlus** (NIH/NLM) through its public health-topics API.
+Full reasoning, the retrieval rules and the measured accuracy:
+`docs/medical-content.md`.
+
+⛔ **Rules for anyone extending this:**
+
+- **Render source text verbatim.** Do not summarise, paraphrase, shorten, or
+  re-section it. Rewriting sourced material makes it app-authored medical
+  content.
+- **Do not extract "causes"** — or any other clinical category — out of a
+  summary. A bulleted list in these topics is sometimes causes, sometimes
+  symptoms, sometimes treatments; relabelling one as another invents a clinical
+  claim. The source's own categories surface as "May be associated with".
+- **Always carry attribution** (`source_name`) and the link back to the topic.
+- **If the source is unavailable, show an error.** Never fall back to generated
+  content.
+- **A topic is shown only if a name the source gives it contains a word the
+  user wrote** (`names_match` — its title, or one of NLM's own published
+  `altTitle` synonyms, which are match input only and are never rendered).
+  Non-matching topics are dropped, **never reordered**: ranking health topics
+  by relevance would be a clinical judgement this app may not make.
+- Free text is reduced to search terms (`app/services/search_terms.py`). This
+  is **retrieval only** — it chooses which article to fetch and never alters
+  the text shown. Three rules there exist because of measured wrong answers,
+  not theory, and each is orthographic or positional rather than clinical:
+  conversational scaffolding is filler, single words are tried
+  **last-word-first**, and negations are kept but never searched alone.
+  ⛔ Re-measure rather than reason about changes to it.
+
+### ⛔ Related reading is gated off (`MEDLINEPLUS_TOPICS_ENABLED=false`)
+
+Intake ships with reading material **switched off**, after a compliance review
+found the known limit unacceptable to put in front of users: the filter is
+lexical, so a context word that happens to name a topic still gets through —
+"my head has been pounding" returns "Head and Neck Cancer", "nauseous after
+eating" returns "Eating Disorders" — and a frightening, unrelated topic
+rendered under a person's own description reads as a suggested diagnosis
+regardless of the framing around it.
+
+**Do not switch it on until a clinician has ruled on how topics are chosen.**
+
+- While off, **no MedlinePlus request is made at all**, so no symptom text
+  reaches NLM and that vendor's BAA question is moot for as long as it stays
+  off.
+- The retrieval code and its tests stay intact and exercised — the flag gates
+  the call, not the code.
+- A lexical tightening was tried and rejected: requiring more than a bare
+  body-part word empties the good cases. Telling a location word from a symptom
+  word is a semantic judgement, so the realistic fix is model-assisted topic
+  selection — still retrieval, not authoring — which needs its own review.
+

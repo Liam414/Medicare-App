@@ -270,3 +270,48 @@ previously bounded by the LAN:
   altering what exists. That is a demo's answer, not a release process: a
   column added to an existing model still needs a hand-written script.
 
+
+
+---
+
+## Carried out of CLAUDE.md on 2026-09-19
+
+*CLAUDE.md was still 90,636 characters after the first restructure — over the
+limit, which means truncated, which means the fences at the bottom were not
+reliably being read. The section below is that file's own text on this topic,
+moved here verbatim. It may restate material already above it, because in
+CLAUDE.md it was the summary of this document. Nothing was dropped; CLAUDE.md
+now keeps the hard rules and points here.*
+
+### Public deployment (implemented)
+
+
+Deployable to a public URL from one Render blueprint at `render.yaml`: a static
+site for the web build, the FastAPI backend, and Postgres. Procedure and
+failure modes: `docs/deployment.md`.
+
+⛔ **Approved on 2026-09-02 for this demo only**, after the owner was told that
+a public link means anyone who finds it can create an account and type real
+symptoms into an instrument no clinician has reviewed. It does **not** authorise
+switching on `MEDLINEPLUS_TOPICS_ENABLED`, setting `TRIAGE_LOG_CLASSIFICATIONS`,
+flipping `delivery_available()`, a second deployment, a custom domain, or
+merging to `main`.
+
+Publishing closed exactly one finding, and because of the host rather than any
+code here: traffic is now encrypted **and authenticated** by a CA-issued
+certificate, which as a side effect makes the browser Geolocation API work for
+the first time. Nothing else moved. Two things got **worse**: the rate limiter
+is now the only thing between a public address and the sign-in endpoint, and
+the dev-only findings are no longer dev-only in practice. **Synthetic data
+only, there as here.**
+
+⛔ **Two services, not one.** The API's response headers are deliberately
+hostile to HTML — `default-src 'none'` would stop the bundle loading and
+`geolocation=()` would switch off the "Use my location" button. Serving the web
+build from FastAPI would mean relaxing a reviewed security control to save a
+configuration line. The app is told where the API is **at build time**
+(`EXPO_PUBLIC_*` is inlined by babel), so ⛔ **a rename of the API service needs
+the web service rebuilt, not restarted.** CORS is a literal in the blueprint
+because Render will not resolve a cycle; if the site's URL is suffixed, correct
+it by hand — the symptom is an app that loads and then fails every request.
+

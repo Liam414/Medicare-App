@@ -44,7 +44,7 @@ function respondWith(provider: Record<string, unknown>) {
 }
 
 async function firstProvider() {
-  const result = await searchProviders({ postalCode: "10001" });
+  const result = await searchProviders("10001", "Urgent Care");
   return result.providers[0];
 }
 

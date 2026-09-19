@@ -284,3 +284,139 @@ can collect anything now.
   assigned at birth and address. It holds none of those today, and acquiring
   them is a decision for the user, not an implementation detail.
 
+
+
+---
+
+## Carried out of CLAUDE.md on 2026-09-19
+
+*CLAUDE.md was still 90,636 characters after the first restructure — over the
+limit, which means truncated, which means the fences at the bottom were not
+reliably being read. The section below is that file's own text on this topic,
+moved here verbatim. It may restate material already above it, because in
+CLAUDE.md it was the summary of this document. Nothing was dropped; CLAUDE.md
+now keeps the hard rules and points here.*
+
+### Appointments and provider search (implemented)
+
+
+A user can search a real provider directory (NPPES, published by CMS), open a
+provider, and record an appointment. Detail: `docs/appointments.md`; the option
+analysis for real booking: `docs/appointment-booking.md`.
+
+### ⛔ MedHelp does not book appointments, and must not say it does
+
+Every API that can actually place a booking (Zocdoc, Epic-hosted scheduling,
+athenahealth) needs a signed partnership, provider-side opt-in and a BAA. This
+project has none of the three, so the transmission step is **absent and
+labelled absent**, rather than mocked.
+
+- **Creating an appointment contacts nobody.** It writes a row. The provider
+  has never heard of it. Three screens say so, and `request_delivery.py` raises
+  rather than quietly succeeding.
+- **`provider_notified` is the single source of truth** for whether anyone was
+  contacted, and is never inferred from `status` — a user can mark a row
+  SCHEDULED because they rang the clinic themselves.
+- **Availability is not shown, because no source for it exists.** NPPES
+  publishes none; `Provider` has no slot field and neither does the API
+  response, and tests assert both. ⛔ **Do not add a slot picker, a "Book now"
+  button, or a time, until a real scheduling integration exists behind it** —
+  drive any new affordance off the `online_booking_available` flag from the
+  API, never off an assumption in a component. A time this app invents is a
+  time someone turns up for.
+- ⛔ **Do not flip `delivery_available()` to unlock the UI.** It is not a
+  feature flag; it stands for a signed BAA and a scheduling partnership.
+  Flipping it starts transmitting PHI to a vendor with no agreement in place.
+  The endpoint returns 503 *before* it processes an identity, and the app reads
+  the capability and never renders the identity form.
+- **MedHelp does not rank or recommend providers.** Results are sorted by
+  distance only, and the screen says the app cannot tell you who is accepting
+  patients, open now, or in network. Ordering providers on clinical grounds
+  would be a judgement this app may not make.
+- **The provider search must never carry health information.** It sends a
+  5-digit ZIP and a care *setting* from the fixed `CARE_SETTINGS` list; a
+  free-text specialty is rejected on purpose, because "Urgent Care" in a CMS
+  query log says nothing about the person searching and "Oncology" would. A
+  test asserts the outbound parameter set.
+- **Hospitals are searchable, because a hospital is a setting.** NPPES also
+  enumerates individuals under that taxonomy, and that is the source's own
+  classification — relabelling or filtering it would assert something about a
+  provider the directory does not say.
+
+### ⛔ Identity is pass-through, and must stay that way
+
+Identity fields are built from one request, handed to the delivery layer, and
+dropped. `app/schemas/booking_identity.py` is the only place they exist. The
+user retypes them per booking — the accepted cost of not holding a table of
+names, dates of birth and home addresses in a database with no encryption at
+rest. Five rules, each asserted in `tests/test_booking_identity.py`:
+
+1. **`appointments` has no column that could hold an identity field**, and
+   `BookingIdentity` is not a SQLAlchemy model. The test checks the mapped
+   table, so near-misses like `patient_name` or `dob` are caught.
+2. **`AppointmentOut` never carries identity** — echoing it back would put a
+   date of birth into client logs and crash reporters.
+3. **`BookingIdentity.__repr__` is redacted.** pydantic's default prints every
+   field, so an identity in a stack frame would leak a name and home address
+   into any traceback that touched it.
+4. **Never put one in a React Navigation param.** Route state is serialisable
+   and dev tooling persists it, so a date of birth in a param is written to
+   disk. The identity screen takes an appointment **id**.
+5. **A rejected identity is not echoed back** by the validation handler.
+
+**Pass-through is not the same as "not liable."** Transmitting this to a vendor
+makes them a processor of PHI just as surely as storing it would. It shrinks
+the breach radius; it does not remove the BAA requirement.
+
+### ⛔ Location, and how a distance is worked out
+
+- **Never ask for location without a user gesture.** `getPostalCode()` only
+  uses a permission already granted and reports `"prompt"` otherwise; only a
+  button press calls `getPostalCode({ prompt: true })`. `"prompt"` gets **no**
+  error notice — it is not a failure, the button is the thing to press. This
+  was a real bug reported as "I never get prompted": requesting on mount is
+  suppressed by browsers, and once a site is blocked it never prompts again.
+- **Geolocation needs a secure context, and a LAN address is not one.** Served
+  at `http://192.168.x.x` the API is refused whatever the user chooses —
+  verified, not assumed. Chrome reports it as ordinary permission denial, so
+  the client checks `window.isSecureContext` **first** and reports `insecure`,
+  rather than telling someone they refused a permission they were never asked
+  for. **Typing a ZIP is a first-class path, not a fallback.**
+- **No third-party geocoder ever sees the user's coordinates**, on either
+  platform — a test asserts it. On native they never leave the phone; on web
+  they reach MedHelp's own backend as a POST body, are resolved against a
+  committed public-domain Census ZCTA extract, and are discarded. ⛔ Do not copy
+  "coordinates never leave the phone" onto the web file.
+- **Distance is ZIP-centroid to the provider's geocoded street address**,
+  computed server-side, always rendered with a "~". It is not a driving
+  distance, and it is **not a distance from the user** — the honest reading is
+  "about N miles from the middle of your ZIP code". ⛔ **A zero is never
+  shown**: centroid-to-centroid gave five of six Las Vegas providers "~0.0 mi"
+  for clinics up to three miles apart, so an unplaceable provider gets `None`,
+  which renders as no distance at all.
+- **Failure costs accuracy, never results.** Providers are already fetched by
+  the time geocoding runs; an outage falls back to the centroid estimate.
+- `provider_locations` **has no user column and must never gain one.** Adding
+  a `user_id`, or a note of who looked, would turn a table of public addresses
+  into a log of which clinics a named person was looking for. A test asserts
+  the column set. Answers are cached by NPI, so a warm cache makes zero
+  requests.
+- **There is no map, on any platform.** Nothing imports a maps SDK. Adding one
+  would need a keyed tile vendor and its own privacy review.
+
+### The URGENT tier routes here
+
+`IntakeResultScreen` navigates in-app to provider search, carrying the
+description forward as the reason for visit so nobody retypes their symptoms
+into a second form. It is prefilled and **editable** — it was written to answer
+a triage question, not to tell a receptionist why you are coming in.
+`urgency_tier` is stored on the appointment as a **label only**; nothing
+re-derives urgency from it, and nothing in this feature may touch the triage
+layer.
+
+⛔ That block is on a screen this file fences. It changes no disclaimer, no
+escalation copy and no triage or emergency module, and EMERGENT routing is
+untouched — but it changes what an URGENT reader is offered at the moment they
+are told to seek care, so **it belongs in the clinical reviewer's read of that
+screen** rather than being treated as ordinary UI work.
+

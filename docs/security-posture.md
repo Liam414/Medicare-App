@@ -310,3 +310,165 @@ sign-off on medical-device status, a BAA with every vendor, encryption at rest
 longer trivially breakable by someone who has read its source or joined its
 Wi-Fi.
 
+
+
+---
+
+## Carried out of CLAUDE.md on 2026-09-19
+
+*CLAUDE.md was still 90,636 characters after the first restructure — over the
+limit, which means truncated, which means the fences at the bottom were not
+reliably being read. The section below is that file's own text on this topic,
+moved here verbatim. It may restate material already above it, because in
+CLAUDE.md it was the summary of this document. Nothing was dropped; CLAUDE.md
+now keeps the hard rules and points here.*
+
+### Application security posture (implemented)
+
+
+Full detail, including what each control does not cover and the nine closed
+findings with their fixes: `docs/security-posture.md`.
+
+⛔ **The signing key is the whole of authentication.** Every per-user filter
+trusts one thing: a bearer token signed with `JWT_SECRET_KEY`, so a weak or
+public key defeats all of them at once. `.env.example` once published a working
+default, which is not a secret — it is in every clone. `Settings` now rejects a
+missing, short (<32 char) or placeholder key. Outside development that is a
+**refusal to boot**, not a warning, because a health API that comes up with a
+published signing key looks fine from the outside. Inside development the key
+is replaced with a random one per process. **No usable default may be
+reintroduced.**
+
+⛔ **The algorithm is fixed at HS256 in code and is not configurable.** It used
+to be read from the environment, which is how algorithm-confusion and
+`alg: none` forgery start. `iss`, `aud`, `typ`, `exp` and `iat` are *verified*,
+not merely present, and `strict_aud` is on — without it PyJWT accepts an `aud`
+list that merely contains ours. The library is PyJWT, deliberately not
+python-jose (which dragged in `ecdsa` and its unfixed advisory). ⛔ **The two
+libraries spell claim requirements differently and PyJWT ignores option keys it
+does not recognise**, so jose-style `require_exp` would read like it demanded a
+claim while demanding nothing — and a token with no `exp` never expires.
+`test_a_token_missing_a_required_claim_is_rejected` pins each one.
+
+⛔ **There is still no revocation.** `logout()` forgets the token on the device;
+a stolen one stays valid at the server until it expires (60 minutes). `jti` is
+minted so a denylist can be added without invalidating every issued token.
+
+### ⛔ The session survives a reload, and dies with the tab
+
+Native keeps the token in the Keychain/Keystore, `WHEN_UNLOCKED_THIS_DEVICE_ONLY`
+so a credential for health data stays out of iCloud sync and encrypted backups.
+The browser keeps it in `sessionStorage`.
+
+- ⛔ **Do not move the browser's copy to `localStorage`.** This is a bearer
+  credential for one person's medications, appointments and symptom assessments,
+  in an app with no revocation. `sessionStorage` ends with the tab, which is what
+  should happen when someone walks away from a shared computer, and it costs the
+  user nothing: the token is only valid for an hour. Neither store is protected
+  from script on the page — the defence against that is the CSP. (The emergency
+  card's `localStorage` is the deliberate exception, argued above.)
+- **The navigator decides which screen to open before it mounts.**
+  `RootNavigator` renders a spinner until `restoreSession()` answers, rather
+  than showing a signed-in user a login form they never had to fill in.
+- **Only the server decides whether a token is valid.** The client reads `exp`
+  for one reason — not to restore a session it can already see is dead — and a
+  token it cannot parse is restored and allowed to fail as a 401.
+- **A 401 clears the store**, in all three request paths.
+- **Sign out resets the navigation stack** to `Login` rather than navigating, so
+  the back gesture cannot walk into signed-in screens. It ends the session on
+  the device only. ⛔ It deliberately does **not** clear the emergency card, and
+  the screen says so.
+
+### Sign-in, CORS, headers, transport
+
+- Both `/auth/login` and `/auth/signup` spend from a per-address budget. ⛔ Read
+  `app/core/rate_limit.py`'s limits before relying on it: per process, in
+  memory, keyed on the socket address, and it deliberately does **not** trust
+  `X-Forwarded-For` — honouring that without a proxy you control would let an
+  attacker reset their own counter every request. It is the floor under a
+  reverse proxy, not a replacement for one.
+- Login costs the **same work whether or not the account exists**. The
+  identical error message was already there; without this the response *time*
+  answered the question that message was written to avoid answering.
+- ⛔ **Signup still discloses that an address is registered.** Kept on purpose:
+  without an email-verification flow, hiding it means telling someone their
+  account was created when it was not.
+- **CORS is an explicit allowlist** (`CORS_ALLOW_ORIGINS`), `allow_credentials`
+  off because the app uses a bearer token rather than a cookie, and `*` refused
+  outside development. The development-only loopback/LAN regex mirrors
+  `mobile/src/services/baseUrl.ts` — ⛔ **keep the two in step.**
+- Every response carries `nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer`, a `default-src 'none'` CSP (skipped for the
+  docs pages), and `Cache-Control: no-store` — the last is not boilerplate,
+  because these responses are one person's health data and a browser disk cache
+  is a place it leaks from later. HSTS is sent only when the request already
+  arrived over TLS.
+- `/docs`, `/redoc` and `/openapi.json` are development-only. An unauthenticated
+  map of every route and field is free reconnaissance.
+- ⛔ **Served over http on a LAN, credentials and every symptom description
+  cross the network in the clear.** `scripts/generate_dev_cert.py` helps, but
+  state the property precisely: a self-signed certificate **encrypts without
+  authenticating** — it does not stop someone on the network impersonating the
+  server. Real users need a CA-issued certificate against a real hostname.
+
+
+
+---
+
+## Carried out of CLAUDE.md on 2026-09-19
+
+*CLAUDE.md was still 90,636 characters after the first restructure — over the
+limit, which means truncated, which means the fences at the bottom were not
+reliably being read. The section below is that file's own text on this topic,
+moved here verbatim. It may restate material already above it, because in
+CLAUDE.md it was the summary of this document. Nothing was dropped; CLAUDE.md
+now keeps the hard rules and points here.*
+
+### Open data-handling findings
+
+
+Nine are closed with tests, listed with their fixes in `docs/security-posture.md`.
+⛔ **Re-run `pip-audit` and `npm audit` rather than trusting a paragraph** —
+advisory counts are a snapshot.
+
+**Still open — each needs a call before the app holds real user data:**
+
+1. **The app connects to Postgres as the `postgres` superuser**, with the
+   password in plain text on disk. Create a least-privilege role owning only the
+   app's tables. Transport is forced (`sslmode=require` outside development);
+   the *identity* the app connects as is unchanged.
+2. **Nothing is encrypted at rest.** `medications`, `intake_assessments`,
+   `medication_reminders`, `appointments.reason_for_visit`, the goals tables,
+   and the emergency card in a browser's `localStorage`. **This is the largest
+   remaining gap** and is not fixable with application code alone.
+3. **The dev database holds a real email address.** Either treat that database
+   as containing real PII or clear it.
+4. **No token revocation and no refresh flow.** The token is also at rest on the
+   device between page loads, so a compromised device yields a live session as
+   well as a live process.
+5. **Signup discloses whether an address is registered.** Kept deliberately.
+6. **The rate limiter is per-process and in-memory.** Two workers mean two
+   budgets. Put a real limiter at a reverse proxy.
+7. **Nothing writes an access log or an audit trail of reads.** No record of who
+   read which record — normally a requirement wherever the BAA question is asked.
+8. **The mobile build tree has 6 known-vulnerable dev dependencies**, down from
+   43 via `overrides` in `mobile/package.json`. The remainder is one chain
+   ending at `image-size`, which **has no fixed release at all** — every
+   published version sits inside the advisory range — and clears only with the
+   React Native upgrade. ⛔ The overrides are verified against `npm test` and
+   `expo export --platform web` **only**; anyone doing a native build should
+   expect to re-check them against `expo prebuild` and EAS.
+9. **A dev-only classification log exists** (`triage_log.py`, flag
+   `TRIAGE_LOG_CLASSIFICATIONS`). It writes descriptions and follow-up answers
+   to the application log, which this file otherwise forbids. Off by default,
+   and it refuses to run when `ENVIRONMENT=production`. ⛔ It is for **synthetic
+   input only** — switching it on anywhere a real user has typed into the app
+   would be a reportable data-handling failure, and the production check guards
+   one environment name, not you.
+
+⛔ **None of this makes the app safe to put in front of real patients.** The
+release blockers — clinical sign-off on the triage instrument, legal sign-off on
+medical-device status, a BAA with every vendor, encryption at rest — are
+unchanged by any of these fixes. What changed is that the app is no longer
+trivially breakable by someone who has read its source or joined its Wi-Fi.
+

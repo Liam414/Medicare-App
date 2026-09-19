@@ -185,65 +185,68 @@ export function SymptomPicker({
           anything.
         </Text>
 
-        <View style={styles.chipRow}>
-          {areas.map((area) => {
-            const open = openArea === area;
-            const count = symptomsInArea(area).length;
-            return (
-              <Pressable
-                key={area}
-                testID={`symptom-area-${area}`}
-                onPress={() => setOpenArea(open ? null : area)}
-                disabled={disabled}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: open }}
-                /*
-                  ⛔ THE STATE IS IN THE LABEL. React Native Web 0.19.13 drops
-                  `accessibilityState` entirely — this repository found that
-                  twice already, on the goals ticks and the source disclosure —
-                  so on the web a reader gets the label and nothing else. It
-                  must say whether this area is open.
-                */
-                accessibilityLabel={
-                  open
-                    ? `${AREA_LABELS[area]}, showing ${count} phrases. Activate to hide them.`
-                    : `${AREA_LABELS[area]}, ${count} phrases. Activate to show them.`
-                }
-                style={[
-                  styles.chip,
-                  open && styles.areaChipOpen,
-                  disabled && styles.chipDisabled,
-                ]}
-              >
-                <Text style={open ? styles.chipSelectedText : styles.chipText}>
-                  {AREA_LABELS[area]}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/*
+          ⛔ ONE THING ON SCREEN AT A TIME, AND AN AREA MUST NOT LOOK LIKE A
+          SYMPTOM.
 
-        {openArea && (
-          <View style={styles.browseOpen}>
-            {browseList.length > 0 ? (
-              <View style={styles.chipRow}>
-                {browseList.map((symptom) => (
-                  <SymptomChip
-                    key={symptom.id}
-                    symptom={symptom}
-                    added={false}
-                    onPress={() => add(symptom.id)}
-                    disabled={disabled}
-                    testGroup="browse"
-                  />
-                ))}
-              </View>
-            ) : (
-              <Text style={styles.note}>
-                You have already added everything listed under{" "}
-                {AREA_LABELS[openArea]}.
-              </Text>
-            )}
+          Both halves of this were reported by the repository owner on
+          2026-09-19. The twenty body areas were drawn as the same pill as a
+          symptom phrase, wrapped into the same kind of row, so "head" and
+          "eyes" read as things you might have rather than places to look —
+          and every area stayed on screen underneath whichever one was open,
+          so opening "chest" dropped its phrases into the middle of nineteen
+          other buttons.
+
+          Areas are now full-width rows: a menu, visibly not a chip. Opening
+          one REPLACES the menu with that area's phrases behind a back row.
+
+          ⛔ Nothing was removed. The same twenty areas and the same phrases
+          are reachable, in the same number of taps, and the picker still
+          offers no ordering, no severity and no condition.
+        */}
+        {openArea ? (
+          <View style={styles.areaList}>
+            <AreaRow
+              area={openArea}
+              open
+              first
+              onPress={() => setOpenArea(null)}
+              disabled={disabled}
+            />
+            <View style={styles.browseOpen}>
+              {browseList.length > 0 ? (
+                <View style={styles.chipRow}>
+                  {browseList.map((symptom) => (
+                    <SymptomChip
+                      key={symptom.id}
+                      symptom={symptom}
+                      added={false}
+                      onPress={() => add(symptom.id)}
+                      disabled={disabled}
+                      testGroup="browse"
+                    />
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.note}>
+                  You have already added everything listed under{" "}
+                  {AREA_LABELS[openArea]}.
+                </Text>
+              )}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.areaList}>
+            {areas.map((area, index) => (
+              <AreaRow
+                key={area}
+                area={area}
+                open={false}
+                first={index === 0}
+                onPress={() => setOpenArea(area)}
+                disabled={disabled}
+              />
+            ))}
           </View>
         )}
       </View>
@@ -251,6 +254,77 @@ export function SymptomPicker({
   );
 }
 
+
+
+/**
+ * One body area, in one of two states — the same one-component rule as
+ * `SymptomChip` below, and for the same reason.
+ *
+ * ⛔ ONE COMPONENT, NOT TWO, SO THE LABEL CAN BE SEEN TO VARY. Written first
+ * as a closed row and an open header row with a fixed label each: correct
+ * output, unsafe shape, and `accessibleState.test.ts` failed it — two fixed
+ * labels in two places cannot vary, so nothing tells the next person that the
+ * open state has to be spoken. React Native Web 0.19.13 drops
+ * `accessibilityState` entirely, so the label is the only thing a browser
+ * reader gets.
+ *
+ * ⛔ It is deliberately not chip-shaped. An area is a place to look, not a
+ * symptom you can add, and drawing the two the same is the confusion this
+ * replaced.
+ */
+function AreaRow({
+  area,
+  open,
+  first,
+  onPress,
+  disabled,
+}: {
+  area: Area;
+  open: boolean;
+  first: boolean;
+  onPress: () => void;
+  disabled: boolean;
+}) {
+  const count = symptomsInArea(area).length;
+
+  return (
+    <Pressable
+      testID={`symptom-area-${area}`}
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open }}
+      accessibilityLabel={
+        open
+          ? `${AREA_LABELS[area]}, showing ${count} phrases. Activate to hide them.`
+          : `${AREA_LABELS[area]}, ${count} phrases. Activate to show them.`
+      }
+      style={[
+        styles.areaRow,
+        first && styles.areaRowFirst,
+        open && styles.areaRowOpen,
+        disabled && styles.chipDisabled,
+      ]}
+    >
+      {open && (
+        <Text style={styles.areaRowChevron} accessibilityElementsHidden>
+          ‹
+        </Text>
+      )}
+      <Text style={open ? styles.areaRowOpenLabel : styles.areaRowLabel}>
+        {AREA_LABELS[area]}
+      </Text>
+      <Text style={styles.areaRowCount} accessibilityElementsHidden>
+        {open ? "All areas" : count}
+      </Text>
+      {!open && (
+        <Text style={styles.areaRowChevron} accessibilityElementsHidden>
+          ›
+        </Text>
+      )}
+    </Pressable>
+  );
+}
 
 /**
  * One symptom, in one of two states.
@@ -378,7 +452,40 @@ const styles = StyleSheet.create({
     about urgency, and "chest" must not be drawn more alarmingly than "skin".
   */
   areaChipOpen: { backgroundColor: colors.accent, borderColor: colors.accent },
-  browseOpen: { paddingTop: spacing.xs },
+  /*
+    The body-area menu. ⛔ Deliberately NOT chip-shaped: a bordered list of
+    full-width rows, so a place to look can never be mistaken for a symptom
+    you can add. That confusion is what this replaced.
+  */
+  areaList: {
+    marginTop: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface,
+    overflow: "hidden",
+  },
+  areaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minHeight: MIN_TAP_TARGET,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
+  areaRowFirst: { borderTopWidth: 0 },
+  // ⛔ A muted fill, never a safety family: an area is a place on the body and
+  // asserts nothing about urgency. "chest" must not be drawn more alarmingly
+  // than "skin".
+  areaRowOpen: { backgroundColor: colors.surfaceMuted, borderTopWidth: 0 },
+  areaRowLabel: { ...typography.body, color: colors.textPrimary, flex: 1 },
+  areaRowOpenLabel: { ...typography.bodyStrong, color: colors.textPrimary, flex: 1 },
+  areaRowCount: { ...typography.caption, color: colors.textSecondary },
+  areaRowBack: { ...typography.caption, color: colors.textSecondary },
+  areaRowChevron: { ...typography.body, color: colors.textSecondary },
+  browseOpen: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   chipDisabled: { opacity: 0.5 },
   chipText: { ...typography.caption, color: colors.textPrimary },
   chipSelectedText: { ...typography.caption, color: colors.textOnAccent },
