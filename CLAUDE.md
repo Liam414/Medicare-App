@@ -319,7 +319,7 @@ read it.** Four rules, each tested:
   `SymptomChip` and `AreaRow` are each **one component with a varying label** —
   two fixed labels in two places cannot vary, and the guard catches it.
 
-### Emergency routing — `backend/app/core/emergency.py` (fenced)
+### Emergency routing — `backend/app/core/emergency.py` (fenced), `docs/reference/symptom-triage.md`
 
 - Screens every query for red-flag language before anything else: cardiac,
   breathing, stroke, bleeding/trauma, anaphylaxis, loss of consciousness,

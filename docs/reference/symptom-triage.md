@@ -684,3 +684,28 @@ the tier is already URGENT by default, so "Suddenly" usually changes nothing.
 It bites only where round-one answers bring a self-care phrase into a
 description that had none, and round two then takes it back out.
 
+
+## Emergency routing (implemented)
+
+`backend/app/core/emergency.py` screens every symptom query for red-flag
+language before the content lookup runs: cardiac, breathing, stroke,
+bleeding/trauma, anaphylaxis, loss of consciousness, self-harm, and
+overdose/poisoning.
+
+- Screening is deliberately **over-inclusive**. A false positive costs the
+  user a few seconds; a miss could cost a life.
+- Guidance renders **above all other content** on the screen, and results are
+  shown beneath it rather than suppressed.
+- It routes to 911 (or 988 for self-harm) and never names a condition or a
+  treatment.
+- It is returned **even when MedlinePlus is down**, so a content outage can
+  never swallow the instruction to call for help.
+
+The phrase lists are signposting terms drawn from public emergency
+warning-sign guidance. **They have not been reviewed by a clinician** — that
+review is required before release.
+
+The general "When to see a doctor" copy is intentionally non-specific.
+Condition-specific criteria ("seek care if your fever exceeds X") would be
+clinical content this app is not permitted to author.
+
