@@ -142,6 +142,21 @@ export interface GoalDraft {
    * reading shows.
    */
   complexity: string | null;
+  /**
+   * How many rows name published guidance, and the server's sentence about it.
+   *
+   * ⛔ RENDER `evidenceSummary` AS SENT. It is reviewed text, like `notice` and
+   * like each citation's `caveat`, and it is the only place a person is told
+   * that NONE of their plan is backed — a thing per-row citations cannot say,
+   * because the absence of a citation renders as nothing at all.
+   *
+   * ⛔ `evidenceBacked` is a count for tests and conditional layout, never a
+   * score. Do not draw it as a bar, a percentage, a grade, or a badge: the
+   * register is eight entries of general lifestyle guidance, so a goal about
+   * a knee injury is unbacked by construction and is not a worse goal.
+   */
+  evidenceBacked: number;
+  evidenceSummary: string | null;
 }
 
 export interface GoalActivity {
@@ -302,6 +317,8 @@ export async function draftGoal(description: string): Promise<GoalDraft> {
     }>;
     notice: string | null;
     complexity: string | null;
+    evidence_backed: number | null;
+    evidence_notice: string | null;
     emergency: {
       category: string;
       headline: string;
@@ -328,6 +345,8 @@ export async function draftGoal(description: string): Promise<GoalDraft> {
     })),
     notice: body.notice,
     complexity: body.complexity ?? null,
+    evidenceBacked: body.evidence_backed ?? 0,
+    evidenceSummary: body.evidence_notice ?? null,
     emergency: body.emergency
       ? {
           category: body.emergency.category,

@@ -53,6 +53,7 @@ judgement, and the mapping from a row to a domain is made by the model. See
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 
@@ -206,3 +207,32 @@ def prompt_vocabulary() -> str:
     come to name a citation that has no source behind it.
     """
     return "\n".join(f"- {source.domain}: {source.label}" for source in _SOURCES)
+
+
+def coverage(domains: Iterable[str | None]) -> tuple[int, int]:
+    """
+    How much of a plan points at published guidance. Returns `(backed, total)`.
+
+    A row counts as backed only if its domain id actually resolves to a
+    `Source` above. An unknown id counts as unbacked, for the same reason
+    `resolve` has no nearest match: a row this app could not attribute must
+    never be counted as one it could.
+
+    ⛔ THIS IS A COUNT, NOT A VERDICT. It says how much of a plan points at
+    somebody's published recommendation, which is the only sense in which
+    anything here is "proven". It does not say the plan is good, that it suits
+    this person, that it will work, or that the publisher endorses it - see
+    the module docstring for the whole of what a citation claims. A plan where
+    every row is backed is still a plan no clinician has read.
+
+    It exists because attribution was previously invisible in aggregate: a
+    plan with nothing published behind any row rendered exactly like one with
+    a source under every row, so a person had no way to tell the difference.
+    """
+    total = 0
+    backed = 0
+    for domain in domains:
+        total += 1
+        if resolve(domain) is not None:
+            backed += 1
+    return backed, total

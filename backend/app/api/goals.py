@@ -158,6 +158,55 @@ def _evidence_out(domain: str | None) -> EvidenceOut | None:
     )
 
 
+def _evidence_notice(backed: int, total: int) -> str | None:
+    """
+    What a person reads about how much of their plan is published guidance.
+
+    `backed` and `total` count MedHelp's OWN suggested rows and nothing else -
+    see the call site for why a row quoting the person may never be counted.
+
+    ⛔ THE ZERO CASE IS THE ONE THIS EXISTS FOR. A plan MedHelp cannot
+    attribute at all used to look exactly like a plan with a government source
+    under every row - the citations were per-row, so their *absence* was
+    rendered as nothing at all, and nothing is indistinguishable from "not
+    applicable". A person asking "has anyone qualified said this works?" got
+    the same silent screen either way. This answers it out loud.
+
+    ⛔ IT MUST NOT READ AS A SCORE. No percentage, no "3/5", no better-or-worse
+    between plans. The register is eight entries of general lifestyle guidance,
+    so a goal about a knee injury or a blood-sugar target scores zero by
+    construction and is not a worse goal for it - saying otherwise would push
+    people towards the goals MedHelp happens to hold a citation for, which is
+    the opposite of planning for the goal they actually wrote.
+
+    Nor may it imply endorsement. Every sentence here repeats the limit that
+    `EVIDENCE_CAVEAT` carries per row: the guidance is about the kind of
+    activity in general, and nobody qualified has checked this plan.
+    """
+    if total == 0:
+        return None
+    if backed == 0:
+        return (
+            "Nothing in MedHelp's published-guidance list covers these "
+            "suggestions, so none of them is shown with a source. They are "
+            "MedHelp's own suggestions, written for what you described, and "
+            "nobody medically qualified has checked them."
+        )
+    if backed < total:
+        return (
+            f"{backed} of these {total} suggestions name published guidance "
+            "from a health body, shown under the row. The rest are MedHelp's "
+            "own. Published guidance is about that kind of activity in "
+            "general - it is not about you, your goal, or this plan."
+        )
+    return (
+        f"All {total} of these suggestions name published guidance from a "
+        "health body, shown under the row. That guidance is about each kind "
+        "of activity in general - it is not about you, your goal, or this "
+        "plan, and nobody medically qualified has checked that it fits."
+    )
+
+
 def _busy_notice(retry_after_seconds: int | None) -> str:
     """
     What a rate-limited person reads.
@@ -292,6 +341,22 @@ def draft_goal(
             result = fallback
 
     if isinstance(result, GoalDraft):
+        # Counted from the same ids the rows are rendered from, so the summary
+        # and the per-row citations can never disagree.
+        #
+        # ⛔ GENERATED ROWS ONLY. A `structure` fallback returns the person's
+        # OWN words, quoted, and those never carry evidence - so counting them
+        # would report "nothing here is backed, these are MedHelp's own
+        # suggestions" about sentences the person wrote themselves. That is
+        # the same falsehood this screen's footnote was fixed for on
+        # 2026-09-14, on the one part of the screen whose job is to say what a
+        # person is looking at. With no generated rows there is nothing for
+        # MedHelp to be backed or unbacked ABOUT, and the summary is omitted.
+        backed, total = goal_evidence.coverage(
+            activity.evidence_domain
+            for activity in result.activities
+            if activity.generated
+        )
         return GoalDraftOut(
             title=result.title,
             activities=[
@@ -314,6 +379,8 @@ def draft_goal(
             notice=None,
             emergency=emergency,
             complexity=result.complexity,
+            evidence_backed=backed,
+            evidence_notice=_evidence_notice(backed, total),
         )
 
     notice = (

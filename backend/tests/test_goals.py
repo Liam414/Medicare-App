@@ -2516,6 +2516,232 @@ def test_a_row_with_no_citation_reaches_the_person_with_evidence_null(
     assert body["activities"][0]["evidence"] is None
 
 
+# ---------------------------------------------------------------------------
+# How much of a plan is published guidance, said out loud.
+#
+# The repository owner asked for goals that are "already previously tested by
+# proven health professionals", and said plainly they did not want "a random
+# Google search because sometimes that isn't really the case of which the user
+# situation is". The register already answers the second half — a closed list
+# of verbatim published recommendations, no web search, no nearest match. What
+# was missing is that a person could not tell whether ANY of it applied to
+# their plan, because an unattributed row renders as nothing at all and
+# nothing looks exactly like not-applicable.
+# ---------------------------------------------------------------------------
+
+
+def test_coverage_counts_only_domains_that_actually_resolve():
+    """
+    ⛔ AN UNKNOWN ID IS UNBACKED, NEVER A NEAR MISS.
+
+    Same rule as `resolve`, for the same reason: counting a row this app could
+    not attribute as one it could is how a summary comes to overstate what is
+    behind a plan.
+    """
+    backed, total = goal_evidence.coverage(
+        ["aerobic_activity", None, "not_a_real_domain", "sleep_routine"]
+    )
+    assert (backed, total) == (2, 4)
+    assert goal_evidence.coverage([]) == (0, 0)
+
+
+def test_a_plan_nothing_published_covers_says_so_rather_than_staying_silent(
+    client, auth_headers, model
+):
+    """
+    ⛔ THE CASE THIS FEATURE EXISTS FOR.
+
+    Before this, a plan with no published guidance behind any row rendered
+    identically to one with a CDC source under every row — the citations were
+    per-row, so their absence was drawn as blank space. Somebody asking "has
+    anyone qualified said this works?" got the same silent screen either way.
+    """
+    model(
+        _plan(
+            title="Knee rehab",
+            activities=[_walk_suggestion(text="Seated knee bends by the sofa")],
+        )
+    )
+    body = client.post(
+        "/goals/draft",
+        json={"description": "I want to get my knee working again"},
+        headers=auth_headers,
+    ).json()
+
+    assert body["evidence_backed"] == 0
+    summary = body["evidence_notice"]
+    assert summary is not None
+    # It names the absence, and does not dress it up as a problem with the goal.
+    assert "MedHelp's own" in summary
+    assert "nobody medically qualified" in summary
+
+
+def test_a_partly_backed_plan_names_the_count_and_claims_no_endorsement(
+    client, auth_headers, model
+):
+    model(
+        _plan(
+            title="Getting outdoors",
+            activities=[
+                _walk_suggestion(evidence_domain="aerobic_activity"),
+                _walk_suggestion(
+                    text="Text your brother on the way home", time_of_day="17:30"
+                ),
+            ],
+            complexity="small",
+        )
+    )
+    body = client.post(
+        "/goals/draft",
+        json={"description": "I want to get outdoors more"},
+        headers=auth_headers,
+    ).json()
+
+    assert body["evidence_backed"] == 1
+    summary = body["evidence_notice"]
+    assert "1 of these 2" in summary
+    # ⛔ The per-row caveat's claim, repeated for the plan as a whole.
+    assert "not about you, your goal, or this plan" in summary
+
+
+def test_the_summary_never_reads_as_a_score_or_a_grade(
+    client, auth_headers, model
+):
+    """
+    ⛔ THE REGISTER IS EIGHT ENTRIES OF GENERAL LIFESTYLE GUIDANCE.
+
+    A goal about a knee injury or a blood-sugar target is unbacked by
+    construction and is not a worse goal for it. Rendering this as a
+    percentage, a grade or a rating would push people towards the goals
+    MedHelp happens to hold a citation for, which is the opposite of planning
+    for the goal they actually wrote.
+    """
+    forbidden = ("%", "score", "grade", "rating", "out of 10", "confidence")
+    for activities, expected in (
+        ([_walk_suggestion()], 0),
+        ([_walk_suggestion(evidence_domain="aerobic_activity")], 1),
+    ):
+        model(_plan(title="A plan", activities=activities))
+        body = client.post(
+            "/goals/draft",
+            json={"description": "I want to walk more"},
+            headers=auth_headers,
+        ).json()
+        assert body["evidence_backed"] == expected
+        summary = body["evidence_notice"].lower()
+        for word in forbidden:
+            assert word not in summary, f"{word!r} reads as a score"
+
+
+def test_the_summary_and_the_rows_can_never_disagree(
+    client, auth_headers, model
+):
+    """
+    The count is taken from the same ids the citations are resolved from, so a
+    row rendered without a source can never be counted as backed.
+    """
+    model(
+        _plan(
+            title="A plan",
+            activities=[
+                _walk_suggestion(evidence_domain="aerobic_activity"),
+                _walk_suggestion(text="Something unattributable", time_of_day="18:00"),
+            ],
+        )
+    )
+    body = client.post(
+        "/goals/draft",
+        json={"description": "I want to walk more"},
+        headers=auth_headers,
+    ).json()
+
+    rendered = sum(1 for row in body["activities"] if row["evidence"] is not None)
+    assert rendered == body["evidence_backed"]
+
+
+def test_a_draft_with_no_plan_carries_no_evidence_summary(
+    client, auth_headers, model
+):
+    """
+    ⛔ NOTHING TO SAY IS NOT THE SAME AS NOTHING IS BACKED.
+
+    An outage or a refusal returns an empty editor, and telling that person
+    that none of their (absent) plan is backed would be a second, confusing
+    sentence about a plan they cannot see.
+    """
+    model(ChatReply(text="", tool_calls=[], model_id="test-model"))
+    body = client.post(
+        "/goals/draft",
+        json={"description": "qqqq"},
+        headers=auth_headers,
+    ).json()
+
+    assert body["activities"] == []
+    assert body["evidence_notice"] is None
+    assert body["evidence_backed"] == 0
+
+
+def test_a_fallback_of_the_persons_own_words_is_never_called_medhelps_own(
+    client, auth_headers, monkeypatch
+):
+    """
+    ⛔ THE ROWS IN A `structure` FALLBACK ARE THE PERSON'S OWN SENTENCES.
+
+    They never carry evidence — that path may only rearrange words the person
+    wrote — so counting them would report "nothing here is backed, these are
+    MedHelp's own suggestions" about text the person wrote themselves. That is
+    the same falsehood the screen's footnote was fixed for on 2026-09-14, on
+    the one part of the screen whose job is to say what somebody is looking at.
+
+    With no generated rows there is nothing for MedHelp to be backed or
+    unbacked about, so there is no summary at all.
+    """
+    monkeypatch.setattr(goal_structuring, "available", lambda: True)
+    monkeypatch.setattr(goal_structuring, "suggest_plan", lambda description: None)
+    monkeypatch.setattr(
+        goal_structuring,
+        "structure",
+        lambda description: goal_structuring.GoalDraft(
+            title="Walking",
+            activities=[
+                goal_structuring.Activity(
+                    text="Walk in the mornings",
+                    cadence="daily",
+                    preferred_time="morning",
+                    source_phrase="walk in the mornings",
+                )
+            ],
+        ),
+    )
+
+    body = client.post(
+        "/goals/draft",
+        json={"description": "I want to walk in the mornings"},
+        headers=auth_headers,
+    ).json()
+
+    # Their own words came back, and nothing called them MedHelp's.
+    assert body["activities"][0]["generated"] is False
+    assert body["evidence_backed"] == 0
+    assert body["evidence_notice"] is None
+
+
+def test_the_prompt_forbids_the_register_from_driving_the_plan():
+    """
+    ⛔ MAKING COVERAGE VISIBLE CREATES PRESSURE TO GAME IT.
+
+    The register's eight ids are walking, strength, sitting, sleep, vegetables,
+    water, quitting and social contact. A planner rewarded for attribution
+    would write every plan out of those — which is exactly the template
+    collapse this feature has already been reported for twice ("I said I want
+    to lose a hundred pounds, and I said I want to lose one pound, and it gave
+    me the same plan"). The prompt says the list is not a menu.
+    """
+    prompt = goal_structuring.PLAN_SYSTEM_PROMPT
+    assert "NOT A MENU OF ACTIVITIES TO PROPOSE" in prompt
+    assert "Leaving every id out is a perfectly good plan." in prompt
+
+
 def test_the_draft_reports_how_big_it_read_the_goal_to_be(
     client, auth_headers, model
 ):

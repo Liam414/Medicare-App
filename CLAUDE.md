@@ -585,6 +585,15 @@ quietly undone.
   and a surface that folds one away renders no publisher, document or
   quotation while closed. ⛔ Nothing that estimates urgency may import the
   register.
+- ⛔ **How much of a plan is backed is a count, never a score.** A per-row
+  citation cannot say that *nothing* is backed — an absent one renders as
+  blank space, which looks like "not applicable" — so the server sends one
+  sentence saying how many of its own suggested rows name published guidance.
+  No percentage, no grade, no badge, no better-or-worse between plans: the
+  register is eight entries of general lifestyle guidance, so a knee rehab or
+  a blood-sugar goal is unbacked by construction and is not a worse goal.
+  ⛔ It counts `generated` rows only — calling a `structure` row unbacked
+  would describe the person's own quoted words as MedHelp's suggestion.
 - ⛔ **A `structure` row must quote the person** — `source_phrase` has to occur
   in the submitted text, no digit may appear unless they wrote it, and it
   carries no clock time and no detail. Suggested rows are exempt by
