@@ -53,6 +53,8 @@ function emptyDraft(overrides: Partial<GoalDraft> = {}): GoalDraft {
     notice: null,
     emergency: null,
     complexity: null,
+    evidenceBacked: 0,
+    evidenceSummary: null,
     ...overrides,
   };
 }
@@ -158,6 +160,93 @@ describe("GoalCreateScreen", () => {
     await waitFor(() =>
       expect(screen.getByText(/From your words/i)).toBeTruthy()
     );
+  });
+
+  it("says out loud when nothing in the plan is backed by published guidance", async () => {
+    // ⛔ THE CASE PER-ROW CITATIONS CANNOT MAKE. A row with no source renders
+    // as blank space, and blank space is indistinguishable from "not
+    // applicable" — so a plan with nothing published behind it looked exactly
+    // like one with a government source under every row.
+    const summary =
+      "Nothing in MedHelp's published-guidance list covers these suggestions.";
+    mockDraft.mockResolvedValue(
+      emptyDraft({
+        title: "Knee rehab",
+        evidenceBacked: 0,
+        evidenceSummary: summary,
+        activities: [
+          {
+            text: "Seated knee bends",
+            sourcePhrase: null,
+            detail: "Sit on the edge of the sofa and straighten one leg.",
+            evidence: null,
+            evidenceDomain: null,
+            cadence: "daily",
+            timesPerWeek: null,
+            quantityText: null,
+            preferredTime: "morning",
+            generated: true,
+            days: [...DAYS],
+            timeOfDay: "08:00",
+          },
+        ],
+      })
+    );
+
+    render(<GoalCreateScreen navigation={navigation as never} route={{ key: "k", name: "GoalCreate" }} />);
+    fireEvent.changeText(
+      screen.getByLabelText(/What would you like to work towards/i),
+      "get my knee working again"
+    );
+    fireEvent.press(screen.getByText("Suggest a plan"));
+
+    await waitFor(() => expect(screen.getByText(summary)).toBeTruthy());
+  });
+
+  it("renders the evidence summary verbatim, never reworded or scored", async () => {
+    // ⛔ It is reviewed server text, like `notice` and like each citation's
+    // caveat. The screen may not reword it, and may not turn the count into a
+    // percentage, grade or badge — a goal the register has nothing to say
+    // about is not a worse goal.
+    const summary =
+      "1 of these 2 suggestions name published guidance from a health body, " +
+      "shown under the row.";
+    mockDraft.mockResolvedValue(
+      emptyDraft({
+        title: "Getting outdoors",
+        evidenceBacked: 1,
+        evidenceSummary: summary,
+        activities: [
+          {
+            text: "Walk after lunch",
+            sourcePhrase: null,
+            detail: "Put your shoes by the door after breakfast.",
+            evidence: null,
+            evidenceDomain: null,
+            cadence: "daily",
+            timesPerWeek: null,
+            quantityText: null,
+            preferredTime: "afternoon",
+            generated: true,
+            days: [...DAYS],
+            timeOfDay: "13:00",
+          },
+        ],
+      })
+    );
+
+    render(<GoalCreateScreen navigation={navigation as never} route={{ key: "k", name: "GoalCreate" }} />);
+    fireEvent.changeText(
+      screen.getByLabelText(/What would you like to work towards/i),
+      "walk more"
+    );
+    fireEvent.press(screen.getByText("Suggest a plan"));
+
+    // Character for character, as the server worded it.
+    await waitFor(() => expect(screen.getByText(summary)).toBeTruthy());
+    // And nothing turned the count into a rating beside it.
+    expect(screen.queryByText(/\d+\s*%/)).toBeNull();
+    expect(screen.queryByText(/\bscore\b/i)).toBeNull();
   });
 
   it("offers an empty editor when there is no proposal, never a generated plan", async () => {

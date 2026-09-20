@@ -79,6 +79,11 @@ export function GoalCreateScreen({ navigation }: Props) {
   // gets saved lives on the activity itself.
   const [evidences, setEvidences] = useState<(Evidence | null)[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  // The server's sentence about how much of the plan names published guidance.
+  // ⛔ Rendered as sent — it is reviewed text, and in the nothing-is-backed
+  // case it is the only thing that says so, because a row with no citation
+  // renders as nothing and nothing looks the same as not applicable.
+  const [evidenceSummary, setEvidenceSummary] = useState<string | null>(null);
   const [emergency, setEmergency] = useState<EmergencyGuidance | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
@@ -103,6 +108,7 @@ export function GoalCreateScreen({ navigation }: Props) {
       const draft = await draftGoal(description);
       setEmergency(draft.emergency);
       setNotice(draft.notice);
+      setEvidenceSummary(draft.evidenceSummary);
       setTitle(draft.title ?? "");
       setActivities(
         draft.activities.length > 0
@@ -317,6 +323,17 @@ export function GoalCreateScreen({ navigation }: Props) {
             placeholder="For example: Getting outdoors more"
           />
 
+          {/*
+            Where the plan stands against published guidance, above the rows
+            it describes. ⛔ It is the server's sentence verbatim, and it is
+            deliberately plain text rather than a badge or a bar: this is a
+            statement about MedHelp's register, not a rating of the person's
+            goal. See `_evidence_notice` in `backend/app/api/goals.py`.
+          */}
+          {evidenceSummary && (
+            <Text style={styles.evidenceSummary}>{evidenceSummary}</Text>
+          )}
+
           <Text style={styles.sectionLabel}>Activities to track</Text>
           {activities.map((activity, index) => (
             <View key={index} style={styles.activityRow}>
@@ -518,6 +535,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   editor: { marginTop: spacing.lg, gap: spacing.md },
+  // Secondary text, the same weight as the rest of the supporting copy on this
+  // screen. ⛔ Not a coloured callout: a green "all backed" panel would read as
+  // an endorsement, and a red "none backed" one as a warning about the goal.
+  // Neither is what the count means.
+  evidenceSummary: { ...typography.caption, color: colors.textSecondary },
   sectionLabel: { ...typography.titleSmall, color: colors.textPrimary },
   activityRow: { gap: spacing.xs },
   source: { ...typography.caption, color: colors.textSecondary },

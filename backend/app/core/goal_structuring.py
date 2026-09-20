@@ -970,6 +970,13 @@ other.
 - ⛔ You are choosing an ID, not writing a citation. Never write a
   publisher, a URL, a quote, a study, a statistic or a date anywhere in a row
   or its detail. The application holds the wording and the link.
+- ⛔ THIS LIST IS NOT A MENU OF ACTIVITIES TO PROPOSE. What to propose is
+  decided first, from THIS person's goal and nothing else; the id is chosen
+  afterwards, for a row you had already written. Writing a plan out of
+  walking, water and sleep because those are the ids available is the same
+  template failure this prompt warns about above, and an unattributed row
+  that answers the person's goal beats an attributed one that does not.
+  Leaving every id out is a perfectly good plan.
 
 NO EXAMPLE IN THIS PROMPT IS A ROW TO COPY
 

@@ -232,6 +232,19 @@ class GoalDraftOut(BaseModel):
     # wrote is a verdict on their ambition, and this app does not judge whether
     # a goal is realistic - the shape of the plan is how the reading shows.
     complexity: str | None = None
+    # How many of `activities` point at a published recommendation in
+    # `core/goal_evidence.py`. `evidence_notice` is the sentence a person reads
+    # about that, worded on the server for the same reason `notice` and
+    # `EVIDENCE_CAVEAT` are: user-facing text in a health app is reviewed text.
+    #
+    # ⛔ A COUNT, NOT A SCORE, AND NEVER A VERDICT ON THE GOAL. It says how
+    # much of the plan somebody published on, which is a fact about MedHelp's
+    # register rather than about this person or their goal. A goal the register
+    # has nothing to say about - a knee rehab, a blood-sugar target - is not a
+    # worse goal, and nothing may render this as a rating, a grade, a
+    # percentage bar, or a reason to prefer one plan over another.
+    evidence_backed: int = 0
+    evidence_notice: str | None = None
 
 
 class ActivityOut(BaseModel):

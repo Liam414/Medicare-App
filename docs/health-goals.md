@@ -315,6 +315,78 @@ which is a genuine improvement on a model asserting things; it is not the
 clinical review this file has been asking for, and it does not lift any release
 blocker.
 
+##### How much of a plan is backed, said out loud (2026-09-20)
+
+Asked for by the repository owner: goals that are *"already previously tested
+by proven health professionals that it works"*, and explicitly **not** *"a
+random Google search because sometimes that isn't really the case of which the
+user situation is"*.
+
+The second half was already the design — the register is a closed list of
+verbatim published recommendations, chosen from by id, with no web search and
+no nearest match. What was missing is that **attribution was invisible in
+aggregate**. Citations render per row, so their *absence* rendered as blank
+space, and blank space is indistinguishable from "not applicable". A plan with
+a CDC source under every row and a plan with nothing published behind any row
+looked identical. Somebody asking "has anyone qualified said this works?" got
+the same silent screen either way.
+
+`goal_evidence.coverage()` counts it and `_evidence_notice()` in
+`api/goals.py` words it; `GoalCreateScreen` renders that sentence above the
+rows it describes.
+
+- ⛔ **It is a count, not a verdict, and must never render as a score.** No
+  percentage, no grade, no badge, no better-or-worse between plans. The
+  register is eight entries of general lifestyle guidance, so a goal about a
+  knee rehab or a blood-sugar target is unbacked **by construction** and is not
+  a worse goal for it. Scoring it would push people towards the goals MedHelp
+  happens to hold a citation for, which is the opposite of planning for the
+  goal they actually wrote. `test_the_summary_never_reads_as_a_score_or_a_grade`
+  holds it.
+- ⛔ **An unknown domain id counts as unbacked.** Same rule as `resolve`: the
+  count is taken from the same ids the citations are resolved from, so a row
+  rendered without a source can never be counted as backed.
+  `test_the_summary_and_the_rows_can_never_disagree` holds it.
+- ⛔ **Nothing is discarded for being unbacked.** A coverage floor was
+  considered and **not** built. A discard costs the person their plan, and the
+  goals the register cannot speak to are exactly the specific, situated ones —
+  which is the failure the owner reported twice, not a thing to punish. The
+  honest answer is to say what is behind the plan, not to withhold it.
+- ⛔ **Making coverage visible creates pressure to game it**, and the way a
+  planner games it is by writing every plan out of walking, water and sleep —
+  the template collapse already reported here twice. `WHERE THE ROW COMES FROM`
+  now says the list is **not a menu**: what to propose is decided from the
+  person's goal first and the id chosen afterwards, an unattributed row that
+  answers the goal beats an attributed one that does not, and leaving every id
+  out is a perfectly good plan.
+  `test_the_prompt_forbids_the_register_from_driving_the_plan` holds it.
+- ⛔ **Generated rows only, and this one was a bug before it was a rule.** A
+  `structure` fallback returns the person's OWN sentences, quoted, and those
+  never carry evidence — so counting them reported *"nothing here is backed,
+  these are MedHelp's own suggestions"* about text the person wrote
+  themselves. That is the same falsehood the screen's footnote was fixed for
+  on 2026-09-14, on the one part of the screen whose job is to say what
+  somebody is looking at. With no generated rows there is nothing for MedHelp
+  to be backed or unbacked *about*, and the summary is omitted entirely.
+  `test_a_fallback_of_the_persons_own_words_is_never_called_medhelps_own`
+  holds it. It was found by a client test whose premise was wrong, not by
+  review.
+- **Not added to `HealthGoalsScreen`.** The daily screen already folds
+  citations away as redundant once the goals are set, on the owner's report
+  that the sourcing "gets too overwhelming". A coverage line there would put
+  the noise back.
+- The empty-editor case sends **no summary at all**: nothing to say is not the
+  same as nothing is backed, and describing the coverage of a plan somebody
+  cannot see is a second confusing sentence.
+
+⛔ **This does not make a plan proven, and the wording must never imply it
+does.** "Backed" means *this kind of activity is the subject of this published
+recommendation* — the whole of what a citation here claims. Every sentence the
+server sends repeats that the guidance is general, is not about this person or
+this plan, and that nobody medically qualified has checked it fits. Nobody
+clinically qualified has read `PLAN_SYSTEM_PROMPT`, the plans, or the mapping
+from a row to a domain, and no release blocker moves.
+
 ### Ten minutes a day for a year-long goal (2026-09-13, second report)
 
 Reported by the repository owner, the same day and after the changes above:
