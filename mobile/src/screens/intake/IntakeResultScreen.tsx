@@ -182,6 +182,52 @@ export function IntakeResultScreen({ navigation, route }: Props) {
       </View>
 
       {/*
+        The model reading the rule layer's answer back to the person.
+
+        ⛔ BESIDE THE REASONING, NEVER INSTEAD OF IT. The line above is reviewed
+        copy chosen by a deterministic rule; this is a model writing freely. If
+        the two ever merged, a reviewer could no longer tell which sentences
+        they had signed off. So it is a separate block, under its own label,
+        attributed to the model that wrote it.
+
+        ⛔ It is absent on EMERGENT by design — that branch returns further up,
+        and app/core/interpretation.py refuses to run at that tier anyway. It is
+        also absent whenever the endpoint is missing, failed, or the answer was
+        rejected by that module's checks, and the screen simply carries on.
+      */}
+      {assessment.interpretation && (
+        <View style={styles.section}>
+          <Text style={styles.sectionHeading}>What this means for you</Text>
+          <Text style={styles.reasoning}>{assessment.interpretation}</Text>
+          <Text style={styles.interpretationSource}>
+            Written by an AI model
+            {assessment.interpretationModel
+              ? ` (${assessment.interpretationModel})`
+              : ""}
+            , reading the result above. It did not decide how urgent this is,
+            and nobody medically qualified has checked it.
+          </Text>
+        </View>
+      )}
+
+      {/*
+        ⛔ Said out loud rather than degrading quietly. The owner's ask on
+        2026-09-19 was that the model be half of this feature rather than an
+        optional extra; the honest way to hold that without making an outage
+        withhold a tier is to keep the rule layer answering and to SAY when the
+        other half is missing.
+      */}
+      {!assessment.modelLayerConfigured && (
+        <View style={styles.section}>
+          <Text style={styles.interpretationSource}>
+            The AI half of this assessment is switched off on this deployment,
+            so you are seeing the screening rules alone. The urgency level above
+            is unaffected — the rules decide it either way.
+          </Text>
+        </View>
+      )}
+
+      {/*
         What the follow-up answers told us, and what they did not.
 
         This is a receipt, not an interpretation. Every value is the user's own
@@ -416,6 +462,7 @@ const styles = StyleSheet.create({
   badgeText_urgent: { color: colors.noticeText },
   badgeText_self: { color: colors.successText },
   reasoning: { ...typography.body, color: colors.textPrimary },
+  interpretationSource: { ...typography.caption, color: colors.textSecondary },
   escalationNote: { ...typography.caption, color: colors.textSecondary },
   section: {
     backgroundColor: colors.surface,

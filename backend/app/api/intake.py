@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from app.core import followup, triage_log
+from app.core import followup, interpretation, triage_log
 from app.core.config import settings
 from app.core.dependencies import get_current_user
 from app.core.triage import Tier, TriageNotConfigured, TriageUnavailable, assess
@@ -31,6 +31,7 @@ from app.schemas.intake import (
     NeedsDetailResponse,
 )
 from app.schemas.symptom import EmergencyGuidanceOut, SymptomTopicOut
+from app.services import llm
 from app.services.medlineplus import MedlinePlusUnavailable, search_topics
 from app.services.search_terms import candidate_queries, content_words, names_match
 
@@ -345,10 +346,24 @@ async def create_assessment(
         else None
     )
 
+    # ⛔ AFTER the tier is final, and it cannot change it. See the fence in
+    # app/core/interpretation.py: this is the model reading the rule layer's
+    # answer back to the person, never a second opinion about urgency. It is
+    # skipped entirely on EMERGENT and returns None on any failure, in which
+    # case the reviewed `reasoning` below is what the screen shows.
+    # ⛔ In the threadpool, like `assess` above. `llm.chat` is synchronous
+    # httpx, and calling it directly from this async endpoint would block the
+    # event loop for the whole round trip — every other request on the worker,
+    # including somebody else's emergency screening, waiting behind a nicety.
+    reading = await run_in_threadpool(interpretation.interpret, description, result)
+
     return IntakeResponse(
         id=record_id,
         tier=result.tier.wire_value,
         reasoning=result.reasoning,
+        interpretation=reading.text if reading else None,
+        interpretation_model=reading.model_id if reading else None,
+        model_layer_configured=llm.configured(llm.default_endpoint()),
         red_flag_match=result.red_flag_match,
         escalated_by_safety_net=result.escalated_by_safety_net,
         emergency=(

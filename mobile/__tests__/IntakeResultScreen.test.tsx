@@ -25,6 +25,9 @@ function assessment(overrides: Partial<IntakeAssessment> = {}): IntakeAssessment
     relatedTopics: [],
     topicsSourceNote: null,
     topicsDisabled: false,
+    interpretation: null,
+    interpretationModel: null,
+    modelLayerConfigured: false,
     summary: null,
     disclaimer: DISCLAIMER,
     escalationGuidance: ESCALATION,
@@ -301,5 +304,73 @@ describe("IntakeResultScreen", () => {
 
       expect(screen.queryByText("What you told us")).toBeNull();
     });
+  });
+});
+
+describe("the AI's reading of the result", () => {
+  /*
+    The owner asked on 2026-09-19 that the model be half of this feature rather
+    than an invisible upgrade, by explaining the tier the rules produced. These
+    hold the two halves apart.
+  */
+
+  it("renders the interpretation beside the reviewed reasoning, never instead of it", () => {
+    /*
+      ⛔ THE LOAD-BEARING ONE. `reasoning` is copy a reviewer signed off, chosen
+      by a deterministic rule. The interpretation is a model writing freely. If
+      one ever replaced the other, nobody could tell which sentences on the
+      screen had been reviewed.
+    */
+    renderResult({
+      interpretation: "Nothing specific was recognised, so a cautious answer was given.",
+      interpretationModel: "test-model",
+      modelLayerConfigured: true,
+    });
+
+    expect(screen.getByText("Synthetic reasoning text.")).toBeTruthy();
+    expect(
+      screen.getByText(/Nothing specific was recognised, so a cautious answer/)
+    ).toBeTruthy();
+  });
+
+  it("attributes it to the model and disowns it", () => {
+    // It is app-authored text about someone's health. The screen has to say
+    // who wrote it and that nobody qualified checked it.
+    renderResult({
+      interpretation: "A plain explanation.",
+      interpretationModel: "test-model",
+      modelLayerConfigured: true,
+    });
+
+    expect(screen.getByText(/Written by an AI model/)).toBeTruthy();
+    expect(screen.getByText(/test-model/)).toBeTruthy();
+    expect(screen.getByText(/did not decide how urgent this is/)).toBeTruthy();
+    expect(
+      screen.getByText(/nobody medically qualified has checked it/)
+    ).toBeTruthy();
+  });
+
+  it("renders nothing at all when there is no interpretation", () => {
+    renderResult({ interpretation: null, modelLayerConfigured: true });
+
+    expect(screen.queryByText(/What this means for you/)).toBeNull();
+    expect(screen.queryByText(/Written by an AI model/)).toBeNull();
+    // The reviewed reasoning still stands on its own.
+    expect(screen.getByText("Synthetic reasoning text.")).toBeTruthy();
+  });
+
+  it("says out loud when the AI half is switched off", () => {
+    // ⛔ Degrading quietly is what the owner objected to. An outage may never
+    // withhold a tier, so the honest alternative is to name the absence.
+    renderResult({ interpretation: null, modelLayerConfigured: false });
+
+    expect(screen.getByText(/AI half of this assessment is switched off/)).toBeTruthy();
+    expect(screen.getByText(/urgency level above is unaffected/)).toBeTruthy();
+  });
+
+  it("does not claim the AI is missing when it is configured and simply said nothing", () => {
+    renderResult({ interpretation: null, modelLayerConfigured: true });
+
+    expect(screen.queryByText(/switched off/)).toBeNull();
   });
 });
