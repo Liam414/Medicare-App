@@ -150,6 +150,24 @@ class IntakeResponse(BaseModel):
     # is the honest explanation for a default tier.
     summary: IntakeRecapOut | None = None
 
+    # The model's plain-language reading of the tier the rules produced.
+    #
+    # ⛔ COMMENTARY, NEVER A VERDICT. `app/core/interpretation.py` runs after
+    # the tier is final and cannot change it; there is deliberately no tier,
+    # score or confidence on this object, so nothing here can be mistaken for a
+    # second opinion. Absent whenever no endpoint is configured, the endpoint
+    # failed, the answer was rejected by the safety checks, or the tier is
+    # EMERGENT — where guidance to call 911 must not wait behind a round trip.
+    #
+    # The client must keep rendering `reasoning` whether or not this is here.
+    interpretation: str | None = None
+    # Which model wrote it, so the screen can attribute it rather than letting
+    # it read as the app speaking.
+    interpretation_model: str | None = None
+    # True when a model endpoint is configured at all. Lets the client say that
+    # half the feature is switched off, rather than silently showing less.
+    model_layer_configured: bool = False
+
     # Safety copy the client must render. Sent from the server so there is one
     # reviewable source of truth rather than per-screen restatements.
     disclaimer: str

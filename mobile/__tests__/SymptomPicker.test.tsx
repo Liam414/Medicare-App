@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { fireEvent, render, screen } from "@testing-library/react-native";
 
 import { SymptomPicker } from "@/components/SymptomPicker";
@@ -230,5 +233,47 @@ describe("browsing with nothing typed", () => {
     expect(screen.queryByText(/based on/i)).toBeNull();
     expect(screen.queryByText(/likely/i)).toBeNull();
     expect(screen.getByText(/without typing anything/i)).toBeTruthy();
+  });
+});
+
+describe("it is painted in the destination's colour", () => {
+  /*
+    Reported 2026-09-19: the picker "doesn't really mesh well with the other
+    themes of the page". It was literally true — every other control on the
+    Symptoms screen reads `useDomain()` and comes out Symptoms blue, and this
+    component alone hard-coded `colors.accent`, which is the teal of `today`.
+    So the one block a person interacts with was the one fighting the band
+    above it.
+
+    ⛔ Asserted against the SOURCE, not a render. A colour reaching the DOM in
+    jsdom proves nothing about which token it came from, and the question here
+    is which token — the same reason `accessibleState.test.ts` reads source.
+  */
+  const raw = readFileSync(
+    join(__dirname, "..", "src", "components", "SymptomPicker.tsx"),
+    "utf8"
+  );
+
+  /*
+    Comments stripped first. The file EXPLAINS that it used to hard-code
+    `colors.accent`, and the first version of this test matched that sentence
+    and failed on a correct file — a check that cannot tell code from the prose
+    describing it is a check that punishes documenting the fix.
+  */
+  const source = raw
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+
+  it("reads the domain rather than hard-coding the global accent", () => {
+    expect(source).toContain("useDomain()");
+    expect(source).not.toMatch(/colors\.accent/);
+  });
+
+  it("never paints a chip or an area from a reviewed safety family", () => {
+    // ⛔ emergency/error/notice/success carry a reviewed meaning about urgency.
+    // A symptom phrase and a body area assert nothing about urgency.
+    for (const family of ["emergency", "error", "notice", "success"]) {
+      expect(source).not.toMatch(new RegExp(`colors\.${family}`));
+    }
   });
 });

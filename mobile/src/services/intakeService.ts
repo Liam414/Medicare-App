@@ -86,6 +86,21 @@ export interface IntakeAssessment {
    * couldn't find anything" when nothing was ever looked up.
    */
   topicsDisabled: boolean;
+  /**
+   * The model's plain-language reading of the tier the rules produced.
+   *
+   * ⛔ Commentary, never a verdict. It is written after the tier is final and
+   * cannot change it, and it is absent on EMERGENT by design — guidance to
+   * call 911 does not wait behind a model round trip. `reasoning` is rendered
+   * whether or not this is present; never swap one for the other.
+   */
+  interpretation: string | null;
+  /** Which model wrote it, so the screen can attribute it rather than let it
+   * read as MedHelp speaking. */
+  interpretationModel: string | null;
+  /** False when no model endpoint is configured at all, so the screen can say
+   * that half the feature is switched off rather than quietly showing less. */
+  modelLayerConfigured: boolean;
   /** Present only when follow-up questions were answered. */
   summary: IntakeRecap | null;
   disclaimer: string;
@@ -246,6 +261,9 @@ export async function submitIntake(
     id: data.id ?? null,
     tier: data.tier as Tier,
     reasoning: data.reasoning ?? "",
+    interpretation: data.interpretation ?? null,
+    interpretationModel: data.interpretation_model ?? null,
+    modelLayerConfigured: Boolean(data.model_layer_configured),
     redFlagMatch: Boolean(data.red_flag_match),
     escalatedBySafetyNet: Boolean(data.escalated_by_safety_net),
     emergency: data.emergency

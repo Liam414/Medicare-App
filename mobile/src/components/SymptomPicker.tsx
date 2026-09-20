@@ -11,7 +11,17 @@ import {
   type Area,
   type Symptom,
 } from "@/services/symptomVocabulary";
-import { MIN_TAP_TARGET, colors, fonts, radius, spacing, typography } from "@/theme";
+import { useDomain } from "@/hooks/useDomain";
+import {
+  MIN_TAP_TARGET,
+  colors,
+  elevation,
+  fonts,
+  radius,
+  spacing,
+  typography,
+  type Domain,
+} from "@/theme";
 
 /**
  * Suggests lay symptom phrases as somebody types, and collects the ones they
@@ -52,6 +62,21 @@ export function SymptomPicker({
   onChange,
   disabled = false,
 }: SymptomPickerProps) {
+  /*
+    ⛔ THE PICKER IS PAINTED IN THE SYMPTOMS COLOUR, NOT THE GLOBAL ACCENT.
+
+    Every other control on this screen — the icon tile, the text field's focus
+    ring, the submit button, the meter down the page edge — reads `useDomain()`
+    and comes out Symptoms blue. This component alone used `colors.accent`,
+    which is the teal of `today`, so the one block a person actually interacts
+    with was the one block fighting the band above it.
+
+    ⛔ A domain colour is a PLACE and never a severity. It says "you are in
+    Symptoms"; it must never be chosen from what the person described. See the
+    fence on `domains` in theme.ts.
+  */
+  const domain = useDomain();
+
   const suggestions = useMemo(
     () => matchSymptoms(description, selectedIds),
     [description, selectedIds]
@@ -116,8 +141,20 @@ export function SymptomPicker({
   return (
     <View style={styles.wrap}>
       {selected.length > 0 && (
-        <View style={styles.block}>
-          <Text style={styles.heading}>Symptoms you have added</Text>
+        /*
+          The one block with a filled ground, because it is the only one that
+          is the person's own answer rather than something MedHelp is offering.
+          A tinted panel is how the rest of the app marks "this is yours".
+        */
+        <View
+          style={[
+            styles.answerPanel,
+            { backgroundColor: domain.surface, borderColor: domain.border },
+          ]}
+        >
+          <Text style={[styles.sectionLabel, { color: domain.ink }]}>
+            Symptoms you have added
+          </Text>
           <Text style={styles.note}>
             These are sent along with what you wrote. Remove any that are not
             right.
@@ -131,6 +168,7 @@ export function SymptomPicker({
                 onPress={() => remove(symptom.id)}
                 disabled={disabled}
                 testGroup="selected"
+                domain={domain}
               />
             ))}
           </View>
@@ -139,7 +177,9 @@ export function SymptomPicker({
 
       {suggestions.length > 0 && (
         <View style={styles.block}>
-          <Text style={styles.heading}>Did you mean any of these?</Text>
+          <Text style={[styles.sectionLabel, { color: domain.ink }]}>
+            Did you mean any of these?
+          </Text>
           <Text style={styles.note}>
             Matched to the words you typed. Adding one does not change what you
             wrote.
@@ -149,6 +189,7 @@ export function SymptomPicker({
             onPick={add}
             disabled={disabled}
             testGroup="matched"
+            domain={domain}
           />
         </View>
       )}
@@ -161,7 +202,7 @@ export function SymptomPicker({
             symptoms MedHelp thinks go with the ones already picked. Do not
             reword it to imply a connection the app cannot know.
           */}
-          <Text style={styles.heading}>
+          <Text style={[styles.sectionLabel, { color: domain.ink }]}>
             Other things people describe about the {relatedAreas.join(" and ")}
           </Text>
           <Text style={styles.note}>
@@ -173,12 +214,15 @@ export function SymptomPicker({
             onPick={add}
             disabled={disabled}
             testGroup="related"
+            domain={domain}
           />
         </View>
       )}
 
       <View style={styles.block}>
-        <Text style={styles.heading}>Or pick from a list</Text>
+        <Text style={[styles.sectionLabel, { color: domain.ink }]}>
+          Or pick from a list
+        </Text>
         <Text style={styles.note}>
           Choose a part of the body to see the things people describe about
           it. You can build your whole answer this way without typing
@@ -212,6 +256,7 @@ export function SymptomPicker({
               first
               onPress={() => setOpenArea(null)}
               disabled={disabled}
+              domain={domain}
             />
             <View style={styles.browseOpen}>
               {browseList.length > 0 ? (
@@ -224,6 +269,7 @@ export function SymptomPicker({
                       onPress={() => add(symptom.id)}
                       disabled={disabled}
                       testGroup="browse"
+                      domain={domain}
                     />
                   ))}
                 </View>
@@ -245,6 +291,7 @@ export function SymptomPicker({
                 first={index === 0}
                 onPress={() => setOpenArea(area)}
                 disabled={disabled}
+                domain={domain}
               />
             ))}
           </View>
@@ -278,12 +325,14 @@ function AreaRow({
   first,
   onPress,
   disabled,
+  domain,
 }: {
   area: Area;
   open: boolean;
   first: boolean;
   onPress: () => void;
   disabled: boolean;
+  domain: Domain;
 }) {
   const count = symptomsInArea(area).length;
 
@@ -302,21 +351,46 @@ function AreaRow({
       style={[
         styles.areaRow,
         first && styles.areaRowFirst,
-        open && styles.areaRowOpen,
+        open && { backgroundColor: domain.surface },
         disabled && styles.chipDisabled,
       ]}
     >
       {open && (
-        <Text style={styles.areaRowChevron} accessibilityElementsHidden>
+        <Text
+          style={[styles.areaRowChevron, { color: domain.ink }]}
+          accessibilityElementsHidden
+        >
           ‹
         </Text>
       )}
-      <Text style={open ? styles.areaRowOpenLabel : styles.areaRowLabel}>
+      <Text
+        style={
+          open
+            ? [styles.areaRowOpenLabel, { color: domain.ink }]
+            : styles.areaRowLabel
+        }
+      >
         {AREA_LABELS[area]}
       </Text>
-      <Text style={styles.areaRowCount} accessibilityElementsHidden>
-        {open ? "All areas" : count}
-      </Text>
+      {open ? (
+        <Text
+          style={[styles.areaRowBack, { color: domain.ink }]}
+          accessibilityElementsHidden
+        >
+          All areas
+        </Text>
+      ) : (
+        /*
+          The count as a quiet pill rather than a bare numeral. Loose digits in
+          a list of words read as part of the label; a pill reads as a tally,
+          which is what it is.
+        */
+        <View style={styles.countPill}>
+          <Text style={styles.countPillText} accessibilityElementsHidden>
+            {count}
+          </Text>
+        </View>
+      )}
       {!open && (
         <Text style={styles.areaRowChevron} accessibilityElementsHidden>
           ›
@@ -352,12 +426,14 @@ function SymptomChip({
   onPress,
   disabled,
   testGroup,
+  domain,
 }: {
   symptom: Symptom;
   added: boolean;
   onPress: () => void;
   disabled: boolean;
   testGroup: string;
+  domain: Domain;
 }) {
   return (
     <Pressable
@@ -371,10 +447,17 @@ function SymptomChip({
           ? `${symptom.label}, added. Activate to remove.`
           : `${symptom.label}, not added. Activate to add.`
       }
-      style={[styles.chip, added && styles.chipSelected, disabled && styles.chipDisabled]}
+      style={[
+        styles.chip,
+        added && { backgroundColor: domain.fill, borderColor: domain.fill },
+        disabled && styles.chipDisabled,
+      ]}
     >
       <Text
-        style={added ? styles.chipRemove : styles.chipAdd}
+        style={[
+          styles.chipMark,
+          { color: added ? colors.textOnAccent : domain.ink },
+        ]}
         accessibilityElementsHidden
       >
         {added ? "✕" : "+"}
@@ -390,11 +473,13 @@ function SuggestionList({
   onPick,
   disabled,
   testGroup,
+  domain,
 }: {
   symptoms: Symptom[];
   onPick: (id: string) => void;
   disabled: boolean;
   testGroup: string;
+  domain: Domain;
 }) {
   return (
     <ScrollView
@@ -411,6 +496,7 @@ function SuggestionList({
           onPress={() => onPick(symptom.id)}
           disabled={disabled}
           testGroup={testGroup}
+          domain={domain}
         />
       ))}
     </ScrollView>
@@ -418,16 +504,41 @@ function SuggestionList({
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: spacing.lg },
+  wrap: { gap: spacing.xl },
   block: { gap: spacing.xs },
-  heading: { ...typography.bodyStrong, color: colors.textPrimary },
+
+  /*
+    Section labels, not headings. `overline` is the app's label voice — the
+    same one used above a group of rows elsewhere — and it is set in the
+    destination's ink so the picker's sections read as parts of THIS screen
+    rather than as a widget dropped onto it.
+
+    ⛔ 13px is the floor and is an accessibility decision, not a preference:
+    small label type is the first thing to fail for anyone with low vision.
+    Do not take `overline` smaller to make this look tidier.
+  */
+  sectionLabel: { ...typography.overline },
   note: { ...typography.caption, color: colors.textSecondary },
+
+  /* The person's own answer, on a tinted ground. */
+  answerPanel: {
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+  },
+
   chipRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm,
     paddingVertical: spacing.xs,
   },
+  /*
+    ⛔ A chip is never coloured from a safety family. The emergency, error and
+    notice palettes carry a reviewed meaning about urgency, and a symptom chip
+    asserts nothing about urgency — it is a phrase somebody tapped.
+  */
   chip: {
     flexDirection: "row",
     alignItems: "center",
@@ -435,35 +546,32 @@ const styles = StyleSheet.create({
     minHeight: MIN_TAP_TARGET,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
+  chipDisabled: { opacity: 0.5 },
+  chipText: { ...typography.caption, color: colors.textPrimary },
+  chipSelectedText: { ...typography.caption, color: colors.textOnAccent },
+  chipMark: { ...typography.caption, fontFamily: fonts.sansBold },
+
   /*
-    Selected chips use the accent, not a safety family. ⛔ Never colour these
-    with the emergency, error or notice palettes — those carry a reviewed
-    meaning about urgency, and a symptom chip asserts nothing about urgency.
-  */
-  chipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
-  /*
-    An open body area uses the same accent as an added chip. ⛔ Never a safety
-    family here either — an area is a place on the body and asserts nothing
-    about urgency, and "chest" must not be drawn more alarmingly than "skin".
-  */
-  areaChipOpen: { backgroundColor: colors.accent, borderColor: colors.accent },
-  /*
-    The body-area menu. ⛔ Deliberately NOT chip-shaped: a bordered list of
-    full-width rows, so a place to look can never be mistaken for a symptom
-    you can add. That confusion is what this replaced.
+    The body-area menu. ⛔ Deliberately NOT chip-shaped: it is the same
+    bordered, hairline-divided card as `NavGroup`, because that is already
+    this app's idiom for "a list of places you can go", and an area is a place
+    to look rather than a symptom you can add. That confusion is what the row
+    treatment replaced on 2026-09-19; this only makes it look like the rest of
+    the app while it does it.
   */
   areaList: {
     marginTop: spacing.xs,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.sm,
+    borderRadius: radius.lg,
     backgroundColor: colors.surface,
     overflow: "hidden",
+    ...elevation.sm,
   },
   areaRow: {
     flexDirection: "row",
@@ -472,23 +580,24 @@ const styles = StyleSheet.create({
     minHeight: MIN_TAP_TARGET,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth > 1 ? StyleSheet.hairlineWidth : 1,
     borderTopColor: colors.divider,
   },
   areaRowFirst: { borderTopWidth: 0 },
-  // ⛔ A muted fill, never a safety family: an area is a place on the body and
-  // asserts nothing about urgency. "chest" must not be drawn more alarmingly
-  // than "skin".
-  areaRowOpen: { backgroundColor: colors.surfaceMuted, borderTopWidth: 0 },
   areaRowLabel: { ...typography.body, color: colors.textPrimary, flex: 1 },
-  areaRowOpenLabel: { ...typography.bodyStrong, color: colors.textPrimary, flex: 1 },
-  areaRowCount: { ...typography.caption, color: colors.textSecondary },
-  areaRowBack: { ...typography.caption, color: colors.textSecondary },
-  areaRowChevron: { ...typography.body, color: colors.textSecondary },
+  areaRowOpenLabel: { ...typography.titleSmall, flex: 1 },
+  areaRowBack: { ...typography.caption },
+  areaRowChevron: { ...typography.body, color: colors.textMuted },
+
+  countPill: {
+    minWidth: 26,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 1,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: "center",
+  },
+  countPillText: { ...typography.caption, color: colors.textSecondary },
+
   browseOpen: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
-  chipDisabled: { opacity: 0.5 },
-  chipText: { ...typography.caption, color: colors.textPrimary },
-  chipSelectedText: { ...typography.caption, color: colors.textOnAccent },
-  chipAdd: { ...typography.caption, color: colors.textSecondary, fontFamily: fonts.sansBold },
-  chipRemove: { ...typography.caption, color: colors.textOnAccent, fontFamily: fonts.sansBold },
 });

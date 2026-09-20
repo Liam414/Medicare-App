@@ -361,6 +361,40 @@ drooping". Match both word orders. ⛔ These are fenced modules. Every past edit
 to them was individually approved by the owner in conversation, and each
 approval is recorded in `docs/triage.md`.
 
+### The AI reads the tier back — `app/core/interpretation.py`
+
+Asked for on 2026-09-19: the model should be half of this feature rather than
+an invisible upgrade, "interpreting the layer and giving further information on
+the risk level". It writes a short plain-language explanation of the tier the
+rules produced.
+
+- ⛔ **It runs after the tier is final and cannot change it.** It is called
+  from `api/intake.py` with the assessment already built, `Interpretation` has
+  only `text` and `model_id` — no tier, score or confidence — and a test
+  asserts no fenced triage module imports it. `_reconcile` is still `max()`
+  over the rules and the classifier, untouched.
+- ⛔ **Never on EMERGENT.** `should_interpret` refuses that tier, for the same
+  reason MedlinePlus topics are not attached there: guidance to call 911 must
+  not wait behind a model round trip.
+- ⛔ **Checked, not trusted.** A reassurance phrase under a tier above
+  SELF_CARE is dropped (the deterministic half of property 4), a named
+  condition is dropped at any tier, and an over-long answer is dropped. The
+  checks are lexical and cannot be a guarantee — what bounds them is that this
+  is commentary beside a tier, never the tier.
+- ⛔ **Rendered beside the reviewed reasoning, never instead of it**, under its
+  own heading, attributed to the model, and disowned in as many words. Merging
+  the two would leave nobody able to tell which sentences a reviewer signed off.
+- **Failure is silence.** No key, an outage, or a rejected answer all return
+  `None` and the screen is exactly what it was before this existed.
+- ⛔ **The key was NOT made a hard requirement**, which is the one half of that
+  request not built. Making an assessment fail without a model would mean an
+  outage withholds emergency guidance, inverting "a missing key degrades
+  quality, it does not break the feature". Instead the absence is *stated* on
+  the result screen. Making it genuinely required is a fenced decision and
+  needs its own answer.
+- ⛔ **No clinician has read `SYSTEM_PROMPT` here.** Same review as
+  `followup.py`, `dose_schedule.py` and `PLAN_SYSTEM_PROMPT`.
+
 ### Emergency routing — `backend/app/core/emergency.py` (fenced)
 
 - Screens every query for red-flag language before anything else: cardiac,
@@ -437,6 +471,11 @@ read it.** Four rules, each tested:
   rule layer, keyed on entry id and never on the label. A phrase the app
   offers and then cannot read is worse than one it never offered — that was
   true of ten entries, seven of them already shipped.
+- ⛔ **The picker is painted from `useDomain()`, never `colors.accent`.** Every
+  other control on the Symptoms screen reads the domain and comes out Symptoms
+  blue; the picker alone hard-coded the `today` teal, so the one block a person
+  interacts with fought the band above it. A test asserts it, against the
+  source with comments stripped. ⛔ Still never a safety family.
 - ⛔ **Body areas are a menu, not chips** (2026-09-19). They render as
   full-width rows and opening one replaces the list. Drawing an area with
   `styles.chip` made "head" and "eyes" read as things you could add, and
