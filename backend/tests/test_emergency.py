@@ -271,6 +271,50 @@ def test_one_half_of_a_two_term_flag_is_not_enough(description):
     assert screen_for_emergency(description) is None
 
 
+class TestTheCaseSplitCannotBreakAPhrase:
+    """
+    ⛔ THE PRECONDITION THAT MAKES `normalize_query` ONE-DIRECTIONAL.
+
+    `normalize_query` inserts a space at every lowercase-to-uppercase boundary
+    so a pasted list — "Chest painShortness of breath" — is split before
+    matching. The module argues this is safe in one direction: "it only ever
+    inserts a space, so it can make screening more sensitive and can never make
+    it less."
+
+    That argument is sound **only while no phrase in the lists contains such a
+    boundary itself**. A phrase written "chestPain", or any phrase with an
+    internal capital, would be split down the middle by the very normalisation
+    meant to help it, and would then match nothing.
+
+    Checked: all 212 phrases, zero contain one. So the guarantee holds today —
+    and this keeps it holding, because the day somebody adds `McBurney` or
+    `ePainScore` to a list the argument quietly stops being true and nothing
+    else would notice.
+
+    ⛔ It is a precondition test, not a behaviour test. It does not check that
+    the split works; `test_emergency.py` already covers that. It checks that
+    the reason the split is safe is still the case.
+    """
+
+    def test_no_phrase_contains_a_lowercase_to_uppercase_boundary(self):
+        import re
+
+        from app.core import emergency
+
+        boundary = re.compile(r"(?<=[a-z])(?=[A-Z])")
+        offenders = [
+            (rule[0], phrase)
+            for rule in emergency._EMERGENCY_RULES
+            for phrase in rule[3]
+            if boundary.search(phrase)
+        ]
+
+        assert offenders == [], (
+            "these phrases would be split in half by normalize_query's own "
+            f"case-split, and would then match nothing: {offenders}"
+        )
+
+
 class TestThePluralRuleHoldsForEveryPhrase:
     """
     ⛔ `plural_tolerant` GENERALISES, AND NOW SOMETHING SAYS SO.
