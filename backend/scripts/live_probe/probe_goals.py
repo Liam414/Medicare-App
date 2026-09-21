@@ -50,6 +50,20 @@ import time
 import urllib.error
 import urllib.request
 
+# ⛔ THE MODEL'S OUTPUT IS NOT ASCII AND THIS SCRIPT PRINTS IT VERBATIM.
+#
+# A plan title came back containing U+2011 (a non-breaking hyphen) and this
+# probe died on it — Windows consoles default to cp1252, which cannot encode
+# that character, so `print` raised UnicodeEncodeError partway through the
+# first goal. The whole run is lost, including the benefit-claim check, which
+# is the most important rule this script tests.
+#
+# `errors="replace"` rather than a strict encoder: a probe whose job is to show
+# what a model actually returned must not refuse to show it. A character that
+# cannot be rendered becomes a replacement glyph; the run continues.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 GOALS: list[tuple[str, str]] = [
     ("everyday-walking", "I want to walk more. I sit at a desk all day and I am stiff by the evening."),
     ("big-weight", "I want to lose a hundred pounds. I know it will take a couple of years and I have started and stopped before."),

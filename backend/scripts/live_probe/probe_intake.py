@@ -39,6 +39,13 @@ import time
 import urllib.error
 import urllib.request
 
+# Same reason as `probe_goals.py`: this prints server text verbatim, the
+# reasoning lines contain typographic punctuation, and a Windows console
+# defaults to cp1252. Without this the probe dies mid-run on a character it
+# cannot encode, losing every check after it.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Tier ordering. The floor check is "at least this", never "exactly this".
 RANK = {"SELF_CARE": 0, "URGENT": 1, "EMERGENT": 2}
 
