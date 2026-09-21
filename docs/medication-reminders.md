@@ -43,6 +43,47 @@ times. Deliberately refused:
 - **Food and route qualifiers** ("with food") are left in the verbatim text,
   never turned into mealtimes. MedHelp does not know when anyone eats.
 
+#### ⛔ "WHEN REQUIRED" IS PRN TOO, AND IT USED TO BE MISSED (FIXED 2026-09-20)
+
+`AS_NEEDED` carried "as required", "when needed" and "if needed" — three of the
+four combinations of {as, when} × {needed, required} — and missed **"when
+required"**, which is exactly how a British label prints PRN.
+
+So `TAKE 1 TABLET EVERY 4 HOURS WHEN REQUIRED` was read as a plain four-hourly
+interval and proposed **six alarms a day, including 00:00 and 04:00**: the app
+waking somebody at four in the morning to take an as-needed painkiller. That is
+the failure the bullet above calls the most important refusal here, and it was
+live. `every 6 hours if required` and `every 8 hours when necessary` did the
+same thing.
+
+Found by running real-world sig lines through `suggest_times` rather than by
+reading it. `test_british_phrasings_of_as_needed_are_never_scheduled` holds it.
+
+⛔ **Extending `AS_NEEDED` is one-directional and therefore safe** — every
+addition can only make the function refuse *more*, never schedule more. A wrong
+refusal costs somebody the minute it takes to type their own times; a wrong
+schedule is an alarm telling them to take a medicine they may not need. Add
+freely. Never remove without the clinical review these phrase lists are still
+waiting for.
+
+#### REPORTED, NOT FIXED: a finite course becomes a permanent alarm
+
+`TAKE 1 TABLET DAILY FOR 7 DAYS THEN STOP` is suggested 09:00 **daily, with no
+end**. The daily part is right — it is a once-daily medicine — so refusing it
+outright would lose a genuinely useful suggestion for exactly the case
+reminders help most with, a short antibiotic course.
+
+What is missing is an end date, and `medication_reminders` has no column for
+one. That is a feature and a migration, not a phrase-list fix, so it is
+reported rather than built.
+
+Two things bound it today: `ReminderEditScreen` shows the printed directions
+**unedited beside the proposed times**, so the person reads "FOR 7 DAYS THEN
+STOP" while confirming, and deleting the medication deletes its reminders. It
+is still the same family as the leftover-reminder rule elsewhere in this file —
+*an alarm telling someone to take a medication they have stopped* — and an end
+date is the honest fix.
+
 Times are rejected, never reinterpreted: `8am`, `0800` and `8:00` are refused
 rather than guessed, because "8" could be either end of the day.
 
