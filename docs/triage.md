@@ -667,6 +667,60 @@ holds both.
    file fences, so **they are reported and left untouched** — a fix is a case
    moving out of that section, measured rather than argued.
 
+6. ⛔ **The six above were not the exception. They were the sample.**
+
+       cd backend
+       python scripts/triage_eval/phrasing_sweep.py
+
+   `scripts/triage_eval/phrasing_sweep.py` asks the question the other two
+   harnesses cannot: **does an existing category recognise ordinary ways of
+   describing it?** 56 lay phrasings, every one of a presentation
+   `emergency.py` already holds a category and reviewed copy for.
+
+   **41 of 56 are missed — 73%.** Three categories recognised nothing at all:
+
+   | category | recognised |
+   |---|---|
+   | stroke | **0 / 5** |
+   | bleeding_trauma | **0 / 6** |
+   | vision_loss | **0 / 4** |
+   | overdose_poisoning | 1 / 5 |
+   | breathing | 1 / 6 |
+   | cardiac | 2 / 8 |
+   | sepsis_meningitis | 3 / 3 |
+
+   "half my face has gone slack", "my words are coming out as nonsense" and
+   "I cannot lift my right arm at all" are the three things a stroke campaign
+   teaches people to say, and none of them reaches the stroke category.
+
+   ⛔ **Read the caveat as carefully as the number.** These descriptions are
+   *an engineer's idea of how a frightened person writes* — not transcripts,
+   not validated, not clinician-reviewed. That is exactly the standing of the
+   gold labels in `corpus.py`, and the same limit applies: this measures the
+   phrase lists against one person's guess at natural language, and a real
+   miss rate would need real user text this project does not have. What it is
+   good for is direction and magnitude, and a category that recognises none of
+   six ordinary descriptions of itself is not a borderline call.
+
+   ⛔ **A miss is not a reassurance.** The rule layer defaults to URGENT and
+   `escalation_guidance` still travels with the reply, so the person is told to
+   get seen and to call 911 if things change. What is missing is the headline,
+   the number, and the instruction to ring it now — Poison Control for an
+   overdose, 988 for self-harm. Read a miss as *the app said see someone soon
+   where it should have said call an ambulance.*
+
+   **This reframes what the 100% figures mean.** Both corpora report 100%
+   safety of advice, and both are honest — they measure agreement with
+   documented intent on the phrasings somebody thought to write down. This
+   sweep is the other half, and it says the instrument is far more
+   phrase-shaped than those two numbers suggest. The 59.5% rule coverage
+   already hinted at it; this puts a number on what the gap costs at the
+   EMERGENT end.
+
+   The script deliberately **always exits 0**. A sweep of invented phrasings
+   must never fail somebody's build, and a threshold would lend these numbers
+   an authority they have not earned.
+
 #### Licensed protocol content: the container exists, the content does not
 
 `backend/app/core/protocol_content.py` loads a licensed telephone-triage
