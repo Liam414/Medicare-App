@@ -146,6 +146,28 @@ describe("sign-in at different window widths", () => {
     expect(screen.getByText("Your health companion")).toBeTruthy();
     expect(screen.getByText(/does not diagnose\s+conditions or recommend treatment/i)).toBeTruthy();
   });
+
+  it("⛔ says MedHelp writes the goal plan, never that it only records one", () => {
+    // Found on the live site. The Goals row read "Write down what you intend to
+    // do, and tick it off", which stopped being true on 2026-09-12 when the
+    // feature began proposing a plan and a schedule for any goal typed in.
+    //
+    // It is the same claim `GoalCreateScreen`'s footnote was rewritten for on
+    // that date — "MedHelp tracks what you decide to do, does not decide what
+    // your goals should be" — and CLAUDE.md says in as many words that the old
+    // framing must not come back. It came back here, on the first screen a new
+    // account ever reads, describing the app as recording choices it authors,
+    // and nothing was pinning it.
+    //
+    // The rule being enforced is AuthShell's own: every line restates a
+    // sentence the app already shows, "so signing in makes no claim that using
+    // the app then contradicts".
+    setWindowWidth(BREAKPOINT.expanded + 360);
+    renderLogin();
+
+    expect(screen.getByText(/work towards.*MedHelp suggests/i)).toBeTruthy();
+    expect(screen.queryByText(/write down what you intend to do/i)).toBeNull();
+  });
 });
 
 /**
