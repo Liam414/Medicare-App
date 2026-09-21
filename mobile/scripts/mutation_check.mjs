@@ -51,6 +51,7 @@ const CARD = "src/screens/emergency/EmergencyCardScreen.tsx";
 const TOKEN = "src/services/tokenStorage.web.ts";
 const CARD_STORE = "src/services/emergencyCard.ts";
 const NOTIFY = "src/services/notificationService.web.ts";
+const TODAY = "src/screens/TodayScreen.tsx";
 
 /**
  * Each entry: the rule, in CLAUDE.md's own words, and the smallest edit that
@@ -78,6 +79,21 @@ const MUTATIONS = [
     find: "    return window.sessionStorage ?? null;",
     replace: "    return window.localStorage ?? null;",
     tests: ["__tests__/tokenStorageWeb.test.ts"],
+  },
+  {
+    group: "goals",
+    // The same rule on the screen people open every morning. TodayScreen's
+    // docstring forbids "missed" in as many words — "MedHelp does not know
+    // whether the dose was taken" — and its test asserts the word never
+    // appears. But that test's assertions are mostly `queryByText(...)` being
+    // null, and a negative assertion passes just as happily when the screen
+    // rendered nothing at all. This proves the test fails when the word is
+    // really there.
+    label: "the today screen calls a passed dose time missed",
+    file: TODAY,
+    find: '            ? "Earlier today"',
+    replace: '            ? "Missed"',
+    tests: ["__tests__/TodayScreen.test.tsx"],
   },
   {
     group: "goals",
