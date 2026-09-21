@@ -274,6 +274,107 @@ _DOCUMENTED_GAPS: list[Case] = [
         "EMERGENT",
         "documented gap (FIXED by symptom_concepts): two-term combinator",
     ),
+    # -----------------------------------------------------------------------
+    # Found 2026-09-20 by probing the LIVE deployment with lay phrasings that
+    # are not in any corpus. All six reach `defaulted=True`, tier URGENT,
+    # `emergency=None` — so the person is asked "Where in your body do you feel
+    # it? How bad is it, from 1 to 10?" instead of being told to call for help.
+    #
+    # ⛔ REPORTED, NOT FIXED. Closing any of these means editing the phrase
+    # lists in `emergency.py`, which CLAUDE.md fences behind explicit human
+    # approval obtained outside this pipeline. Adding corpus cases is permitted
+    # and is the whole point of the harness: a fix is a case moving out of this
+    # section, measured rather than argued.
+    #
+    # Each one sits a word or two from a phrase that DOES fire, which is the
+    # signature of a literal phrase list rather than a vocabulary gap:
+    # "I took too many pills" reaches Poison Control; "I took the whole bottle
+    # of pills" reaches nothing.
+    # -----------------------------------------------------------------------
+    Case(
+        "my chest feels like an elephant is sitting on it",
+        "EMERGENT",
+        "documented gap: the canonical lay description of cardiac chest pain; "
+        "the list has 'chest pressure' and 'chest feels heavy', not this",
+    ),
+    Case(
+        "my lips are turning blue and I am wheezing badly",
+        "EMERGENT",
+        "documented gap: cyanosis has no phrase at all in _EMERGENCY_RULES",
+    ),
+    Case(
+        "blood is pouring from the cut and won't stop",
+        "EMERGENT",
+        "documented gap: bleeding_trauma has the noun forms, not 'blood is "
+        "pouring'",
+    ),
+    Case(
+        "I threw up something that looked like coffee grounds",
+        "EMERGENT",
+        "documented gap: coffee-ground emesis is a textbook GI bleed; the list "
+        "has 'threw up blood', which this description never says",
+    ),
+    Case(
+        "I took the whole bottle of pills",
+        "EMERGENT",
+        "documented gap: 'took too many pills' fires, this does not — and it "
+        "is the one that should also reach 988",
+    ),
+    Case(
+        "it's like a curtain came down over one eye",
+        "EMERGENT",
+        "documented gap: 'curtain came over my eye' was added 2026-09-14 and "
+        "fires; inserting 'down' and 'one' defeats it",
+    ),
+    # -----------------------------------------------------------------------
+    # ⛔ FALSE SELF_CARE — THE CATASTROPHIC DIRECTION. Found 2026-09-20.
+    #
+    # Everything else in this section is a missed escalation: the tier comes
+    # back URGENT instead of EMERGENT, which is "get seen soon" instead of
+    # "call an ambulance". These two are different in kind. They come back
+    # SELF_CARE — the app telling somebody their problem will settle on its
+    # own — which is the outcome the module's central invariant exists to
+    # make impossible ("SELF_CARE must be positively earned... not
+    # recognising something is not the same as it being harmless").
+    #
+    # They are not a new clinical claim. The app's OWN reviewed lists already
+    # say the first is EMERGENT; it is defeated by spelling.
+    # -----------------------------------------------------------------------
+    # ⛔ "a dry cough and I cannot catch my breath" RETURNS SELF_CARE TODAY,
+    # AND IT IS DELIBERATELY *NOT* A CASE HERE. Found 2026-09-20.
+    #
+    # It belongs in this section by every other measure — a real, reproducible,
+    # reported-and-unfixed gap in a fenced module. It is left out because
+    # adding it with its honest gold of EMERGENT fails
+    # `test_no_gold_emergent_case_is_ever_returned_as_self_care`, whose
+    # docstring says "this must be zero, always, no exceptions" — and that test
+    # is right. A gold-EMERGENT description answered with reassurance is not a
+    # gap to be recorded and excluded from the scores; it is the one failure
+    # the architecture exists to prevent, and the build should break on it.
+    #
+    # ⛔ DO NOT ADD IT HERE WITH A SOFTENED GOLD to make the suite green. That
+    # would convert the repo's strongest safety assertion into a documented
+    # exception, which is the opposite of what finding it should achieve. The
+    # honest resolutions are to fix `_EMERGENCY_RULES` (fenced — needs the
+    # owner, and a clinician should read it) or to leave it reported.
+    #
+    # It is reported in `docs/test-run-2026-09-20.md` as FINDING 0 and stays
+    # measurable in `scripts/triage_eval/phrasing_sweep.py`, which always
+    # exits 0 and therefore cannot hide behind a green tick.
+    Case(
+        "sore throat and I am drooling and cannot swallow",
+        # ⛔ URGENT, not EMERGENT, on purpose. Drooling with an inability to
+        # swallow is an airway presentation, but deciding it deserves a
+        # red-flag category is a clinician's call this corpus may not make —
+        # the same rule that labels appendicitis URGENT with
+        # `escalation_deferred`. What is not in doubt is that it is NOT minor,
+        # and SELF_CARE is what it returns today.
+        "URGENT",
+        "documented gap: FALSE SELF_CARE. 'sore throat' earns self-care and "
+        "neither 'drooling' nor 'cannot swallow' is an escalating modifier. "
+        "Whether this deserves its own red-flag category is a reviewer's "
+        "call; that it is not self-care is not",
+    ),
 ]
 
 

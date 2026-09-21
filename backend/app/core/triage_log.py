@@ -49,9 +49,26 @@ def logging_enabled() -> bool:
     """
     Whether classification logging may run at all.
 
-    Production is refused unconditionally — the flag is not sufficient there.
+    ⛔ ONLY A RECOGNISED DEVELOPMENT ENVIRONMENT MAY LOG. The flag is never
+    sufficient on its own.
+
+    This used to read `if settings.environment == "production"`, an exact
+    string match, while `settings.is_development` normalises with
+    `.strip().lower()`. So the rest of the app treated `Production`,
+    `PRODUCTION` and `production ` as production — strict signing key, no
+    wildcard CORS, no `/docs` — and this module did not, and would have written
+    health descriptions to the application log of a production deployment.
+
+    Inverting the test to `is_development` fixes more than the spelling. The
+    question this module has to answer is not "is this production?" but "is
+    this somewhere a real person may have typed?", and the only environments it
+    can be sure about are the ones it recognises. A deployment called `staging`
+    or `prod` can hold real descriptions; under the old check both logged
+    freely, because neither is the string "production".
+
+    ⛔ Fail safe. An unrecognised environment refuses.
     """
-    if settings.environment == "production":
+    if not settings.is_development:
         return False
     return settings.triage_log_classifications
 

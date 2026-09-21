@@ -575,6 +575,43 @@ class TestFailureMode:
         assert "ANTHROPIC_API_KEY" not in detail
         assert "911" in detail
 
+    @pytest.mark.parametrize(
+        "environment", ["Production", "PRODUCTION", "production ", "staging", "prod"]
+    )
+    def test_no_environment_but_a_known_development_one_leaks_configuration(
+        self, client, auth_headers, stub_topics, monkeypatch, environment
+    ):
+        """
+        ⛔ THE CHECK MATCHED ONE EXACT STRING. Found 2026-09-20.
+
+        `settings.is_development` normalises with `.strip().lower()`, so the
+        rest of the app treats every spelling here as production. This branch
+        did a raw `!= "production"`, so all of them took the developer path and
+        put "Set LLM_BASE_URL... or ANTHROPIC_API_KEY" in front of an end user
+        — the exact thing the comment beside it forbids.
+
+        `staging` and `prod` are the more interesting half: neither is the
+        string "production", so both leaked under the old check while plainly
+        being deployments real people can reach.
+        """
+        from app.core.triage import TriageNotConfigured
+
+        def _unconfigured(description: str, *, followup_already_asked: bool = False):
+            raise TriageNotConfigured("no credentials")
+
+        monkeypatch.setattr("app.api.intake.assess", _unconfigured)
+        monkeypatch.setattr("app.api.intake.settings.environment", environment)
+
+        response = client.post(
+            "/intake/assess", json={"description": "sore throat"}, headers=auth_headers
+        )
+
+        detail = response.json()["detail"]
+        assert "ANTHROPIC_API_KEY" not in detail
+        assert "LLM_BASE_URL" not in detail
+        # The safety guidance survives regardless.
+        assert "911" in detail
+
     def test_a_red_flag_still_works_with_no_credentials(
         self, client, auth_headers, stub_topics
     ):

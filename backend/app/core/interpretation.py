@@ -115,7 +115,22 @@ _REASSURANCE = re.compile(
     r"|\b(no need to|don'?t need to|do not need to|needn'?t)\b"
     r"|\bprobably (fine|nothing|harmless)\b|\bnot serious\b|\bnot urgent\b"
     r"|\bshould settle\b|\bwill pass\b|\bno cause for concern\b|\bwait and see\b"
-    r"|\bno rush\b|\bnot necessary to\b",
+    r"|\bno rush\b|\bnot necessary to\b"
+    # ⛔ ADDED 2026-09-20. The list above was written from three example
+    # sentences and held exactly those; six ordinary ways of saying the same
+    # thing walked through it. "It can safely wait" printed beside "get this
+    # seen soon" is the property-4 violation this check exists to prevent, in
+    # words the list did not carry.
+    #
+    # `(probably|likely|possibly|most likely) (fine|nothing|harmless|ok|okay)`
+    # generalises the `probably (fine|nothing|harmless)` above rather than
+    # sitting beside it.
+    r"|\b(probably|likely|possibly|most likely) (fine|nothing|harmless|ok|okay)\b"
+    r"|\bshould be (fine|ok|okay)\b|\byou'?ll be (fine|ok|okay)\b"
+    r"|\bnot (to be|be) (concerned|worried|alarmed)\b"
+    r"|\bclear up on its own\b|\bgo away on its own\b|\bresolve on its own\b"
+    r"|\bno hurry\b|\bno urgency\b|\bcan wait\b|\bsafely wait\b"
+    r"|\bnothing serious\b|\bnothing alarming\b|\bnothing dangerous\b",
     re.I,
 )
 
@@ -126,7 +141,23 @@ _REASSURANCE = re.compile(
 _DIAGNOSIS = re.compile(
     r"\byou (probably |possibly |may |might |likely )?have\b"
     r"|\bthis (is|could be|may be|might be|sounds like) (a|an|the)\b"
-    r"|\bconsistent with\b|\bsuggestive of\b|\bdiagnos",
+    r"|\bconsistent with\b|\bsuggestive of\b|\bdiagnos"
+    # ⛔ ADDED 2026-09-20. Eight more ways to name a condition, found by
+    # writing what a model would plausibly say rather than what the pattern
+    # already held. The three cases the original was written from passed and
+    # proved nothing about the shape of the rule.
+    #
+    # `sounds like (a|an|the)` required an article, so "Sounds like flu to me"
+    # walked through on a missing word — hence the article-free alternatives
+    # below.
+    r"|\b(looks|sounds|seems) like\b"
+    r"|\b(typical|characteristic|indicative) of\b"
+    r"|\bclassic (signs?|symptoms?|presentation) of\b"
+    r"|\b(may|might|could) well be\b"
+    r"|\boften have\b|\busually have\b"
+    r"|\bpoints to\b|\bpointing to\b"
+    r"|\b(likely|probable|possible) cause\b"
+    r"|\bcaused by\b",
     re.I,
 )
 

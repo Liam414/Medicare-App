@@ -16,6 +16,7 @@ from app.core.config import (
     Settings,
 )
 from app.core.rate_limit import RateLimiter
+from app.main import _PRIVATE_ORIGIN_RE
 from app.core.security import create_access_token, decode_access_token
 from app.db.session import engine, require_tls
 
@@ -110,6 +111,64 @@ def test_cors_origins_parse_into_a_list_without_trailing_slashes():
         "https://a.example.com",
         "https://b.example.com",
     ]
+
+
+# ⛔ THE SHARED HOST LIST. Keep it identical to the one in
+# `mobile/__tests__/baseUrl.test.ts`.
+#
+# `_PRIVATE_ORIGIN_RE` here and `isLoopbackOrPrivate` in
+# `mobile/src/services/baseUrl.ts` are the same rule written twice, in two
+# languages: the client uses it to decide where the API is, this one to decide
+# whether the browser may talk to it. CLAUDE.md says to keep the two in step,
+# and on 2026-09-20 they were not — three hosts the client trusted were refused
+# here, so the app would load and then fail every request with a CORS error.
+#
+# Two implementations cannot share code, so they share a list of cases instead.
+_PRIVATE_HOSTS = [
+    "localhost",
+    "app.localhost",
+    "my-mac.local",
+    "my.mac.local",
+    "127.0.0.1",
+    "10.0.0.5",
+    "172.16.0.1",
+    "172.31.255.254",
+    "192.168.1.5",
+    "169.254.1.1",
+    "100.64.0.1",
+    "[::1]",
+    "[fd12:3456::1]",
+]
+
+_PUBLIC_HOSTS = [
+    "example.com",
+    "8.8.8.8",
+    "172.15.0.1",  # just below the private block
+    "172.32.0.1",  # just above it
+    "100.63.0.1",  # just below the CGNAT range
+    "100.128.0.1",  # just above it
+    "evil-localhost.com",
+    "localhost.evil.com",
+]
+
+
+@pytest.mark.parametrize("host", _PRIVATE_HOSTS)
+def test_a_development_machine_origin_is_allowed(host):
+    assert _PRIVATE_ORIGIN_RE.match(f"http://{host}:8081"), host
+    assert _PRIVATE_ORIGIN_RE.match(f"https://{host}"), host
+
+
+@pytest.mark.parametrize("host", _PUBLIC_HOSTS)
+def test_a_public_origin_is_never_a_private_one(host):
+    """
+    ⛔ The near-misses are the point.
+
+    `172.15` and `172.32` bracket the RFC1918 block, `100.63` and `100.128`
+    bracket the CGNAT range, and `localhost.evil.com` is the attack an
+    unanchored suffix check would wave through.
+    """
+    assert not _PRIVATE_ORIGIN_RE.match(f"http://{host}:8081"), host
+    assert not _PRIVATE_ORIGIN_RE.match(f"https://{host}"), host
 
 
 def test_app_does_not_send_a_wildcard_cors_header(client):
@@ -596,3 +655,108 @@ def test_every_other_route_requires_authentication():
                 unguarded.append(f"{method} {path}")
 
     assert not unguarded, f"routes reachable without a token: {sorted(unguarded)}"
+
+
+# ⛔ EVERY QUERY PARAMETER THE APP ACCEPTS, PINNED.
+#
+# CLAUDE.md: "The user's text reaches the app's own backend by POST, never as a
+# URL query string, so it stays out of our access logs, proxies, and crash
+# reporters." That is a real property today and nothing was enforcing it.
+#
+# A query string is the worst place health data can land, because it is the
+# part of a request that gets written down by everything it passes through —
+# the access log, the reverse proxy, the CDN, the browser history, a Referer
+# header on the next outbound link. Unlike a POST body, none of that is under
+# this app's control and none of it is cleaned up afterwards.
+#
+# `?description=` on a GET is not a strange thing for somebody to add. It is
+# the obvious way to make a lookup shareable or cacheable, and it would look
+# entirely reasonable in review.
+_ALLOWED_QUERY_PARAMS = {
+    "/medications": {"refill_lead_days"},
+    "/providers/search": {"postal_code", "care_setting", "limit"},
+    "/goals": {"on"},
+}
+
+# Names that could only hold something a person wrote about themselves.
+_FORBIDDEN_QUERY_PARAMS = {
+    "description",
+    "symptoms",
+    "symptom",
+    "complaint",
+    "reason",
+    "reason_for_visit",
+    "notes",
+    "note",
+    "text",
+    "query",
+    "q",
+    "search",
+    "condition",
+    "medication",
+    "medication_name",
+    "drug",
+    "allergies",
+    "goal",
+    "title",
+    "email",
+    "password",
+}
+
+
+def test_no_get_route_takes_health_text_in_the_query_string():
+    """
+    The allowlist, so a new parameter is a decision rather than a drift.
+
+    Pinned by name rather than by type: a `str` query parameter is fine when it
+    is a ZIP or a care setting from a fixed list, and catastrophic when it is a
+    description. Only a person can tell those apart, which is what makes this a
+    list somebody has to edit on purpose.
+    """
+    from app.main import app
+
+    unexpected: list[str] = []
+    forbidden: list[str] = []
+
+    for route in app.routes:
+        methods = getattr(route, "methods", set()) or set()
+        dependant = getattr(route, "dependant", None)
+        path = getattr(route, "path", "")
+        if dependant is None or "GET" not in methods:
+            continue
+
+        names = {parameter.name for parameter in dependant.query_params}
+        allowed = _ALLOWED_QUERY_PARAMS.get(path, set())
+
+        for name in sorted(names - allowed):
+            unexpected.append(f"GET {path}?{name}")
+        for name in sorted(names & _FORBIDDEN_QUERY_PARAMS):
+            forbidden.append(f"GET {path}?{name}")
+
+    assert not forbidden, (
+        "these put user text in a URL, where access logs and proxies keep it: "
+        f"{sorted(forbidden)}"
+    )
+    assert not unexpected, (
+        "new query parameters, which need a deliberate decision about whether "
+        f"they can hold anything a person wrote: {sorted(unexpected)}"
+    )
+
+
+def test_the_query_parameter_allowlist_is_not_stale():
+    """
+    ⛔ Guards the guard.
+
+    If a route in `_ALLOWED_QUERY_PARAMS` were renamed or removed, the test
+    above would keep passing while checking nothing — the allowlist entry would
+    simply never be consulted. That is the same vacuous-pass shape this
+    repository keeps finding in its own tests.
+    """
+    from app.main import app
+
+    live = {getattr(route, "path", "") for route in app.routes}
+
+    assert set(_ALLOWED_QUERY_PARAMS) <= live, (
+        "the allowlist names routes that no longer exist: "
+        f"{sorted(set(_ALLOWED_QUERY_PARAMS) - live)}"
+    )

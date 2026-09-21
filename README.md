@@ -51,6 +51,17 @@ python -c "import secrets; print(secrets.token_hex(32))"
 # CLAUDE.md, "Known Gaps"), so re-run this whenever a new model is added.
 python scripts/create_missing_tables.py
 
+# ⛔ A NEW COLUMN IS NOT A NEW MODEL, AND THE SCRIPT ABOVE WILL NOT ADD ONE.
+# `create_missing_tables.py` creates missing TABLES and never alters existing
+# ones, so a column added to a table you already have needs its own script.
+# On a fresh database these are all no-ops; on an existing one, skipping them
+# is why an endpoint returns 500 with nothing obviously wrong. All are
+# idempotent, so running them when they are not needed costs nothing.
+python scripts/add_medication_supply_columns.py   # or /medications returns 500
+python scripts/add_goal_schedule_columns.py       # or /goals returns 500
+python scripts/add_goal_detail_columns.py         # detail + evidence on a goal row
+python scripts/add_intake_audit_columns.py        # the intake audit trail
+
 uvicorn app.main:app --reload
 ```
 
@@ -104,6 +115,12 @@ Alembic is not wired up yet, so nothing does this at startup:
 cd backend
 python scripts/create_missing_tables.py
 ```
+
+⛔ And if the feature added a **column** to a table that already exists, that
+script will not touch it — see the `add_*_columns.py` scripts in the backend
+setup section above. This is the failure that looks like a bug in the feature
+rather than a step you skipped: the endpoint returns 500 and everything else
+works.
 
 Run backend tests:
 

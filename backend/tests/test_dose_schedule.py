@@ -98,6 +98,44 @@ class TestRefusals:
     @pytest.mark.parametrize(
         "frequency",
         [
+            # ⛔ "WHEN REQUIRED" IS HOW A BRITISH LABEL WRITES "AS NEEDED".
+            #
+            # Found 2026-09-20. The pattern carried "as required", "when
+            # needed" and "if needed" — three of the four combinations of
+            # {as, when} x {needed, required} — and missed this one. So
+            # "TAKE 1 TABLET EVERY 4 HOURS WHEN REQUIRED" was read as a plain
+            # four-hourly interval and proposed SIX alarms a day, including
+            # 00:00 and 04:00: the app waking somebody at four in the morning
+            # to take an as-needed painkiller.
+            #
+            # That is the exact failure the docstring below calls the most
+            # important refusal here, so it is parametrised alongside the
+            # original phrasings rather than filed as a separate case.
+            "TAKE 1 TABLET EVERY 4 HOURS WHEN REQUIRED",
+            "take 2 puffs when required",
+            "1 tablet every 6 hours if required",
+            "take one as necessary",
+            "TAKE 1 TABLET EVERY 8 HOURS WHEN NECESSARY",
+        ],
+    )
+    def test_british_phrasings_of_as_needed_are_never_scheduled(self, frequency):
+        """
+        Same rule, same reason, different dialect.
+
+        A refusal costs somebody the minute it takes to type their own times.
+        A false schedule tells them to take a medicine they may not need, at
+        an hour they did not choose. The asymmetry is why this list may be
+        extended freely: every addition can only make it refuse MORE.
+        """
+        result = suggest_times(frequency)
+
+        assert result.recognised is False
+        assert result.times == []
+        assert result.reason is not None
+
+    @pytest.mark.parametrize(
+        "frequency",
+        [
             "TAKE 1 TABLET EVERY OTHER DAY",
             "take one tablet weekly",
             "1 tablet once a week",

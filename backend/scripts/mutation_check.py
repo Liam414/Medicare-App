@@ -51,6 +51,23 @@ The anchor count catches a mutation that could not be applied. Nothing can
 catch one that applied and meant nothing — that is a judgement about the code,
 so read the diff a survivor implies before believing it.
 
+⛔ AND CHECK THE GROUP ACTUALLY RUNS THE FILE THAT TESTS THE RULE. Each group
+in `SUITES` runs a fixed tuple of test files, so a mutation whose test lives
+outside that tuple survives no matter how well tested the rule is — a third
+way to read SURVIVED, and the least obvious of the three.
+
+It happened on 2026-09-20. "medication_reminders copies the medication name"
+was added to `privacy` and reported SURVIVED, while the test that catches it
+sat in `test_reminders_api.py`, which only `integrity` ran. The rule was fully
+tested and the tool said nothing was testing it.
+
+So a survivor means one of three things, in the order worth checking:
+
+1. the group does not run the file where the rule is asserted — look at
+   `SUITES` first, it is the cheapest to rule out;
+2. the mutation applied but changed no behaviour — read the diff it implies;
+3. genuinely, nothing tests the rule — and only then, write the test.
+
 Not part of `pytest`: it runs the suite once per mutation, which takes minutes.
 """
 
@@ -79,6 +96,7 @@ MAIN = "app/main.py"
 SESSION = "app/db/session.py"
 APPOINTMENT_MODEL = "app/models/appointment.py"
 PROVIDER_LOCATION_MODEL = "app/models/provider_location.py"
+REMINDER_MODEL = "app/models/reminder.py"
 MEDICATIONS_API = "app/api/medications.py"
 GOALS_API = "app/api/goals.py"
 REFILL = "app/services/refill_forecast.py"
@@ -268,6 +286,37 @@ MUTATIONS = [
         '    __tablename__ = "provider_locations"',
         '    __tablename__ = "provider_locations"\n\n    user_id: Mapped[str | None] = mapped_column(String, nullable=True)',
     ),
+    (
+        "privacy",
+        # ⛔ HEALTH TEXT IN A URL. CLAUDE.md: the user's text reaches this
+        # backend by POST, "never as a URL query string, so it stays out of our
+        # access logs, proxies, and crash reporters". A query string is the
+        # worst place for it — the access log, the reverse proxy, the CDN, the
+        # browser history and the next Referer header all write it down, and
+        # none of that is under this app's control.
+        #
+        # `?symptoms=` on a listing endpoint is the obvious way to make a
+        # lookup shareable, and would read as entirely reasonable in review.
+        "a GET route takes symptom text in the query string",
+        "app/api/medications.py",
+        "def list_medications(\n",
+        "def list_medications(\n    symptoms: str | None = None,\n",
+    ),
+    (
+        "privacy",
+        # The third table with a "must not gain a column" rule. The other two
+        # were probed here; this one was stated in the model docstring and in
+        # CLAUDE.md and checked nowhere, until 2026-09-20.
+        #
+        # A name column here is the easy, plausible change: it makes the
+        # listing query simpler and reads like a denormalisation nobody would
+        # question. What it actually does is put the name of a medicine a
+        # named person takes into a second table.
+        "medication_reminders copies the medication name",
+        REMINDER_MODEL,
+        '    __tablename__ = "medication_reminders"',
+        '    __tablename__ = "medication_reminders"\n\n    medication_name: Mapped[str | None] = mapped_column(String, nullable=True)',
+    ),
     # -------------------------------------------------------------------
     # Data that must not outlive what it described, and the lines this
     # app draws around what it is willing to read.
@@ -313,12 +362,23 @@ SUITES = {
                "tests/test_emergency.py", "tests/test_triage_eval.py"),
     # The data-handling claims. CLAUDE.md attaches "a test asserts it" to
     # each of these; until now nobody had checked whether that was true.
+    # ⛔ A MUTATION ONLY MEETS THE FILES ITS GROUP LISTS. A rule tested in a
+    # file this tuple omits reports SURVIVED — indistinguishable, in the
+    # output, from a rule nothing tests at all. That happened on 2026-09-20:
+    # "medication_reminders copies the medication name" survived while the
+    # test that catches it sat in `test_reminders_api.py`, which only the
+    # `integrity` group ran. Before believing a survivor, check that this
+    # tuple actually includes the file where the rule is asserted.
     "privacy": ("tests/test_booking_identity.py",
                 "tests/test_security_hardening.py",
                 "tests/test_providers_api.py",
                 "tests/test_provider_directory.py",
                 "tests/test_appointments_api.py",
-                "tests/test_intake_api.py"),
+                "tests/test_intake_api.py",
+                # Holds the structural rule that medication_reminders may not
+                # copy the medication name — a privacy rule that happens to
+                # live in the reminders file.
+                "tests/test_reminders_api.py"),
     # Rules about data that must not outlive the thing it described, and
     # about lines this app draws around what it will read.
     "integrity": ("tests/test_medications_api.py",

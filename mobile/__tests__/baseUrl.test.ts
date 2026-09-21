@@ -163,3 +163,59 @@ describe("using the app from another network", () => {
     );
   });
 });
+
+/**
+ * ⛔ THE SHARED HOST LIST. Keep it identical to `_PRIVATE_HOSTS` and
+ * `_PUBLIC_HOSTS` in `backend/tests/test_security_hardening.py`.
+ *
+ * `isLoopbackOrPrivate` here and `_PRIVATE_ORIGIN_RE` in `backend/app/main.py`
+ * are the same rule written twice, in two languages: this side decides where
+ * the API is, that side decides whether the browser may talk to it. CLAUDE.md
+ * says to keep the two in step, and on 2026-09-20 they were not — this side
+ * trusted `app.localhost`, `my.mac.local` and IPv6 unique-local addresses that
+ * the backend refused, so the app would load and then fail every request with
+ * a CORS error, which is a confusing afternoon for whoever is developing.
+ *
+ * Two implementations cannot share code, so they share a list of cases.
+ * `isLoopbackOrPrivate` is not exported; `isTransportSafe` is the same rule
+ * once https is ruled out, which is why every case below uses http.
+ */
+const PRIVATE_HOSTS = [
+  "localhost",
+  "app.localhost",
+  "my-mac.local",
+  "my.mac.local",
+  "127.0.0.1",
+  "10.0.0.5",
+  "172.16.0.1",
+  "172.31.255.254",
+  "192.168.1.5",
+  "169.254.1.1",
+  "100.64.0.1",
+  "[::1]",
+  "[fd12:3456::1]",
+];
+
+const PUBLIC_HOSTS = [
+  "example.com",
+  "8.8.8.8",
+  "172.15.0.1",
+  "172.32.0.1",
+  "100.63.0.1",
+  "100.128.0.1",
+  "evil-localhost.com",
+  "localhost.evil.com",
+];
+
+describe("the host rule the backend's CORS regex mirrors", () => {
+  it.each(PRIVATE_HOSTS)("trusts plain http to %s", (host) => {
+    expect(isTransportSafe(`http://${host}:8081`)).toBe(true);
+  });
+
+  it.each(PUBLIC_HOSTS)("refuses plain http to %s", (host) => {
+    // The near-misses are the point: 172.15/172.32 bracket the RFC1918 block,
+    // 100.63/100.128 bracket the CGNAT range, and "localhost.evil.com" is what
+    // an unanchored suffix check would wave through.
+    expect(isTransportSafe(`http://${host}:8081`)).toBe(false);
+  });
+});

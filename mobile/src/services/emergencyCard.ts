@@ -88,6 +88,61 @@ export const FIELD_MAX_LENGTH = 300;
 /** Name and dosage only, of at most this many medications. See `mirrorMedications`. */
 export const MIRRORED_MEDICATION_LIMIT = 25;
 
+/**
+ * The size the written value has to stay under, in UTF-8 bytes.
+ *
+ * ⛔ THE COUNT CAP ALONE DOES NOT ENFORCE THIS, AND THIS FILE USED TO CLAIM IT
+ * DID. `MIRRORED_MEDICATION_LIMIT` medications with both fields at
+ * `FIELD_MAX_LENGTH` serialise to **15,601 bytes** — seven times Android's
+ * ~2048-byte SecureStore limit. Even ordinary data crosses it: 25 medications
+ * with a 40-character name and a 20-character dosage is 2,101 bytes. At the
+ * documented caps only three medications actually fit.
+ *
+ * A write over the limit can be lost silently, and `mirrorMedications` catches
+ * and swallows the failure because it must never break the medication screen.
+ * So the whole medication list would simply be absent from the emergency card
+ * — on the one screen built to be read when nothing else works, by somebody
+ * who has no way to know anything is missing.
+ *
+ * 1800 rather than 2048: the platform limit is approximate and documented as a
+ * warning threshold, and the key name and the store's own framing count too.
+ * The headroom is deliberate.
+ */
+export const KEYSTORE_VALUE_MAX_BYTES = 1800;
+
+/**
+ * The platform's own approximate ceiling, used where a value is bounded by its
+ * shape rather than budgeted.
+ *
+ * ⛔ THE CARD FITS BY 102 BYTES, AND ONLY BECAUSE IT HAS SIX FIELDS. All six at
+ * `FIELD_MAX_LENGTH` serialise to 1,946 bytes. A **seventh** 300-character
+ * field takes the record to roughly 2,250 — over the limit, written silently,
+ * lost silently, and the person's whole emergency card is then simply not
+ * there. Unlike the medication mirror, the card cannot drop a field to fit:
+ * every one of them is something a responder may need.
+ *
+ * So the margin is asserted by a test rather than left to arithmetic nobody
+ * redoes. If that test goes red, the answer is a smaller `FIELD_MAX_LENGTH` or
+ * a byte budget like `mirrorMedications` has — never a bigger number in the
+ * assertion.
+ */
+export const KEYSTORE_VALUE_MAX_BYTES_HARD = 2048;
+
+/**
+ * UTF-8 length of a string, without assuming a `TextEncoder`.
+ *
+ * Not every React Native runtime provides one, and this runs on the path that
+ * has to work offline on a device, so it is computed rather than depended on.
+ */
+function utf8Length(value: string): number {
+  let bytes = 0;
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0;
+    bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+  }
+  return bytes;
+}
+
 export interface MirroredMedication {
   name: string;
   dosage: string | null;
@@ -192,12 +247,26 @@ export async function clearCard(): Promise<void> {
 export async function mirrorMedications(
   medications: { name: string; dosage: string | null }[]
 ): Promise<void> {
-  const trimmed: MirroredMedication[] = medications
-    .slice(0, MIRRORED_MEDICATION_LIMIT)
-    .map((medication) => ({
+  // ⛔ BUDGETED BY BYTES, NOT ONLY BY COUNT. See KEYSTORE_VALUE_MAX_BYTES: the
+  // count cap permits a value seven times the size the keystore accepts, and
+  // an oversized write is lost silently. Entries are added while they fit and
+  // the rest are dropped, so a long list degrades to a shorter one rather than
+  // to nothing — which is the difference between a responder seeing some of
+  // somebody's medications and seeing none of them.
+  //
+  // Order is preserved and the first entries win, so what survives is the top
+  // of the person's own list rather than an arbitrary subset.
+  const trimmed: MirroredMedication[] = [];
+  for (const medication of medications.slice(0, MIRRORED_MEDICATION_LIMIT)) {
+    const candidate: MirroredMedication = {
       name: clean(medication.name),
       dosage: medication.dosage ? clean(medication.dosage) : null,
-    }));
+    };
+    if (utf8Length(JSON.stringify([...trimmed, candidate])) > KEYSTORE_VALUE_MAX_BYTES) {
+      break;
+    }
+    trimmed.push(candidate);
+  }
 
   try {
     await writeRaw(MEDICATIONS_KEY, JSON.stringify(trimmed));

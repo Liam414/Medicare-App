@@ -24,17 +24,40 @@ logger = logging.getLogger(__name__)
 # Loopback, private (RFC1918), link-local and CGNAT/WireGuard-mesh origins, on
 # any port. Mirrors the transport rule the mobile client applies in
 # `mobile/src/services/baseUrl.ts` — keep the two in step.
+# ⛔ THIS MUST STAY IN STEP WITH `isLoopbackOrPrivate` IN
+# `mobile/src/services/baseUrl.ts`. The client uses its rule to decide where
+# the API is; this one decides whether the browser may talk to it. When they
+# disagree the app loads and then every single request fails with a CORS
+# error, which is a confusing afternoon for whoever is developing.
+#
+# They HAD diverged, found 2026-09-20 by running the same host list through
+# both. Three hosts the client trusted were refused here:
+#
+#   app.localhost    the client accepts any `*.localhost`
+#   my.mac.local     `[a-z0-9-]+\.local` allowed ONE label, the client any
+#   [fd12:3456::1]   IPv6 unique-local, which this had no branch for at all
+#
+# The divergence was in the safe direction — the browser was refused rather
+# than wrongly allowed — but it is still a rule stated in two places and true
+# in one. `tests/test_security_hardening.py` now runs a shared host list
+# through this regex, so a future edit to either side has something to fail.
+#
+# Everything here is loopback, link-local, RFC1918 or CGNAT mesh space, and
+# the whole block is applied only when `is_development` — see below.
 _PRIVATE_ORIGIN_RE = re.compile(
     r"^https?://("
-    r"localhost|"
-    r"[a-z0-9-]+\.local|"
+    r"([a-z0-9-]+\.)*localhost|"
+    r"([a-z0-9-]+\.)+local|"
     r"127(\.\d{1,3}){3}|"
     r"10(\.\d{1,3}){3}|"
     r"172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2}|"
     r"192\.168(\.\d{1,3}){2}|"
     r"169\.254(\.\d{1,3}){2}|"
     r"100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])(\.\d{1,3}){2}|"
-    r"\[::1\]"
+    r"\[::1\]|"
+    # IPv6 unique-local, fc00::/7 — the v6 equivalent of 10.x and 192.168.x,
+    # and what the client's /^f[cd][0-9a-f]{2}:/ accepts.
+    r"\[f[cd][0-9a-f]{2}:[0-9a-f:]*\]"
     r")(:\d{1,5})?$",
     re.IGNORECASE,
 )

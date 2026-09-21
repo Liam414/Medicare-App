@@ -51,6 +51,9 @@ const CARD = "src/screens/emergency/EmergencyCardScreen.tsx";
 const TOKEN = "src/services/tokenStorage.web.ts";
 const CARD_STORE = "src/services/emergencyCard.ts";
 const NOTIFY = "src/services/notificationService.web.ts";
+const TODAY = "src/screens/TodayScreen.tsx";
+const REMINDERS_SCREEN = "src/screens/medication-reminders/MedicationRemindersScreen.tsx";
+const API_CLIENT = "src/services/apiClient.ts";
 
 /**
  * Each entry: the rule, in CLAUDE.md's own words, and the smallest edit that
@@ -78,6 +81,59 @@ const MUTATIONS = [
     find: "    return window.sessionStorage ?? null;",
     replace: "    return window.localStorage ?? null;",
     tests: ["__tests__/tokenStorageWeb.test.ts"],
+  },
+  {
+    group: "session",
+    // ⛔ THE COPY OF THE 401 RULE THAT NOTHING TESTED UNTIL 2026-09-20.
+    //
+    // It is implemented in three request paths and was tested in two — and
+    // the untested one is `apiClient`, which goals, providers, appointments
+    // and reminders all go through. Removing this line stranded the most
+    // sessions and left every suite green.
+    //
+    // A kept-but-refused token is restored by `restoreSession()` on the next
+    // launch, `RootNavigator` opens on Home because a token exists, and the
+    // first request fails: a signed-in app that cannot load anything.
+    label: "a refused token is kept instead of dropped on a 401",
+    file: API_CLIENT,
+    find: "      void logout();",
+    replace: "      // void logout();",
+    tests: ["__tests__/apiClient.test.ts"],
+  },
+  {
+    group: "no-network",
+    // ⛔ A SECOND ARMING CALL SITE, WHICH IS THE BUG THIS REPO ALREADY SHIPPED
+    // ONCE. `scheduleAll` replaces everything — `cancelAll()` runs first, and
+    // on native that does not distinguish dose reminders from refill alerts —
+    // so two callers each arming a subset take turns cancelling each other's
+    // work. The symptom is a notification type that silently stops firing
+    // depending on which screen was opened last.
+    //
+    // This screen is where arming used to live, and its import block still
+    // carries a comment saying `scheduleAll` is deliberately not imported.
+    // The mutation puts it back.
+    label: "a screen arms notifications itself instead of going through rearm",
+    file: REMINDERS_SCREEN,
+    find: 'import { rearmFrom } from "@/services/reminderArming";',
+    replace:
+      'import { scheduleAll } from "@/services/notificationService";\n' +
+      'import { rearmFrom } from "@/services/reminderArming";',
+    tests: ["__tests__/armingHasOneOwner.test.ts"],
+  },
+  {
+    group: "goals",
+    // The same rule on the screen people open every morning. TodayScreen's
+    // docstring forbids "missed" in as many words — "MedHelp does not know
+    // whether the dose was taken" — and its test asserts the word never
+    // appears. But that test's assertions are mostly `queryByText(...)` being
+    // null, and a negative assertion passes just as happily when the screen
+    // rendered nothing at all. This proves the test fails when the word is
+    // really there.
+    label: "the today screen calls a passed dose time missed",
+    file: TODAY,
+    find: '            ? "Earlier today"',
+    replace: '            ? "Missed"',
+    tests: ["__tests__/TodayScreen.test.tsx"],
   },
   {
     group: "goals",
@@ -189,13 +245,31 @@ function survives({ file, find, replace, tests }) {
 }
 
 const wanted = process.argv[2];
+
+// ⛔ A FILTER THAT MATCHES NOTHING IS AN ERROR, NOT A CLEAN RUN.
+//
+// This script's entire job is to distrust a green result — its docstring says
+// a passing suite is evidence about the tests, not about the code. It failed
+// its own standard: `node scripts/mutation_check.mjs --help`, or any typo of a
+// group name, matched zero mutations, printed an empty table, reported "Every
+// mutation was caught." and exited 0. Nothing had been mutated and nothing
+// verified. In CI that is a green tick for work never done, which is the exact
+// failure mode the whole script exists to catch.
+const GROUPS = [...new Set(MUTATIONS.map((mutation) => mutation.group))];
+if (wanted !== undefined && !GROUPS.includes(wanted)) {
+  console.error(`unknown group '${wanted}'; choose from ${GROUPS.join(", ")}`);
+  process.exit(2);
+}
+
 const survivors = [];
+let ran = 0;
 
 try {
   console.log("mutation".padEnd(62) + "result".padStart(10));
   console.log("-".repeat(72));
   for (const mutation of MUTATIONS) {
     if (wanted && mutation.group !== wanted) continue;
+    ran += 1;
     const reason = survives(mutation);
     console.log(mutation.label.padEnd(62) + (reason ? "SURVIVED" : "caught").padStart(10));
     if (reason) survivors.push([mutation.label, reason]);
@@ -210,4 +284,10 @@ if (survivors.length) {
   for (const [label, why] of survivors) console.log(`   - ${label}  (${why})`);
   process.exit(1);
 }
-console.log("Every mutation was caught.");
+// Belt and braces behind the group check above: whatever the reason, a run
+// that mutated nothing may never report that everything was caught.
+if (ran === 0) {
+  console.error("no mutations ran, so nothing was checked.");
+  process.exit(2);
+}
+console.log(`Every mutation was caught (${ran} of ${MUTATIONS.length}).`);

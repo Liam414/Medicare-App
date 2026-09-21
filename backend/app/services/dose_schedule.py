@@ -68,8 +68,27 @@ DEFAULT_TIMES: dict[int, list[str]] = {
 MAX_DOSES_PER_DAY = 6
 
 # Recognised only so it can be refused. An as-needed medicine has no schedule.
+#
+# ⛔ EVERY WAY A LABEL SAYS "ONLY IF YOU NEED IT" BELONGS HERE, INCLUDING THE
+# ONES BRITISH PHARMACIES PRINT. This list carried "as required", "when needed"
+# and "if needed" — three of the four combinations of {as, when} x {needed,
+# required} — and missed "when required", which is exactly how a UK label
+# writes PRN. So "TAKE 1 TABLET EVERY 4 HOURS WHEN REQUIRED" was read as a
+# plain four-hourly interval and proposed six alarms a day including 00:00 and
+# 04:00: the app waking somebody at four in the morning to take an as-needed
+# painkiller. Found 2026-09-20 by running real-world sig lines through this
+# function; `test_british_phrasings_of_as_needed_are_never_scheduled` holds it.
+#
+# ⛔ Extending this list is one-directional and therefore safe: every addition
+# can only make `suggest_times` refuse MORE, never schedule more. The cost of a
+# wrong refusal is the minute it takes somebody to type their own times; the
+# cost of a wrong schedule is an alarm telling them to take a medicine they may
+# not need. Add freely; never remove without the clinical review CLAUDE.md
+# says these phrase lists are still waiting for.
 AS_NEEDED = re.compile(
-    r"\b(as needed|as required|when needed|if needed|prn|p\.r\.n\.|as directed)\b",
+    r"\b(as needed|as required|when needed|when required|if needed|if required|"
+    r"as necessary|when necessary|if necessary|"
+    r"prn|p\.r\.n\.|as directed)\b",
     re.IGNORECASE,
 )
 
