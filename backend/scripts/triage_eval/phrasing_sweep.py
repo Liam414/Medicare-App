@@ -58,6 +58,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+# Same fix as `scripts/live_probe/`, and this script needed it for the same
+# reason one commit later: it prints ⛔ and a Windows console is cp1252, so it
+# died on its own heading. Worth stating rather than quietly patching — the
+# defect I had just fixed elsewhere reappeared here within the hour, which is
+# what a repository-wide convention is for.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 from app.core import emergency  # noqa: E402
 
 
@@ -151,6 +159,49 @@ PHRASINGS: dict[str, tuple[str, ...]] = {
 }
 
 
+# ⛔ THE CATASTROPHIC DIRECTION, AND WHY IT LIVES HERE RATHER THAN IN corpus.py.
+#
+# Everything above is a missed escalation: URGENT instead of EMERGENT, "get
+# seen soon" instead of "call an ambulance". These are different in kind — they
+# come back SELF_CARE, the app telling somebody their problem will settle on
+# its own.
+#
+# They are not in `corpus.py` because the honest gold for the first is
+# EMERGENT, and a gold-EMERGENT case returning SELF_CARE fails
+# `test_no_gold_emergent_case_is_ever_returned_as_self_care`, whose docstring
+# says "this must be zero, always, no exceptions". That test is right, and
+# recording these as documented gaps would turn the repo's strongest safety
+# assertion into an exception. So they are measured here, in a script that
+# always exits 0 and cannot hide behind a green tick, and reported in
+# `docs/test-run-2026-09-20.md` as FINDING 0.
+#
+# ⛔ Each entry is (description, what it must NOT be). Fixing either means
+# editing a fenced module.
+FALSE_SELF_CARE: tuple[tuple[str, str], ...] = (
+    # "can't catch my breath" fires; the written-out "cannot" does not. So the
+    # red flag misses while "a dry cough" earns self-care positively, and
+    # "cannot catch my breath" is not an escalating modifier to take it back.
+    # The app's own reviewed lists say this description is EMERGENT — it is
+    # defeated by spelling, not by a clinical judgement.
+    ("a dry cough and I cannot catch my breath", "SELF_CARE"),
+    # "sore throat" earns self-care; neither "drooling" nor "cannot swallow" is
+    # an escalating modifier. Whether this deserves its own red-flag category
+    # is a clinician's call; that it is not self-care is not.
+    ("sore throat and I am drooling and cannot swallow", "SELF_CARE"),
+)
+
+
+def false_self_care() -> list[tuple[str, str]]:
+    """Descriptions that come back as reassurance. Empty is the only good answer."""
+    from app.core import rules_triage
+
+    return [
+        (description, forbidden)
+        for description, forbidden in FALSE_SELF_CARE
+        if rules_triage.classify(description).tier_name == forbidden
+    ]
+
+
 def sweep() -> dict[str, list[tuple[str, str | None]]]:
     """For each category, every phrasing and the category it actually reached."""
     results: dict[str, list[tuple[str, str | None]]] = {}
@@ -199,9 +250,28 @@ def main() -> int:
                     print("        ok     %s   -> %s" % (description, got))
 
     print()
-    print("  ⛔ A miss is URGENT plus the standing escalation line, never a")
-    print("     reassurance — but it is not the category headline and not the")
+    print("  ⛔ A miss above is URGENT plus the standing escalation line, never")
+    print("     a reassurance — but it is not the category headline and not the")
     print("     number to ring. Closing one means editing a fenced module.")
+
+    print()
+    print("-" * 74)
+    print(" ⛔⛔ FALSE SELF_CARE — told it will settle on its own")
+    print("-" * 74)
+    reassured = false_self_care()
+    if reassured:
+        print("  %d description(s) come back as REASSURANCE:" % len(reassured))
+        for description, _ in reassured:
+            print("      %s" % description)
+        print()
+        print("  This is a different kind of failure from every miss above.")
+        print("  A miss says 'get seen soon'. This says 'you are fine'.")
+        print("  See docs/test-run-2026-09-20.md, FINDING 0.")
+    else:
+        print("  None. Every one now escapes the self-care list.")
+        print("  ⛔ If this stays empty, delete the entries rather than leaving")
+        print("     a passing list nobody reads — and move them into corpus.py,")
+        print("     where the floor test will keep them closed.")
     # ⛔ Always zero. This reports; it does not gate. A sweep of invented
     # phrasings must never be able to fail somebody's build, and a threshold
     # here would imply these numbers carry an authority they do not have.
