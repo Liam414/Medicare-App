@@ -269,3 +269,139 @@ def test_two_term_red_flags_are_screened(description):
 def test_one_half_of_a_two_term_flag_is_not_enough(description):
     """A combination is an AND. Half of one must not fire it."""
     assert screen_for_emergency(description) is None
+
+
+class TestEveryCategoryGivesAWayToGetHelp:
+    """
+    ⛔ THE HIGHEST-CONSEQUENCE LITERALS IN THE APPLICATION.
+
+    A red flag whose guidance names no number tells somebody they are having an
+    emergency and leaves them there. A red flag whose guidance names the WRONG
+    number is worse: it sends them somewhere while they believe they are being
+    helped.
+
+    Until now only self-harm's 988 was asserted. Poison Control's number was in
+    no test at all, and nothing checked that a category still carried a number
+    after its copy was edited — so `988` mistyped as `998`, or a number dropped
+    while rewording an action line, passed the whole suite.
+
+    ⛔ These tests add nothing to `emergency.py` and change nothing in it.
+    CLAUDE.md permits exactly this: "Adding tests for those modules is
+    permitted; changing the modules is not."
+
+    The numbers, and why each is the one it is:
+
+      911            US emergency services.
+      988            the Suicide & Crisis Lifeline. Three digits, and one
+                     wrong digit reaches something else entirely.
+      1-800-222-1222 Poison Control, US. The single national number.
+    """
+
+    EMERGENCY = "911"
+    CRISIS_LINE = "988"
+    POISON_CONTROL = "1-800-222-1222"
+
+    def _rules(self):
+        from app.core import emergency
+
+        return emergency._EMERGENCY_RULES
+
+    def test_every_category_names_a_number_to_ring(self):
+        import re
+
+        from app.core import emergency
+
+        pattern = re.compile(
+            rf"\b{self.EMERGENCY}\b|\b{self.CRISIS_LINE}\b|{re.escape(self.POISON_CONTROL)}"
+        )
+        silent = [
+            rule[0]
+            for rule in emergency._EMERGENCY_RULES
+            if not pattern.search(f"{rule[1]} {rule[2]}")
+        ]
+
+        assert silent == [], (
+            f"these categories tell somebody it is an emergency and give them "
+            f"no number: {silent}"
+        )
+
+    def test_the_crisis_line_is_988_exactly(self):
+        """
+        Pinned as a literal, because a transposition is invisible on reading.
+        998, 899 and 989 are all plausible slips and none of them is a
+        lifeline.
+        """
+        guidance = screen_for_emergency("I have been thinking about hurting myself")
+
+        assert guidance is not None
+        assert self.CRISIS_LINE in guidance.action
+        assert "Suicide" in guidance.action or "Crisis" in guidance.action
+
+    def test_poison_control_is_the_national_number(self):
+        """
+        Was in no test at all. The US has one national Poison Control number
+        and this is it; a wrong one reaches nobody who can help.
+        """
+        guidance = screen_for_emergency("I took too many pills")
+
+        assert guidance is not None
+        assert self.POISON_CONTROL in guidance.action
+
+    def test_no_category_offers_only_a_crisis_line(self):
+        """
+        ⛔ 988 is an addition to 911, never a replacement.
+
+        Somebody describing self-harm may also be in immediate physical
+        danger, and a lifeline is not an ambulance. The self-harm copy names
+        both today; this keeps it that way.
+        """
+        from app.core import emergency
+
+        for rule in emergency._EMERGENCY_RULES:
+            text = f"{rule[1]} {rule[2]}"
+            if self.CRISIS_LINE in text:
+                assert self.EMERGENCY in text, (
+                    f"{rule[0]} offers {self.CRISIS_LINE} without "
+                    f"{self.EMERGENCY}"
+                )
+
+    def test_the_guidance_never_names_a_condition_or_a_treatment(self):
+        """
+        App Scope, applied to the copy people are most likely to act on.
+
+        `emergency.py` says it "never names a condition or a treatment". The
+        categories are named for presentations, and the action lines say how to
+        get help — they must not start saying what is wrong or what to take.
+        """
+        from app.core import emergency
+
+        # ⛔ "you have" IS DELIBERATELY NOT ON THIS LIST, AND THE REASON IS
+        # WORTH KEEPING. It was, and it flagged the cardiac headline — "If you
+        # have chest pain, call 911 now." That is naming the SYMPTOM the person
+        # just reported, not a condition, and the check was wrong rather than
+        # the copy.
+        #
+        # It is the same blunt-phrase-list mistake this repository keeps
+        # finding elsewhere, made here by a test rather than by the app. A
+        # denylist that flags correct copy gets a reviewer into the habit of
+        # overriding it, which is worse than not having it.
+        #
+        # What remains is diagnostic or prescriptive in any context.
+        forbidden = (
+            "diagnos",
+            "you probably have",
+            "this is likely",
+            "take ibuprofen",
+            "take aspirin",
+            "take an antihistamine",
+            "you should take",
+            "sounds like a",
+        )
+        offenders = []
+        for rule in emergency._EMERGENCY_RULES:
+            text = f"{rule[1]} {rule[2]}".lower()
+            for phrase in forbidden:
+                if phrase in text:
+                    offenders.append((rule[0], phrase))
+
+        assert offenders == [], offenders
