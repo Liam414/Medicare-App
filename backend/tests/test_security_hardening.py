@@ -655,3 +655,108 @@ def test_every_other_route_requires_authentication():
                 unguarded.append(f"{method} {path}")
 
     assert not unguarded, f"routes reachable without a token: {sorted(unguarded)}"
+
+
+# ⛔ EVERY QUERY PARAMETER THE APP ACCEPTS, PINNED.
+#
+# CLAUDE.md: "The user's text reaches the app's own backend by POST, never as a
+# URL query string, so it stays out of our access logs, proxies, and crash
+# reporters." That is a real property today and nothing was enforcing it.
+#
+# A query string is the worst place health data can land, because it is the
+# part of a request that gets written down by everything it passes through —
+# the access log, the reverse proxy, the CDN, the browser history, a Referer
+# header on the next outbound link. Unlike a POST body, none of that is under
+# this app's control and none of it is cleaned up afterwards.
+#
+# `?description=` on a GET is not a strange thing for somebody to add. It is
+# the obvious way to make a lookup shareable or cacheable, and it would look
+# entirely reasonable in review.
+_ALLOWED_QUERY_PARAMS = {
+    "/medications": {"refill_lead_days"},
+    "/providers/search": {"postal_code", "care_setting", "limit"},
+    "/goals": {"on"},
+}
+
+# Names that could only hold something a person wrote about themselves.
+_FORBIDDEN_QUERY_PARAMS = {
+    "description",
+    "symptoms",
+    "symptom",
+    "complaint",
+    "reason",
+    "reason_for_visit",
+    "notes",
+    "note",
+    "text",
+    "query",
+    "q",
+    "search",
+    "condition",
+    "medication",
+    "medication_name",
+    "drug",
+    "allergies",
+    "goal",
+    "title",
+    "email",
+    "password",
+}
+
+
+def test_no_get_route_takes_health_text_in_the_query_string():
+    """
+    The allowlist, so a new parameter is a decision rather than a drift.
+
+    Pinned by name rather than by type: a `str` query parameter is fine when it
+    is a ZIP or a care setting from a fixed list, and catastrophic when it is a
+    description. Only a person can tell those apart, which is what makes this a
+    list somebody has to edit on purpose.
+    """
+    from app.main import app
+
+    unexpected: list[str] = []
+    forbidden: list[str] = []
+
+    for route in app.routes:
+        methods = getattr(route, "methods", set()) or set()
+        dependant = getattr(route, "dependant", None)
+        path = getattr(route, "path", "")
+        if dependant is None or "GET" not in methods:
+            continue
+
+        names = {parameter.name for parameter in dependant.query_params}
+        allowed = _ALLOWED_QUERY_PARAMS.get(path, set())
+
+        for name in sorted(names - allowed):
+            unexpected.append(f"GET {path}?{name}")
+        for name in sorted(names & _FORBIDDEN_QUERY_PARAMS):
+            forbidden.append(f"GET {path}?{name}")
+
+    assert not forbidden, (
+        "these put user text in a URL, where access logs and proxies keep it: "
+        f"{sorted(forbidden)}"
+    )
+    assert not unexpected, (
+        "new query parameters, which need a deliberate decision about whether "
+        f"they can hold anything a person wrote: {sorted(unexpected)}"
+    )
+
+
+def test_the_query_parameter_allowlist_is_not_stale():
+    """
+    ⛔ Guards the guard.
+
+    If a route in `_ALLOWED_QUERY_PARAMS` were renamed or removed, the test
+    above would keep passing while checking nothing — the allowlist entry would
+    simply never be consulted. That is the same vacuous-pass shape this
+    repository keeps finding in its own tests.
+    """
+    from app.main import app
+
+    live = {getattr(route, "path", "") for route in app.routes}
+
+    assert set(_ALLOWED_QUERY_PARAMS) <= live, (
+        "the allowlist names routes that no longer exist: "
+        f"{sorted(set(_ALLOWED_QUERY_PARAMS) - live)}"
+    )

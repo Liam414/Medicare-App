@@ -288,6 +288,22 @@ MUTATIONS = [
     ),
     (
         "privacy",
+        # ⛔ HEALTH TEXT IN A URL. CLAUDE.md: the user's text reaches this
+        # backend by POST, "never as a URL query string, so it stays out of our
+        # access logs, proxies, and crash reporters". A query string is the
+        # worst place for it — the access log, the reverse proxy, the CDN, the
+        # browser history and the next Referer header all write it down, and
+        # none of that is under this app's control.
+        #
+        # `?symptoms=` on a listing endpoint is the obvious way to make a
+        # lookup shareable, and would read as entirely reasonable in review.
+        "a GET route takes symptom text in the query string",
+        "app/api/medications.py",
+        "def list_medications(\n",
+        "def list_medications(\n    symptoms: str | None = None,\n",
+    ),
+    (
+        "privacy",
         # The third table with a "must not gain a column" rule. The other two
         # were probed here; this one was stated in the model docstring and in
         # CLAUDE.md and checked nowhere, until 2026-09-20.
