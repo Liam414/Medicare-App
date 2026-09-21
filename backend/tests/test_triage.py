@@ -513,3 +513,58 @@ class TestConfidenceIsRecordedButNeverActedOn:
 
     def test_no_model_means_no_confidence_rather_than_a_default(self, no_model):
         assert assess("sore throat and a cough").model_confidence is None
+
+
+class TestNeedsMoreInfoCannotBeRankedAgainstATier:
+    """
+    ⛔ THE "BY CONSTRUCTION" HALF, WHICH NOTHING WAS PINNING.
+
+    `triage.py` says of `NEEDS_MORE_INFO`: "Deliberately not a member of
+    `Tier` — it must never be orderable against a real tier, or `max()` in
+    `_reconcile` could silently rank it."
+
+    The tests above cover the *behaviour* — a model that declines leaves the
+    rule tier standing. These cover the structural fact that makes that
+    behaviour safe by construction, which is a different claim and the one the
+    comment actually makes.
+
+    What it prevents: making NEEDS_MORE_INFO a `Tier` member. At a value above
+    EMERGENT, `max()` would rank "I cannot tell" as more urgent than a stroke
+    and the reconciliation would return it. At a value below SELF_CARE, `max()`
+    would silently discard it. Both are one careless enum entry away, and both
+    are invisible until a real description hits the path.
+
+    ⛔ This adds a test to a fenced module and changes nothing in it. CLAUDE.md
+    permits exactly that: "Adding tests for those modules is permitted;
+    changing the modules is not."
+    """
+
+    def test_it_is_not_a_member_of_the_tier_enum(self):
+        assert not isinstance(triage.NEEDS_MORE_INFO, Tier)
+        assert triage.NEEDS_MORE_INFO not in {tier.value for tier in Tier}
+        assert triage.NEEDS_MORE_INFO not in {tier.name for tier in Tier}
+
+    @pytest.mark.parametrize("tier", list(Tier))
+    def test_max_refuses_to_rank_it_against_any_tier(self, tier):
+        """
+        The failure this is really about: `_reconcile` is `max()`, so anything
+        comparable to a `Tier` can win it.
+        """
+        with pytest.raises(TypeError):
+            max(tier, triage.NEEDS_MORE_INFO)
+        with pytest.raises(TypeError):
+            max(triage.NEEDS_MORE_INFO, tier)
+
+    def test_a_declining_model_carries_no_tier_at_all(self):
+        """
+        `ModelVerdict.tier` is None rather than a sentinel value, so there is
+        nothing for `max()` to receive in the first place.
+        """
+        verdict = triage.ModelVerdict(
+            tier=None,
+            reasoning="Not enough to go on.",
+            model_id="test-model",
+            confidence="LOW",
+        )
+
+        assert verdict.tier is None
