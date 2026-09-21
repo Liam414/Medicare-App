@@ -202,6 +202,53 @@ def false_self_care() -> list[tuple[str, str]]:
     ]
 
 
+# ⛔ THE CONCEPT COMBINATOR'S OWN LEXICON HAS THE SAME GAP.
+#
+# `symptom_concepts.py` exists because a literal phrase list could not express
+# "stiff neck AND fever" in any order, and it closed that. But its lexicon is
+# itself lexical — six concepts, 8 to 26 terms each — and its docstring says
+# so: "the lexicon is lexical, so an unlisted synonym is still a miss."
+#
+# That limit had never been measured. These are ordinary ways of describing
+# the three combinations it knows, and the misses are not exotic:
+#
+#   "sore stiff neck with a high temp"   contains `stiff neck`, but `high temp`
+#                                        is not one of the fever terms
+#   "a rash that will not blanch"        `blanch` is the word a clinician uses
+#   "his temperature is 40"              a number, which no term can match
+#   "neck pain and a fever"              `neck pain` is not `stiff neck`
+#
+# ⛔ REPORTED, NOT FIXED, and deliberately not by adding a combination. The set
+# of three is fenced by `test_the_set_of_combinations_is_fenced` and a fourth
+# is a new clinical claim. What these need is more TERMS in existing concepts,
+# which changes emergency-routing behaviour and so goes to the owner like
+# everything else here.
+_COMBINATION_PHRASINGS: tuple[str, ...] = (
+    # stiff_neck + fever
+    "my neck hurts to move and I am burning up",
+    "I cannot put my chin on my chest and I have a fever",
+    "sore stiff neck with a high temp",
+    "neck pain and a fever",
+    "my neck feels locked and I am feverish",
+    # rash + not fading
+    "a rash that doesn't go away when pressed",
+    "a rash that will not blanch",
+    "purple spots that do not fade under a glass",
+    # confusion + high fever
+    "he seems muddled and his temperature is 40",
+    "my mum is rambling and very hot",
+)
+
+
+def combination_misses() -> list[str]:
+    """Lay descriptions of a known combination that reach no guidance."""
+    return [
+        description
+        for description in _COMBINATION_PHRASINGS
+        if emergency.screen_for_emergency(description) is None
+    ]
+
+
 # ⛔ CONTRACTIONS WRITTEN OUT IN FULL, AND WHAT THAT COSTS.
 #
 # `docs/test-run-2026-09-19.md` FINDING 1 records that the phrase lists carry
@@ -481,6 +528,22 @@ def main() -> int:
     print("     meeting the rule that self-care matches positively — which is")
     print("     what turns under-triage into reassurance. Closing the phrasing")
     print("     gap closes almost all of them.")
+
+    print()
+    print("-" * 74)
+    print(" ⛔ THE CONCEPT COMBINATOR'S LEXICON")
+    print("-" * 74)
+    combos = combination_misses()
+    print("  lay descriptions of a KNOWN combination that reach nothing: %d of %d"
+          % (len(combos), len(_COMBINATION_PHRASINGS)))
+    for description in combos:
+        print("      %s" % description)
+    if combos:
+        print()
+        print("  symptom_concepts.py closed the ordering gap and kept the")
+        print("  vocabulary one — its own docstring says so. These need more")
+        print("  TERMS in existing concepts, not a fourth combination, which")
+        print("  is fenced and would be a new clinical claim.")
 
     print()
     print("-" * 74)
