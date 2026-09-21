@@ -80,6 +80,27 @@ class Source:
 # AND IS REPRODUCED VERBATIM. If you change one, re-fetch it; if the page has
 # changed, update the quote and the date together or remove the entry. A quote
 # that no longer appears at its URL is not a citation, it is a claim.
+#
+# ## Re-checked 2026-09-21, and two were wrong
+#
+# All eight were compared against their pages. Six matched exactly. Two did
+# not, and both are annotated at their entry:
+#
+#   aerobic_activity      was missing "at least", which turns a floor into a
+#                         target — and the prompt cites it as a CEILING
+#   quit_smoking_support  had two sentences stitched together, which the rule
+#                         above forbids in as many words
+#
+# ⛔ THIS CANNOT BE AUTOMATED, WHICH IS WHY IT DRIFTED. cdc.gov answers a
+# scripted request with 403 regardless of the User-Agent sent, so there is no
+# repo script that could have caught either of these, and none is committed:
+# one that always fails is worse than none, because a red check nobody can fix
+# is a check everybody learns to skip.
+#
+# Re-checking means a browser, or a tool that renders like one. It is a manual
+# job, it takes about ten minutes for eight entries, and the two defects found
+# on the first attempt are the argument for doing it rather than trusting the
+# dates.
 _SOURCES: tuple[Source, ...] = (
     Source(
         domain="aerobic_activity",
@@ -87,8 +108,21 @@ _SOURCES: tuple[Source, ...] = (
         publisher="Centers for Disease Control and Prevention",
         document="Adult Activity: An Overview",
         url="https://www.cdc.gov/physical-activity-basics/guidelines/adults.html",
-        quote="Adults need 150 minutes of moderate-intensity physical activity a week.",
-        retrieved="2026-09-13",
+        # ⛔ "AT LEAST" WAS MISSING, AND IT IS THE HALF THAT CARRIES THE
+        # MEANING. Re-checked against the page on 2026-09-21: the published
+        # sentence is "Adults need at least 150 minutes...". Without those two
+        # words the sentence reads as a target; with them it is a floor.
+        #
+        # That matters beyond accuracy, because `PLAN_SYSTEM_PROMPT` uses this
+        # figure as a CEILING — "never propose more than it" — and cites this
+        # quote as the authority for doing so. The source sets a minimum. See
+        # the report: the ceiling may still be the right behaviour for other
+        # reasons, but it cannot be justified by this sentence.
+        quote=(
+            "Adults need at least 150 minutes of moderate-intensity physical "
+            "activity a week."
+        ),
+        retrieved="2026-09-21",
     ),
     Source(
         domain="strength_activity",
@@ -97,7 +131,7 @@ _SOURCES: tuple[Source, ...] = (
         document="Adult Activity: An Overview",
         url="https://www.cdc.gov/physical-activity-basics/guidelines/adults.html",
         quote="Adults also need 2 days of muscle-strengthening activity each week.",
-        retrieved="2026-09-13",
+        retrieved="2026-09-21",
     ),
     Source(
         domain="sit_less",
@@ -109,7 +143,7 @@ _SOURCES: tuple[Source, ...] = (
             "Adults who sit less and do any amount of moderate- to "
             "vigorous-intensity physical activity gain some health benefits."
         ),
-        retrieved="2026-09-13",
+        retrieved="2026-09-21",
     ),
     Source(
         domain="sleep_routine",
@@ -118,7 +152,7 @@ _SOURCES: tuple[Source, ...] = (
         document="About Sleep",
         url="https://www.cdc.gov/sleep/about/index.html",
         quote="Going to bed and getting up at the same time every day.",
-        retrieved="2026-09-13",
+        retrieved="2026-09-21",
     ),
     Source(
         domain="vegetables_and_fruit",
@@ -137,7 +171,7 @@ _SOURCES: tuple[Source, ...] = (
             "reduce the amount of calories you eat as well as help you feel "
             "full longer."
         ),
-        retrieved="2026-09-13",
+        retrieved="2026-09-21",
     ),
     Source(
         domain="water_instead_of_sugary_drinks",
@@ -152,7 +186,7 @@ _SOURCES: tuple[Source, ...] = (
             "Water has no calories, so replacing sugary drinks with plain "
             "water can help reduce caloric intake."
         ),
-        retrieved="2026-09-13",
+        retrieved="2026-09-21",
     ),
     Source(
         domain="quit_smoking_support",
@@ -160,11 +194,22 @@ _SOURCES: tuple[Source, ...] = (
         publisher="Centers for Disease Control and Prevention",
         document="How to Quit Smoking (Tips From Former Smokers)",
         url="https://www.cdc.gov/tobacco/campaign/tips/quit-smoking/index.html",
+        # ⛔ TWO SENTENCES WERE STITCHED, WHICH THIS FILE'S OWN RULE FORBIDS:
+        # "Never paraphrase, trim to a fragment, or stitch two sentences
+        # together." The entry carried "...help you quit smoking." followed by
+        # "Available in several languages.", and on a re-check of the page on
+        # 2026-09-21 only the first could be found.
+        #
+        # Keeping the one whole published sentence that verifies is not
+        # "trimming to a fragment" — it is dropping a second sentence that is
+        # no longer evidence. If the missing half is on the page in a form a
+        # fetch does not see (a caption, a badge), it can be restored as its
+        # own entry rather than glued onto this one.
         quote=(
             "Quitlines provide free coaching over the phone to help you quit "
-            "smoking. Available in several languages."
+            "smoking."
         ),
-        retrieved="2026-09-13",
+        retrieved="2026-09-21",
     ),
     Source(
         domain="social_connection",
@@ -176,7 +221,7 @@ _SOURCES: tuple[Source, ...] = (
             "Staying connected to others creates feelings of belonging and "
             "being loved, cared for, and valued."
         ),
-        retrieved="2026-09-13",
+        retrieved="2026-09-21",
     ),
 )
 
