@@ -15,6 +15,7 @@ from datetime import date, timedelta
 import pytest
 from pydantic import ValidationError
 
+from app.api import appointments as appointments_api
 from app.models.appointment import Appointment
 from app.schemas.appointment import AppointmentOut
 from app.schemas.booking_identity import BookingIdentity
@@ -162,6 +163,45 @@ class TestSubmitEndpoint:
         assert response.status_code == 503
         assert "call the provider" in response.json()["detail"].lower()
 
+    def test_no_identity_is_ever_parsed_while_there_is_nowhere_to_send_it(
+        self, client, auth_headers
+    ):
+        """
+        ⛔ THE REFUSAL MUST COME BEFORE THE BODY IS READ, NOT AFTER.
+
+        The endpoint's docstring says it "refuses before reading the body's
+        meaning ... so no identity is processed while there is nowhere to send
+        it". That was not true: `identity: BookingIdentity` is a body
+        parameter, so pydantic parsed and validated the request into a model
+        holding a legal name, a date of birth and a home address *before* the
+        handler ran and checked `delivery_available()`.
+
+        The proof was a malformed body answering 422 — a code that can only be
+        produced by validation having happened.
+
+        A 422 here is therefore the regression: it means the body was read. A
+        503 means the gate ran first and no `BookingIdentity` was constructed
+        at all. FastAPI resolves dependencies before validating a body, which
+        is what makes the fix a dependency rather than a reordered statement.
+
+        The exposure this closes is small — nothing stored it, nothing returned
+        it, and `__repr__` is redacted — but this is the one endpoint in the app
+        that touches a date of birth, and its whole design is "two independent
+        guards, because the cost of getting this wrong is transmitting PHI".
+        """
+        appointment_id = self._create(client, auth_headers)
+
+        for body in ({}, {"legal_name": "only-this"}, {"date_of_birth": "not-a-date"}):
+            response = client.post(
+                f"/appointments/{appointment_id}/submit",
+                json=body,
+                headers=auth_headers,
+            )
+            assert response.status_code == 503, (
+                f"{body!r} answered {response.status_code}; a 422 means the "
+                "identity was parsed before the refusal"
+            )
+
     def test_a_refused_submission_leaves_the_row_unsent(self, client, auth_headers):
         appointment_id = self._create(client, auth_headers)
 
@@ -191,12 +231,26 @@ class TestSubmitEndpoint:
         assert "1985-04-12" not in body
         assert "Synthetic Plaza" not in body
 
-    def test_a_rejected_identity_is_not_echoed_back(self, client, auth_headers):
+    def test_a_rejected_identity_is_not_echoed_back(
+        self, client, auth_headers, monkeypatch
+    ):
         """
         The validation-error handler in `app/main.py` strips the submitted
         value. That matters more here than anywhere else in the app: without
         it, a mistyped date of birth comes back in the 422 body.
+
+        ⛔ DELIVERY IS PATCHED ON, AND THAT IS THE POINT OF THE TEST NOW.
+        Since the gate became a dependency, no body is parsed at all while
+        delivery is unavailable — so with the real gate this endpoint answers
+        503 and never produces a 422 to inspect. That is a stronger property,
+        not a weaker one, and it is asserted separately by
+        `test_no_identity_is_ever_parsed_while_there_is_nowhere_to_send_it`.
+
+        But the echo-stripping rule still has to hold for the day a channel
+        exists, which is exactly when a real date of birth would be in the
+        body. Patching the gate open is how that day gets tested today.
         """
+        monkeypatch.setattr(appointments_api, "delivery_available", lambda: True)
         appointment_id = self._create(client, auth_headers)
 
         response = client.post(
@@ -210,8 +264,18 @@ class TestSubmitEndpoint:
         assert "Testperson" not in response.text
 
     def test_one_user_cannot_submit_another_users_appointment(
-        self, client, auth_headers, other_user_headers
+        self, client, auth_headers, other_user_headers, monkeypatch
     ):
+        """
+        ⛔ Delivery is patched on so ownership is observable at all.
+
+        With the real gate this endpoint answers 503 to everybody — owner,
+        stranger and nonexistent id alike — which leaks strictly less than a
+        404 and is asserted by `test_cross_account_isolation.py`. Ownership
+        still has to hold for the day a channel exists, and patching the gate
+        open is the only way to see it now.
+        """
+        monkeypatch.setattr(appointments_api, "delivery_available", lambda: True)
         appointment_id = self._create(client, auth_headers)
 
         response = client.post(

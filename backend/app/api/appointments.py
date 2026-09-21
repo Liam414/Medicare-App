@@ -132,12 +132,47 @@ def booking_capabilities(
     return {"online_booking": delivery_available()}
 
 
+def _refuse_unless_a_channel_exists() -> None:
+    """
+    The delivery gate, as a dependency so it runs BEFORE the body is parsed.
+
+    ⛔ THIS BEING A DEPENDENCY IS THE POINT, NOT A STYLE CHOICE. `identity:
+    BookingIdentity` is a body parameter, so pydantic builds a model holding a
+    legal name, a date of birth and a home address before the handler function
+    is entered. The gate used to live inside that function, which meant the
+    endpoint's own docstring — "refuses before reading the body's meaning ...
+    so no identity is processed while there is nowhere to send it" — was false.
+    A malformed body answering 422 was the proof: that code can only come from
+    validation having already run.
+
+    FastAPI resolves dependencies before validating a body, so raising here
+    means no `BookingIdentity` is ever constructed while delivery is
+    unavailable — which is every request today.
+
+    The exposure closed is small: nothing stored it, nothing returned it, and
+    `BookingIdentity.__repr__` is redacted. But this is the only endpoint in
+    the app that touches a date of birth, and the design it belongs to is
+    explicitly "two independent guards, because the cost of getting this wrong
+    is transmitting PHI to a vendor with no agreement in place". The in-handler
+    check below stays; this is an outer one, not a replacement.
+    """
+    if not delivery_available():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "MedHelp can't send appointment requests to providers yet. "
+                "Please call the provider to arrange a time."
+            ),
+        )
+
+
 @router.post("/{appointment_id}/submit", response_model=AppointmentOut)
 def submit_appointment(
     appointment_id: str,
     identity: BookingIdentity,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    _gate: None = Depends(_refuse_unless_a_channel_exists),
 ) -> AppointmentOut:
     """
     Send an appointment to its provider, with the patient identity a booking
