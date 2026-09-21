@@ -224,10 +224,21 @@ async def create_assessment(
                 "agentic layer, or ANTHROPIC_API_KEY for the paid one, and "
                 "restart the server."
             )
-            # Outside production, say why. A developer seeing only "couldn't
-            # assess" cannot tell a misconfiguration from an outage; an end
-            # user must never see configuration details.
-            if settings.environment != "production":
+            # In a known development environment, say why. A developer seeing
+            # only "couldn't assess" cannot tell a misconfiguration from an
+            # outage; an end user must never see configuration details.
+            #
+            # ⛔ `is_development`, NOT `!= "production"`. This was a raw string
+            # compare, while `settings.is_development` normalises with
+            # `.strip().lower()` — so `Production`, `PRODUCTION` and
+            # `production ` all took the developer path and put
+            # "Set LLM_BASE_URL... or ANTHROPIC_API_KEY" in front of an end
+            # user, which is the exact thing the sentence above forbids. Worse,
+            # `staging` and `prod` are not the string "production" either, and
+            # both are deployments real people can reach.
+            #
+            # Fail safe: an unrecognised environment gets the plain message.
+            if settings.is_development:
                 detail = f"{USER_FACING_UNAVAILABLE} {DEV_CONFIG_HINT}"
         else:
             logger.warning("Triage unavailable: %s", exc)

@@ -80,6 +80,55 @@ class TestProductionIsRefusedWhateverTheFlagSays:
 
         assert triage_log.logging_enabled() is False
 
+    @pytest.mark.parametrize(
+        "environment",
+        [
+            # ⛔ THE GUARD MATCHED ONE EXACT STRING. Found 2026-09-20.
+            #
+            # `settings.is_development` normalises with `.strip().lower()`, so
+            # the rest of the app treats every spelling below as production —
+            # strict signing key, no wildcard CORS, no /docs. This module did a
+            # raw `== "production"`, so all of them fell through to "return the
+            # flag" and health descriptions would have reached the application
+            # log of a production deployment.
+            "Production",
+            "PRODUCTION",
+            " production",
+            "production ",
+            # ⛔ And anything that is not a RECOGNISED development environment
+            # must refuse too. A deployment called "staging" or "prod" can hold
+            # real user descriptions, and the old check let both log freely
+            # because neither is the string "production".
+            "staging",
+            "prod",
+            "preprod",
+            "demo",
+        ],
+    )
+    def test_anything_but_a_known_development_environment_refuses(
+        self, monkeypatch, environment
+    ):
+        """
+        Fail safe, not fail on one spelling.
+
+        The question this module has to answer is not "is this production?" but
+        "is this somewhere a real person may have typed?" — and the only
+        environments it can be sure about are the ones it recognises.
+        """
+        monkeypatch.setattr(triage_log.settings, "environment", environment)
+        monkeypatch.setattr(triage_log.settings, "triage_log_classifications", True)
+
+        assert triage_log.logging_enabled() is False
+
+    @pytest.mark.parametrize("environment", ["dev", "development", "local", "test", "testing"])
+    def test_a_known_development_environment_still_logs(self, monkeypatch, environment):
+        # The tightening must not switch the feature off where it is meant to
+        # work, or nobody can tune the classifier at all.
+        monkeypatch.setattr(triage_log.settings, "environment", environment)
+        monkeypatch.setattr(triage_log.settings, "triage_log_classifications", True)
+
+        assert triage_log.logging_enabled() is True
+
     def test_no_description_reaches_the_log_in_production(self, monkeypatch, caplog):
         monkeypatch.setattr(triage_log.settings, "environment", "production")
         monkeypatch.setattr(triage_log.settings, "triage_log_classifications", True)
