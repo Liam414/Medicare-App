@@ -202,6 +202,52 @@ def false_self_care() -> list[tuple[str, str]]:
     ]
 
 
+# ⛔ INVISIBLE CHARACTERS THAT DEFEAT SCREENING ENTIRELY.
+#
+# `normalize_query` collapses `\s+`, and Python's `\s` on a str pattern matches
+# Unicode whitespace — so a non-breaking space, a thin space and an ideographic
+# space are all folded away and screening works. These are **category Cf**
+# (format), not whitespace, so nothing touches them: they sit inside the phrase,
+# the word boundary fails, and `I have chest⁠pain` matches nothing at all.
+#
+# This is the same origin as the glued-list bug `normalize_query` already fixes
+# — that one was "found from a real submission" of pasted text. Pasting from a
+# web page, a PDF or Word is exactly where these come from. A soft hyphen is
+# what Word inserts at a line break; a BOM is what leads a file.
+#
+# ⛔ REPORTED, NOT FIXED. The fix is one line in `normalize_query` and is
+# one-directional in the same way the existing case-split is — removing an
+# invisible character can only make screening more sensitive. But CLAUDE.md
+# records of the last edit to this very function that it "landed only after the
+# user approved it directly in conversation" and that "no agent may repeat this
+# on its own authority." So it is measured here and proposed in
+# `docs/proposed-red-flag-phrases.md`.
+INVISIBLE_CHARACTERS: tuple[tuple[str, str], ...] = (
+    ("U+200B ZERO WIDTH SPACE", "​"),
+    ("U+200C ZERO WIDTH NON-JOINER", "‌"),
+    ("U+200D ZERO WIDTH JOINER", "‍"),
+    ("U+FEFF ZERO WIDTH NO-BREAK SPACE (BOM)", "﻿"),
+    ("U+00AD SOFT HYPHEN", "­"),
+    ("U+2060 WORD JOINER", "⁠"),
+)
+
+
+def invisible_character_misses() -> list[str]:
+    """
+    Names of invisible characters that stop `chest pain` being screened.
+
+    The control cases — a non-breaking space, a thin space — are deliberately
+    not here: they already work, and a list of things that pass is a list
+    nobody reads.
+    """
+    misses: list[str] = []
+    for name, character in INVISIBLE_CHARACTERS:
+        description = f"I have chest{character} pain and I am sweating"
+        if emergency.screen_for_emergency(description) is None:
+            misses.append(name)
+    return misses
+
+
 # Ordinary self-limiting complaints somebody might mention in the same breath
 # as something serious. People list symptoms together; they do not submit one
 # clean red flag per box.
@@ -326,6 +372,24 @@ def main() -> int:
     print("     meeting the rule that self-care matches positively — which is")
     print("     what turns under-triage into reassurance. Closing the phrasing")
     print("     gap closes almost all of them.")
+
+    print()
+    print("-" * 74)
+    print(" ⛔ INVISIBLE CHARACTERS — 'chest pain' with one inserted")
+    print("-" * 74)
+    invisible = invisible_character_misses()
+    if invisible:
+        print("  %d character(s) stop it being screened at all:" % len(invisible))
+        for name in invisible:
+            print("      %s" % name)
+        print()
+        print("  All are Unicode category Cf (format), not whitespace, so")
+        print("  normalize_query's `\\s+` collapse never touches them. A")
+        print("  non-breaking space and a thin space ARE folded and do work.")
+        print("  This is what pasting from a web page, a PDF or Word produces —")
+        print("  the same origin as the glued-list bug normalize_query fixes.")
+    else:
+        print("  None. Every one is folded away before matching.")
     # ⛔ Always zero. This reports; it does not gate. A sweep of invented
     # phrasings must never be able to fail somebody's build, and a threshold
     # here would imply these numbers carry an authority they do not have.

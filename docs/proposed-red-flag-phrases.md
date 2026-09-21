@@ -143,6 +143,49 @@ that exists.
 
 - `I want to end it all`
 
+## ⛔ A one-line change that is not a phrase at all, and may be the cheapest
+
+**An invisible character inside a red flag defeats screening completely.**
+
+    I have chest pain and I am sweating              -> cardiac, call 911
+    I have chest<U+200B> pain and I am sweating      -> NOT SCREENED
+
+Six characters do this, verified offline and reproduced against the live
+deployment:
+
+| character | what inserts it |
+|---|---|
+| U+200B ZERO WIDTH SPACE | web pages, rich-text editors |
+| U+200C / U+200D ZERO WIDTH (NON-)JOINER | copied web text |
+| U+FEFF ZERO WIDTH NO-BREAK SPACE | leads a file as a BOM |
+| U+00AD SOFT HYPHEN | **Word, at a line break** |
+| U+2060 WORD JOINER | typesetting, PDFs |
+
+**Root cause, precisely.** `normalize_query` ends with `re.sub(r"\s+", " ")`.
+Python's `\s` on a `str` pattern matches Unicode whitespace, so a non-breaking
+space, a thin space and an ideographic space are all folded away and screening
+works on them. These six are **category Cf (format)**, not whitespace, so
+nothing touches them: the character sits inside the phrase, the word boundary
+fails, and the description matches nothing at all.
+
+**This is the same origin as the bug `normalize_query` already exists to fix.**
+That one — a pasted symptom list arriving glued together — is documented as
+"found from a real submission". Pasting from a web page, a PDF or an email is
+exactly where these six come from. Somebody copying their symptoms out of a
+message to their GP is the realistic case.
+
+**Why it may be the cheapest fix available here.** It is one line, it needs no
+clinical judgement at all — nobody has to rule on whether a wording describes a
+condition — and it is one-directional in the same way the existing case-split
+is: removing an invisible character can only make screening more sensitive and
+can never make it less. It closes the gap for **every** phrase in every
+category at once, rather than one wording at a time.
+
+⛔ **Not applied.** CLAUDE.md records of the last edit to this very function
+that it "landed only after the user approved it directly in conversation" and
+that **"no agent may repeat this on its own authority."** Measured every run by
+`phrasing_sweep.py`.
+
 ## Two separate items, already open
 
 - **Contractions written out in full** (2026-09-19 FINDING 1): 36 reviewed
