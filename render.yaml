@@ -257,3 +257,48 @@ services:
       - path: /*
         name: X-Frame-Options
         value: DENY
+      # ⛔ THE WEB APP HAS NO CONTENT-SECURITY-POLICY, AND CLAUDE.md RELIES ON
+      # ONE. `docs/security.md` argues for keeping the session token in
+      # `sessionStorage` rather than `localStorage` and says plainly: "Neither
+      # store is protected from script running on the page — the defence
+      # against that is the CSP, not the choice of store." That defence was
+      # never deployed. The API's `default-src 'none'` governs API responses,
+      # not the HTML page where script actually runs.
+      #
+      # ⛔ REPORT-ONLY ON PURPOSE, AND THIS IS NOT THE FINISHED JOB.
+      # `Content-Security-Policy-Report-Only` blocks nothing. It cannot break
+      # the app, which matters because an enforcing policy that is wrong takes
+      # the whole site down for everyone, and the exact origins are not
+      # knowable from this repository: `tesseract.js` fetches its WASM core and
+      # English training data from a CDN chosen inside the library at runtime,
+      # so the host depends on the pinned version rather than on any line we
+      # wrote. Guessing it wrong silently breaks label scanning on the web.
+      #
+      # HOW TO FINISH THIS:
+      #   1. Deploy with this Report-Only header.
+      #   2. Open the app, sign in, and use the label scanner — the scanner is
+      #      the path that reaches a third-party origin, so it must be
+      #      exercised or the report will look clean and be incomplete.
+      #   3. Read the browser console. Every violation names the directive and
+      #      the blocked origin.
+      #   4. Add those origins here, then rename this header to
+      #      `Content-Security-Policy` to start enforcing.
+      #
+      # `connect-src` names the API by literal hostname for the same reason
+      # `CORS_ALLOW_ORIGINS` does: the web service already references the API,
+      # and Render will not resolve a cycle. A rename of the API service needs
+      # this line changed by hand.
+      - path: /*
+        name: Content-Security-Policy-Report-Only
+        value: >-
+          default-src 'self';
+          base-uri 'none';
+          object-src 'none';
+          frame-ancestors 'none';
+          form-action 'none';
+          script-src 'self' 'unsafe-eval';
+          style-src 'self' 'unsafe-inline';
+          img-src 'self' data: blob:;
+          font-src 'self' data:;
+          worker-src 'self' blob:;
+          connect-src 'self' https://medhelp-api-as615.onrender.com
