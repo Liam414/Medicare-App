@@ -56,9 +56,9 @@ describe("apiRequest", () => {
   it("⛔ drops the refused token on a 401", async () => {
     respond(401, { detail: "Sign in to continue." });
 
-    const error = await apiRequest("/goals", {
+    const error = (await apiRequest("/goals", {
       fallbackMessage: "unused",
-    }).catch((caught) => caught);
+    }).catch((caught: unknown) => caught)) as ApiError;
 
     expect(error).toBeInstanceOf(ApiError);
     expect(error.isAuthError).toBe(true);
@@ -76,9 +76,9 @@ describe("apiRequest", () => {
     // medication list.
     respond(500, { detail: "Something went wrong." });
 
-    const error = await apiRequest("/goals", {
+    const error = (await apiRequest("/goals", {
       fallbackMessage: "unused",
-    }).catch((caught) => caught);
+    }).catch((caught: unknown) => caught)) as ApiError;
 
     expect(error.isAuthError).toBe(false);
     expect(logout).not.toHaveBeenCalled();
@@ -87,9 +87,9 @@ describe("apiRequest", () => {
   it("refuses before sending anything when there is no token", async () => {
     mockedGetToken.mockReturnValue(null);
 
-    const error = await apiRequest("/goals", {
+    const error = (await apiRequest("/goals", {
       fallbackMessage: "unused",
-    }).catch((caught) => caught);
+    }).catch((caught: unknown) => caught)) as ApiError;
 
     expect(error.isAuthError).toBe(true);
     expect(global.fetch).not.toHaveBeenCalled();
@@ -103,9 +103,9 @@ describe("apiRequest", () => {
       new TypeError("Failed to fetch")
     );
 
-    const error = await apiRequest("/goals", {
+    const error = (await apiRequest("/goals", {
       fallbackMessage: "Can't reach the MedHelp server.",
-    }).catch((caught) => caught);
+    }).catch((caught: unknown) => caught)) as ApiError;
 
     expect(error.isNetworkError).toBe(true);
     expect(error.isAuthError).toBe(false);

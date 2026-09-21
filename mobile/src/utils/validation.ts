@@ -35,7 +35,19 @@ export function validatePassword(password: string): string | null {
     return `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
   }
   if (byteLength(password) > MAX_PASSWORD_BYTES) {
-    return `That password is too long. Use ${MAX_PASSWORD_BYTES} characters or fewer.`;
+    // ⛔ THE CHECK COUNTS BYTES AND THE MESSAGE HAS TO ADMIT IT. It used to
+    // say "use 72 characters or fewer", which is right for an ASCII password
+    // and wrong for any other: 40 emoji are 160 bytes, so somebody who typed
+    // 40 characters was told to use 72 or fewer. They would shorten, be
+    // refused again, and have no way to work out why.
+    //
+    // The number stays, because for most passwords it is the real limit and
+    // it is the only actionable thing here. The second clause is what makes
+    // it true for the rest.
+    return (
+      `That password is too long. Use ${MAX_PASSWORD_BYTES} characters or ` +
+      `fewer — accented letters, symbols and emoji each count as more than one.`
+    );
   }
   return null;
 }
