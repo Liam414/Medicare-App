@@ -274,6 +274,58 @@ _DOCUMENTED_GAPS: list[Case] = [
         "EMERGENT",
         "documented gap (FIXED by symptom_concepts): two-term combinator",
     ),
+    # -----------------------------------------------------------------------
+    # Found 2026-09-20 by probing the LIVE deployment with lay phrasings that
+    # are not in any corpus. All six reach `defaulted=True`, tier URGENT,
+    # `emergency=None` — so the person is asked "Where in your body do you feel
+    # it? How bad is it, from 1 to 10?" instead of being told to call for help.
+    #
+    # ⛔ REPORTED, NOT FIXED. Closing any of these means editing the phrase
+    # lists in `emergency.py`, which CLAUDE.md fences behind explicit human
+    # approval obtained outside this pipeline. Adding corpus cases is permitted
+    # and is the whole point of the harness: a fix is a case moving out of this
+    # section, measured rather than argued.
+    #
+    # Each one sits a word or two from a phrase that DOES fire, which is the
+    # signature of a literal phrase list rather than a vocabulary gap:
+    # "I took too many pills" reaches Poison Control; "I took the whole bottle
+    # of pills" reaches nothing.
+    # -----------------------------------------------------------------------
+    Case(
+        "my chest feels like an elephant is sitting on it",
+        "EMERGENT",
+        "documented gap: the canonical lay description of cardiac chest pain; "
+        "the list has 'chest pressure' and 'chest feels heavy', not this",
+    ),
+    Case(
+        "my lips are turning blue and I am wheezing badly",
+        "EMERGENT",
+        "documented gap: cyanosis has no phrase at all in _EMERGENCY_RULES",
+    ),
+    Case(
+        "blood is pouring from the cut and won't stop",
+        "EMERGENT",
+        "documented gap: bleeding_trauma has the noun forms, not 'blood is "
+        "pouring'",
+    ),
+    Case(
+        "I threw up something that looked like coffee grounds",
+        "EMERGENT",
+        "documented gap: coffee-ground emesis is a textbook GI bleed; the list "
+        "has 'threw up blood', which this description never says",
+    ),
+    Case(
+        "I took the whole bottle of pills",
+        "EMERGENT",
+        "documented gap: 'took too many pills' fires, this does not — and it "
+        "is the one that should also reach 988",
+    ),
+    Case(
+        "it's like a curtain came down over one eye",
+        "EMERGENT",
+        "documented gap: 'curtain came over my eye' was added 2026-09-14 and "
+        "fires; inserting 'down' and 'one' defeats it",
+    ),
 ]
 
 

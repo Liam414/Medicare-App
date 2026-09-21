@@ -189,13 +189,31 @@ function survives({ file, find, replace, tests }) {
 }
 
 const wanted = process.argv[2];
+
+// ⛔ A FILTER THAT MATCHES NOTHING IS AN ERROR, NOT A CLEAN RUN.
+//
+// This script's entire job is to distrust a green result — its docstring says
+// a passing suite is evidence about the tests, not about the code. It failed
+// its own standard: `node scripts/mutation_check.mjs --help`, or any typo of a
+// group name, matched zero mutations, printed an empty table, reported "Every
+// mutation was caught." and exited 0. Nothing had been mutated and nothing
+// verified. In CI that is a green tick for work never done, which is the exact
+// failure mode the whole script exists to catch.
+const GROUPS = [...new Set(MUTATIONS.map((mutation) => mutation.group))];
+if (wanted !== undefined && !GROUPS.includes(wanted)) {
+  console.error(`unknown group '${wanted}'; choose from ${GROUPS.join(", ")}`);
+  process.exit(2);
+}
+
 const survivors = [];
+let ran = 0;
 
 try {
   console.log("mutation".padEnd(62) + "result".padStart(10));
   console.log("-".repeat(72));
   for (const mutation of MUTATIONS) {
     if (wanted && mutation.group !== wanted) continue;
+    ran += 1;
     const reason = survives(mutation);
     console.log(mutation.label.padEnd(62) + (reason ? "SURVIVED" : "caught").padStart(10));
     if (reason) survivors.push([mutation.label, reason]);
@@ -210,4 +228,10 @@ if (survivors.length) {
   for (const [label, why] of survivors) console.log(`   - ${label}  (${why})`);
   process.exit(1);
 }
-console.log("Every mutation was caught.");
+// Belt and braces behind the group check above: whatever the reason, a run
+// that mutated nothing may never report that everything was caught.
+if (ran === 0) {
+  console.error("no mutations ran, so nothing was checked.");
+  process.exit(2);
+}
+console.log(`Every mutation was caught (${ran} of ${MUTATIONS.length}).`);

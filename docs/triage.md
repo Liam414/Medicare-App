@@ -630,6 +630,42 @@ holds both.
    list rather than an understanding.
 4. **The all-caps glued list** remains open from the earlier corpus:
    "CHEST PAINSHORTNESS OF BREATH" has no case boundary to split on.
+5. ⛔ **Six lay phrasings of red flags that no corpus contained (2026-09-20).**
+   Found by probing the **live deployment** with descriptions written to sound
+   like a frightened person rather than like a phrase list. Each reaches
+   `defaulted=True`, tier URGENT, `emergency=None` — so the reply is the
+   clarifying questionnaire, *"Where in your body do you feel it? How bad is
+   it, from 1 to 10?"*, with no headline, no 911, no Poison Control and no 988.
+   The standing `escalation_guidance` line is still there, so it is not
+   silent; the emergency block is simply absent.
+
+   | Description | Nearest phrase that DOES fire |
+   |---|---|
+   | "my chest feels like an elephant is sitting on it" | `chest pressure`, `chest feels heavy` |
+   | "my lips are turning blue and I am wheezing badly" | *nothing — cyanosis has no phrase at all* |
+   | "blood is pouring from the cut and won't stop" | `bleeding that won't stop` |
+   | "I threw up something that looked like coffee grounds" | `threw up blood` |
+   | "I took the whole bottle of pills" | `took too many pills` |
+   | "it's like a curtain came down over one eye" | `curtain came over my eye` |
+
+   ⛔ **Read the right-hand column before concluding this is a vocabulary
+   problem.** Every one sits a word or two from a phrase that fires today:
+   *"I took too many pills"* reaches Poison Control and *"I took the whole
+   bottle of pills"* reaches nothing. This is the literal-substring limitation
+   this file already documents, measured on the presentations where it costs
+   the most — an overdose, a GI bleed, cyanosis, and the single most
+   recognisable lay description of a heart attack in the language.
+
+   The corpora do not bound this risk and were never going to: both report
+   100% safety of advice while all six of these miss. This file already says
+   why — *"a corpus cannot contain the phrasing nobody thought to write
+   down"* — and this is that sentence being cashed in.
+
+   All six are pinned in `scripts/triage_eval/corpus.py` as documented gaps,
+   `[OPEN]` in every run, excluded from the scores so they cannot quietly
+   flatter them. Closing any one means editing `_EMERGENCY_RULES`, which this
+   file fences, so **they are reported and left untouched** — a fix is a case
+   moving out of that section, measured rather than argued.
 
 #### Licensed protocol content: the container exists, the content does not
 
