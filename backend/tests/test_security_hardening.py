@@ -16,6 +16,7 @@ from app.core.config import (
     Settings,
 )
 from app.core.rate_limit import RateLimiter
+from app.main import _PRIVATE_ORIGIN_RE
 from app.core.security import create_access_token, decode_access_token
 from app.db.session import engine, require_tls
 
@@ -110,6 +111,64 @@ def test_cors_origins_parse_into_a_list_without_trailing_slashes():
         "https://a.example.com",
         "https://b.example.com",
     ]
+
+
+# ⛔ THE SHARED HOST LIST. Keep it identical to the one in
+# `mobile/__tests__/baseUrl.test.ts`.
+#
+# `_PRIVATE_ORIGIN_RE` here and `isLoopbackOrPrivate` in
+# `mobile/src/services/baseUrl.ts` are the same rule written twice, in two
+# languages: the client uses it to decide where the API is, this one to decide
+# whether the browser may talk to it. CLAUDE.md says to keep the two in step,
+# and on 2026-09-20 they were not — three hosts the client trusted were refused
+# here, so the app would load and then fail every request with a CORS error.
+#
+# Two implementations cannot share code, so they share a list of cases instead.
+_PRIVATE_HOSTS = [
+    "localhost",
+    "app.localhost",
+    "my-mac.local",
+    "my.mac.local",
+    "127.0.0.1",
+    "10.0.0.5",
+    "172.16.0.1",
+    "172.31.255.254",
+    "192.168.1.5",
+    "169.254.1.1",
+    "100.64.0.1",
+    "[::1]",
+    "[fd12:3456::1]",
+]
+
+_PUBLIC_HOSTS = [
+    "example.com",
+    "8.8.8.8",
+    "172.15.0.1",  # just below the private block
+    "172.32.0.1",  # just above it
+    "100.63.0.1",  # just below the CGNAT range
+    "100.128.0.1",  # just above it
+    "evil-localhost.com",
+    "localhost.evil.com",
+]
+
+
+@pytest.mark.parametrize("host", _PRIVATE_HOSTS)
+def test_a_development_machine_origin_is_allowed(host):
+    assert _PRIVATE_ORIGIN_RE.match(f"http://{host}:8081"), host
+    assert _PRIVATE_ORIGIN_RE.match(f"https://{host}"), host
+
+
+@pytest.mark.parametrize("host", _PUBLIC_HOSTS)
+def test_a_public_origin_is_never_a_private_one(host):
+    """
+    ⛔ The near-misses are the point.
+
+    `172.15` and `172.32` bracket the RFC1918 block, `100.63` and `100.128`
+    bracket the CGNAT range, and `localhost.evil.com` is the attack an
+    unanchored suffix check would wave through.
+    """
+    assert not _PRIVATE_ORIGIN_RE.match(f"http://{host}:8081"), host
+    assert not _PRIVATE_ORIGIN_RE.match(f"https://{host}"), host
 
 
 def test_app_does_not_send_a_wildcard_cors_header(client):
