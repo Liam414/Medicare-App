@@ -287,3 +287,85 @@ class TestListing:
 
         assert db_session.query(MedicationReminder).count() == 0
         assert client.get("/reminders", headers=auth_headers).json() == []
+
+
+class TestTheTableHoldsNoSecondCopyOfHealthData:
+    """
+    ⛔ THE STRUCTURAL GUARANTEE, WHICH NOTHING WAS ENFORCING.
+
+    `MedicationReminder`'s docstring says the medication *name* is
+    "deliberately not copied here: it already lives on `medications`, and a
+    second copy would be a second place health data leaks from."
+
+    Both its siblings are enforced against the mapped table — `appointments`
+    may gain no identity column, `provider_locations` no user column, and both
+    are mutation-checked. This one was stated in two places and checked in
+    none, which is the same shape of gap that let `GET /medications/reminders`
+    ship unscoped (closed finding 2).
+
+    A name column here would be easy to add and hard to notice: it makes the
+    listing query simpler and every existing test still passes.
+    """
+
+    def test_no_column_could_hold_a_medication_name(self):
+        from app.models.reminder import MedicationReminder
+
+        columns = {column.name for column in MedicationReminder.__table__.columns}
+        forbidden = {
+            "name",
+            "medication_name",
+            "drug",
+            "drug_name",
+            "dosage",
+            "medication_dosage",
+            "strength",
+            "frequency",
+            "directions",
+            "sig",
+            "notes",
+            "label",
+        }
+
+        overlap = columns & forbidden
+        assert overlap == set(), (
+            f"medication_reminders gained {sorted(overlap)}. The name lives on "
+            "`medications` and is joined for; a second copy is a second place "
+            "health data leaks from."
+        )
+
+    def test_the_table_holds_only_what_it_needs(self):
+        """
+        The whole column set, pinned.
+
+        Broader than the denylist above, which can only catch names somebody
+        thought of. Anything new here is a decision about where health data
+        rests, so it should be one somebody makes on purpose.
+        """
+        from app.models.reminder import MedicationReminder
+
+        assert {column.name for column in MedicationReminder.__table__.columns} == {
+            "id",
+            "user_id",
+            "medication_id",
+            "time_of_day",
+            "enabled",
+            "created_at",
+            "updated_at",
+        }
+
+    def test_a_time_is_a_wall_clock_string_not_an_instant(self):
+        """
+        "Eight in the morning means eight in the morning wherever the person
+        is" — a datetime column carries an instant, and converting through a
+        timezone would move a medication time when somebody travels.
+        """
+        from sqlalchemy import String
+
+        from app.models.reminder import MedicationReminder
+
+        column = MedicationReminder.__table__.columns["time_of_day"]
+
+        assert isinstance(column.type, String), (
+            f"time_of_day is {column.type!r}; a wall-clock time must not be "
+            "stored as a datetime, which carries an instant"
+        )
