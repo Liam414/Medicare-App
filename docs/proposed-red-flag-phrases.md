@@ -143,6 +143,56 @@ that exists.
 
 - `I want to end it all`
 
+## ⛔⛔ THE MOST SERIOUS ONE, AND IT NEEDS NO CLINICAL JUDGEMENT AT ALL
+
+**A suicidal statement written without a contraction, beside an ordinary
+complaint, is answered with "this usually settles on its own."**
+
+    "I don't want to be alive"                   -> EMERGENT, self_harm, 988
+    "I do not want to be alive"                  -> URGENT, no guidance
+    "a dry cough and I don't want to be alive"   -> EMERGENT, self_harm
+    "a dry cough and I do not want to be alive"  -> SELF_CARE
+
+**Eight red flags stop matching when their contraction is written out. Seven of
+those eight become SELF_CARE beside a minor complaint:**
+
+| phrase held | spelling that matches nothing | category |
+|---|---|---|
+| `don't want to be alive` | `do not want to be alive` | **self_harm** |
+| `don't want to be here` | `do not want to be here` | **self_harm** |
+| `can't get my words out` | `cannot get my words out` | stroke |
+| `can't see` | `cannot see` | vision_loss |
+| `can't catch my breath` | `cannot catch my breath` | breathing |
+| `can't get enough air` | `cannot get enough air` | breathing |
+| `can't close one eye` | `cannot close one eye` | stroke |
+| `bleeding won't stop` | `bleeding will not stop` | bleeding_trauma |
+
+`docs/test-run-2026-09-19.md` FINDING 1 already found this class and counted
+the phrases, recording the cost as **EMERGENT → URGENT**. That understated it.
+The lists carry `can't` **and** `cant` and never the expansion, so the third
+way everybody writes it matches nothing — and beside a recognised minor
+complaint the self-care phrase matches positively, nothing escalates it, and
+the whole description comes back as reassurance.
+
+### Why this is the first thing to do
+
+⛔ **It requires no clinician.** Every other item in this document asks
+somebody qualified to rule on whether a wording describes a presentation.
+This one does not: these are wordings **the reviewed lists already hold**, in
+the spelling nobody stored. Approving it adds no clinical claim.
+
+⛔ **The repair is mechanical, and the pattern is already in the codebase.**
+`plural_tolerant` generates a phrase's plural at compile time rather than
+asking anyone to write both. The same shape applied to contractions —
+generating the expansion alongside `can't` and `cant` — closes all eight at
+once, and any added later, for free.
+
+⛔ **It is one-directional**, like every other change proposed here: it adds
+spellings to patterns that must already match in full, so it can make screening
+more sensitive and cannot make it less.
+
+Measured every run by `phrasing_sweep.py`.
+
 ## ⛔ A one-line change that is not a phrase at all, and may be the cheapest
 
 **An invisible character inside a red flag defeats screening completely.**

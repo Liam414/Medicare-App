@@ -202,6 +202,79 @@ def false_self_care() -> list[tuple[str, str]]:
     ]
 
 
+# ⛔ CONTRACTIONS WRITTEN OUT IN FULL, AND WHAT THAT COSTS.
+#
+# `docs/test-run-2026-09-19.md` FINDING 1 records that the phrase lists carry
+# both `can't` and `cant` and never the expansion, so "the third way everybody
+# writes it matches nothing". That run counted the phrases affected. It did not
+# measure what happens when the expansion shares a sentence with an ordinary
+# complaint, and that is where it stops being under-triage:
+#
+#     "I don't want to be alive"                   -> EMERGENT, self_harm, 988
+#     "I do not want to be alive"                  -> URGENT, no guidance
+#     "a dry cough and I don't want to be alive"   -> EMERGENT, self_harm
+#     "a dry cough and I do not want to be alive"  -> SELF_CARE
+#
+# A suicidal statement, written without the contraction, beside a cough, is
+# answered with "this usually settles on its own".
+#
+# ⛔ REPORTED, NOT FIXED — `emergency.py` and `rules_triage.py` are fenced. The
+# repair is mechanical and needs no clinical judgement at all: generate the
+# expansion alongside each contraction when the patterns are compiled, the same
+# way `plural_tolerant` already generates plurals. Nobody has to rule on
+# whether a wording describes a condition; these are wordings the lists already
+# hold, in the spelling nobody stored.
+_CONTRACTIONS: tuple[tuple[str, str], ...] = (
+    ("can't", "cannot"),
+    ("won't", "will not"),
+    ("don't", "do not"),
+    ("didn't", "did not"),
+    ("isn't", "is not"),
+    ("couldn't", "could not"),
+    ("haven't", "have not"),
+    ("hasn't", "has not"),
+    ("doesn't", "does not"),
+    ("aren't", "are not"),
+)
+
+
+def _expanded(phrase: str) -> str:
+    out = phrase
+    for short, long in _CONTRACTIONS:
+        out = out.replace(short, long)
+    return out
+
+
+def contraction_misses() -> tuple[list[str], list[str]]:
+    """
+    `(red flags lost when written out, those that become reassurance)`.
+
+    The second list is the one that matters. A lost red flag on its own falls
+    to URGENT; beside a recognised minor complaint it falls to SELF_CARE.
+    """
+    from app.core import rules_triage
+
+    lost: list[str] = []
+    reassured: list[str] = []
+    seen: set[str] = set()
+
+    for rule in emergency._EMERGENCY_RULES:
+        for phrase in rule[3]:
+            expanded = _expanded(phrase)
+            if expanded == phrase or expanded in seen:
+                continue
+            seen.add(expanded)
+            if emergency.screen_for_emergency(phrase) and not emergency.screen_for_emergency(
+                expanded
+            ):
+                lost.append(f"{phrase}  ->  {expanded}")
+                beside = f"a dry cough and {expanded}"
+                if rules_triage.classify(beside).tier_name == "SELF_CARE":
+                    reassured.append(beside)
+
+    return lost, reassured
+
+
 # ⛔ INVISIBLE CHARACTERS THAT DEFEAT SCREENING ENTIRELY.
 #
 # `normalize_query` collapses `\s+`, and Python's `\s` on a str pattern matches
@@ -372,6 +445,25 @@ def main() -> int:
     print("     meeting the rule that self-care matches positively — which is")
     print("     what turns under-triage into reassurance. Closing the phrasing")
     print("     gap closes almost all of them.")
+
+    print()
+    print("-" * 74)
+    print(" ⛔ CONTRACTIONS WRITTEN OUT IN FULL")
+    print("-" * 74)
+    lost, reassured = contraction_misses()
+    print("  red flags that stop matching : %d" % len(lost))
+    for row in lost:
+        print("      %s" % row)
+    print()
+    print("  ⛔ of those, ANSWERED WITH REASSURANCE beside a minor complaint: %d"
+          % len(reassured))
+    for row in reassured:
+        print("      %s" % row)
+    if reassured:
+        print()
+        print("  The 2026-09-19 run counted the phrases. This is what they cost:")
+        print("  a lost red flag alone falls to URGENT; beside a recognised")
+        print("  minor complaint it falls to SELF_CARE. See FINDING 0.")
 
     print()
     print("-" * 74)
