@@ -52,6 +52,7 @@ const TOKEN = "src/services/tokenStorage.web.ts";
 const CARD_STORE = "src/services/emergencyCard.ts";
 const NOTIFY = "src/services/notificationService.web.ts";
 const TODAY = "src/screens/TodayScreen.tsx";
+const REMINDERS_SCREEN = "src/screens/medication-reminders/MedicationRemindersScreen.tsx";
 
 /**
  * Each entry: the rule, in CLAUDE.md's own words, and the smallest edit that
@@ -79,6 +80,26 @@ const MUTATIONS = [
     find: "    return window.sessionStorage ?? null;",
     replace: "    return window.localStorage ?? null;",
     tests: ["__tests__/tokenStorageWeb.test.ts"],
+  },
+  {
+    group: "no-network",
+    // ⛔ A SECOND ARMING CALL SITE, WHICH IS THE BUG THIS REPO ALREADY SHIPPED
+    // ONCE. `scheduleAll` replaces everything — `cancelAll()` runs first, and
+    // on native that does not distinguish dose reminders from refill alerts —
+    // so two callers each arming a subset take turns cancelling each other's
+    // work. The symptom is a notification type that silently stops firing
+    // depending on which screen was opened last.
+    //
+    // This screen is where arming used to live, and its import block still
+    // carries a comment saying `scheduleAll` is deliberately not imported.
+    // The mutation puts it back.
+    label: "a screen arms notifications itself instead of going through rearm",
+    file: REMINDERS_SCREEN,
+    find: 'import { rearmFrom } from "@/services/reminderArming";',
+    replace:
+      'import { scheduleAll } from "@/services/notificationService";\n' +
+      'import { rearmFrom } from "@/services/reminderArming";',
+    tests: ["__tests__/armingHasOneOwner.test.ts"],
   },
   {
     group: "goals",
