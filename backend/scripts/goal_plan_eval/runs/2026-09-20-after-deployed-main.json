@@ -1,0 +1,422 @@
+{
+  "label": "AFTER (deployed main, 2026-09-20)",
+  "source": "https://medhelp-api-as615.onrender.com (the DEPLOYED code, not this working copy)",
+  "outcomes": [
+    {
+      "goal": "weight-one-pound",
+      "title": "Morning walks and water habit",
+      "rows": [
+        "Walk for 30 minutes after breakfast",
+        "Drink a glass of water after waking"
+      ],
+      "details": [
+        "Leave the house after you finish breakfast and walk around the neighborhood at a comfortable pace for about half an hour. Keep a watch or phone timer to know when 30 minutes have passed.",
+        "Place a glass of water on your nightstand before bed and drink it as soon as you get out of bed each morning. No preparation needed beyond refilling the glass the night before."
+      ],
+      "cited": [
+        true,
+        true
+      ],
+      "day_counts": [
+        5,
+        7
+      ],
+      "days_touched": 7,
+      "complexity": "small",
+      "failure": ""
+    },
+    {
+      "goal": "weight-hundred-pounds",
+      "title": "Morning walks and daily veggie meals",
+      "rows": [
+        "Walk 30 minutes at a moderate pace around the neighborhood",
+        "Do a quick strength routine: 10 squats and 10 wall push\u2011ups",
+        "Stand up and stretch for two minutes each hour while working",
+        "Add one cup of mixed vegetables to dinner",
+        "Drink a glass of water right after getting out of bed"
+      ],
+      "details": [
+        "Leave the house at 07:30, walk the block near your home for 30 minutes, then return.",
+        "Stand in front of a sturdy wall, perform 10 squats, then 10 push\u2011ups, and finish with a brief stretch.",
+        "Set a timer for the hour, stand, roll your shoulders, and walk to the kitchen for a brief stretch before sitting again.",
+        "Place a bowl of steamed broccoli, carrots, and peas on your plate before the main dish at dinner.",
+        "Keep a glass of water on your nightstand and sip it as soon as you sit up in the morning."
+      ],
+      "cited": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "day_counts": [
+        5,
+        2,
+        7,
+        7,
+        7
+      ],
+      "days_touched": 7,
+      "complexity": "major",
+      "failure": ""
+    },
+    {
+      "goal": "sleep-shift",
+      "title": "Steady bedtime and wind\u2011down on days off",
+      "rows": [
+        "Go to bed at 08:00",
+        "Wake up at 16:00",
+        "Dim lights and do a quiet activity",
+        "Avoid caffeine after 14:00"
+      ],
+      "details": [
+        "When the clock shows 07:45, turn off bright lights, silence your phone, and get into bed aiming for a full night\u2019s sleep.",
+        "At 15:55 open the curtains or turn on a lamp, let natural light in, and get out of bed to start your day.",
+        "Switch to low\u2011wattage lamps, then read a short article or stretch gently for about ten minutes before turning out the lights.",
+        "Finish any coffee or tea by 13:45 and replace it with water or a caffeine\u2011free herbal tea for the rest of the day."
+      ],
+      "cited": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "day_counts": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "days_touched": 2,
+      "complexity": "moderate",
+      "failure": ""
+    },
+    {
+      "goal": "sleep-baby",
+      "title": "Evening wind\u2011down and bedtime routine",
+      "rows": [
+        "Power off phone and tablet",
+        "Dim lights and read a paperback",
+        "Do a short stretch and breathing routine",
+        "Finish baby bedtime and lie down"
+      ],
+      "details": [
+        "Set an alarm for 22:30, then place the device in another room and switch it off so it won't be reachable.",
+        "Turn down the main lights, use a bedside lamp, and pick up a paperback or magazine for a calm read, avoiding any screens.",
+        "Sit on a chair or the floor, stretch arms overhead, then inhale for 4 seconds and exhale for 6 seconds, repeating for five minutes.",
+        "Complete your baby's bedtime routine (feed, change, cuddle) and then get into your own bed, turning off the light."
+      ],
+      "cited": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "day_counts": [
+        7,
+        7,
+        7,
+        7
+      ],
+      "days_touched": 7,
+      "complexity": "moderate",
+      "failure": ""
+    },
+    {
+      "goal": "walk-dog",
+      "title": "Morning dog walks",
+      "rows": [
+        "Walk the dog for about 15 minutes before work"
+      ],
+      "details": [
+        "Put the leash on the dog as soon as you get up, then step outside and walk around the block for roughly 15 minutes before heading to work."
+      ],
+      "cited": [
+        true
+      ],
+      "day_counts": [
+        5
+      ],
+      "days_touched": 5,
+      "complexity": "small",
+      "failure": ""
+    },
+    {
+      "goal": "walk-desk",
+      "title": "Desk stretches and walking breaks",
+      "rows": [
+        "Stand up and do a gentle back stretch at your desk",
+        "Walk to the kitchen and back for a short walk",
+        "Do seated leg lifts",
+        "Perform wall push\u2011ups"
+      ],
+      "details": [
+        "When the clock hits 10:00, push your chair back, place your hands on the desk, lift your arms overhead, then gently bend side\u2011to\u2011side for about 30 seconds each side.",
+        "At 12:30, leave your desk, walk to the kitchen, circle the countertop twice, and return to your seat.",
+        "When 15:00 arrives, sit upright, lift one leg straight out for 10 seconds, lower, then switch legs; repeat five times each side.",
+        "At 16:30, stand facing a wall, place hands shoulder\u2011width apart, and do eight slow wall push\u2011ups."
+      ],
+      "cited": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "day_counts": [
+        5,
+        5,
+        5,
+        3
+      ],
+      "days_touched": 5,
+      "complexity": "moderate",
+      "failure": ""
+    },
+    {
+      "goal": "quit-today",
+      "title": "Walk, water, and a call to stay smoke\u2011free today",
+      "rows": [
+        "Take a 10\u2011minute brisk walk after lunch",
+        "Drink a glass of water whenever you feel a craving",
+        "Call a supportive friend for a quick chat when you want a cigarette"
+      ],
+      "details": [
+        "After you finish your lunch, put on your shoes and walk around the block for ten minutes, breathing steadily.",
+        "Keep a glass of water on your desk; when you notice the urge, take a sip and finish the glass.",
+        "Save a friend's number; when the urge hits, dial and talk for a few minutes to distract yourself."
+      ],
+      "cited": [
+        true,
+        true,
+        true
+      ],
+      "day_counts": [
+        1,
+        1,
+        1
+      ],
+      "days_touched": 1,
+      "complexity": "small",
+      "failure": ""
+    },
+    {
+      "goal": "quit-year",
+      "title": "",
+      "rows": [],
+      "details": [],
+      "cited": [],
+      "day_counts": [],
+      "days_touched": 0,
+      "complexity": "",
+      "failure": "MedHelp is busy right now. Press \u201cSuggest a plan\u201d again in a few seconds and it should work. You can also add your own activities below."
+    },
+    {
+      "goal": "vague-healthier",
+      "title": "Morning water habit and evening walks",
+      "rows": [
+        "Drink a glass of water after getting out of bed",
+        "Walk around the block for 15 minutes after dinner"
+      ],
+      "details": [
+        "Place a glass of water on the nightstand before sleeping. When you sit up in the morning, pick it up and finish it before any other task.",
+        "After finishing dinner, put on comfortable shoes and step outside your front door. Walk at a relaxed pace for about 15 minutes, then return home."
+      ],
+      "cited": [
+        true,
+        true
+      ],
+      "day_counts": [
+        7,
+        5
+      ],
+      "days_touched": 7,
+      "complexity": "small",
+      "failure": ""
+    },
+    {
+      "goal": "vague-energy",
+      "title": "Morning walks, desk breaks, evening stretch",
+      "rows": [
+        "Walk briskly for 15 minutes around the block",
+        "Stand and stretch for 2 minutes each hour at your desk",
+        "Do a gentle 10\u2011minute stretch routine before bed",
+        "Drink a glass of water right after you wake up"
+      ],
+      "details": [
+        "Leave the house after breakfast and walk at a comfortable pace, counting steps or listening to a podcast.",
+        "Set an alarm on your computer; when it rings, stand, roll shoulders, and do a brief stretch before returning to work.",
+        "Lay a mat on the floor, follow a simple sequence of neck, back, and leg stretches to unwind before sleep.",
+        "Keep a glass of water on the nightstand and sip it as soon as you sit up in the morning."
+      ],
+      "cited": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "day_counts": [
+        5,
+        5,
+        5,
+        7
+      ],
+      "days_touched": 7,
+      "complexity": "moderate",
+      "failure": ""
+    },
+    {
+      "goal": "stress-exams",
+      "title": "Morning breathing, midday walks, evening connections",
+      "rows": [
+        "Do a 5\u2011minute breathing exercise right after getting out of bed",
+        "Take a 15\u2011minute walk around the block after lunch",
+        "Turn off screens and read a printed book for 10 minutes before bed",
+        "Call a friend or family member for a brief 10\u2011minute chat"
+      ],
+      "details": [
+        "Sit on the edge of the bed, close your eyes, and follow a simple breathing count for five minutes before starting the day.",
+        "Put on comfortable shoes, walk at an easy pace around the neighborhood, and return to your desk before continuing work.",
+        "Leave your phone in another room, pick a book or journal, and read quietly to help your mind unwind.",
+        "Choose a supportive person, share how you feel, and keep the conversation short to stay relaxed."
+      ],
+      "cited": [
+        false,
+        true,
+        true,
+        true
+      ],
+      "day_counts": [
+        7,
+        3,
+        7,
+        2
+      ],
+      "days_touched": 7,
+      "complexity": "major",
+      "failure": ""
+    },
+    {
+      "goal": "social-isolation",
+      "title": "Evening meetups and neighbor walks",
+      "rows": [
+        "Attend a local hobby or interest meetup",
+        "Take a short walk and greet a neighbor",
+        "Video call a friend or family member"
+      ],
+      "details": [
+        "Find a nearby group on a platform like Meetup and go to the meeting at the community centre. Arrive, introduce yourself, and stay for the first 30 minutes.",
+        "Leave the house, walk around the block for 10 minutes, and say hello to any neighbor you see. Keep the walk casual and return home.",
+        "Schedule a 15\u2011minute video call on Saturday morning, open the app, and start the call as soon as it rings."
+      ],
+      "cited": [
+        true,
+        true,
+        true
+      ],
+      "day_counts": [
+        1,
+        1,
+        1
+      ],
+      "days_touched": 3,
+      "complexity": "moderate",
+      "failure": ""
+    },
+    {
+      "goal": "meds-routine",
+      "title": "",
+      "rows": [],
+      "details": [],
+      "cited": [],
+      "day_counts": [],
+      "days_touched": 0,
+      "complexity": "",
+      "failure": "MedHelp has no suggestions right now. You can add your activities below."
+    },
+    {
+      "goal": "knee-injury",
+      "title": "Gentle knee moves and short walks",
+      "rows": [
+        "Do seated knee bends",
+        "Walk around the living room",
+        "Stand\u2011to\u2011sit repetitions"
+      ],
+      "details": [
+        "Sit on a sturdy chair, place your foot flat on the floor, then gently straighten and bend the knee ten times. Do this after you get out of bed.",
+        "After lunch, walk slowly around the living room or hallway for five minutes, keeping a comfortable pace and focusing on smooth steps.",
+        "From a seated position, stand up using both legs, then sit back down slowly. Complete five repetitions after dinner."
+      ],
+      "cited": [
+        true,
+        true,
+        true
+      ],
+      "day_counts": [
+        5,
+        4,
+        3
+      ],
+      "days_touched": 7,
+      "complexity": "small",
+      "failure": ""
+    },
+    {
+      "goal": "cooking-budget",
+      "title": "Simple night meals and budget check",
+      "rows": [
+        "Make a quick bean and rice bowl",
+        "Set a grocery budget and buy frozen veg",
+        "Pack leftovers for tomorrow",
+        "Drink a glass of water before dinner decisions"
+      ],
+      "details": [
+        "Heat a can of beans and a half\u2011cup of instant rice in a saucepan, stir, and season with a pinch of salt or any herbs you have.",
+        "Write down a maximum amount to spend on food for the week, then go to the nearest store and purchase a bag of frozen mixed vegetables and a bag of rice within that limit.",
+        "Place any remaining beans, rice, or vegetables into a reusable container and store it in the fridge for the next day's lunch.",
+        "Fill a glass from the tap and drink it while you decide what to eat, giving yourself a pause before ordering takeout."
+      ],
+      "cited": [
+        true,
+        false,
+        false,
+        true
+      ],
+      "day_counts": [
+        5,
+        1,
+        5,
+        5
+      ],
+      "days_touched": 6,
+      "complexity": "major",
+      "failure": ""
+    },
+    {
+      "goal": "screen-evening",
+      "title": "Evening phone\u2011free routine",
+      "rows": [
+        "Place phone in a basket on the kitchen counter after dinner",
+        "Do a non\u2011screen activity for 30 minutes",
+        "Prepare tomorrow\u2019s clothes and set a bedtime alarm"
+      ],
+      "details": [
+        "When you finish your meal, put the phone in the basket and leave it there until the next morning. This creates a clear boundary for the evening.",
+        "Choose a quiet hobby \u2013 reading, drawing, a puzzle, or a short walk \u2013 and spend half an hour on it before any screen time. Keep the phone face\u2011down nearby.",
+        "Lay out what you\u2019ll wear and set an alarm for a reasonable bedtime. This signals the end of the evening routine and reduces the urge to keep scrolling."
+      ],
+      "cited": [
+        true,
+        true,
+        true
+      ],
+      "day_counts": [
+        7,
+        5,
+        7
+      ],
+      "days_touched": 7,
+      "complexity": "moderate",
+      "failure": ""
+    }
+  ]
+}

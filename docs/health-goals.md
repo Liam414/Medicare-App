@@ -315,6 +315,60 @@ which is a genuine improvement on a model asserting things; it is not the
 clinical review this file has been asking for, and it does not lift any release
 blocker.
 
+##### ✅ The AFTER numbers were finally taken (2026-09-20) — and the bug is not fixed
+
+This file has said since 2026-09-13 that *"the AFTER numbers still have not
+been taken"* and that the specificity fix was therefore *"a prompt change
+reasoned about rather than counted"*. They have now been taken, against the
+same deployment, with the same corpus, prompted by the repository owner
+reporting that it **still gives similar goals**. They were right.
+
+    python scripts/goal_plan_eval/measure.py --load \
+      scripts/goal_plan_eval/runs/2026-09-20-after-deployed-main.json
+
+| | BEFORE 09-13 | AFTER 09-20 | threshold |
+|---|---|---|---|
+| goals planned | 16/16 | **14/16** | — |
+| rows shared across goals, exact | 9.5% | **0.0%** | — |
+| rows saying how (`detail`) | 0.0% | **100%** | — |
+| rows with a citation | 0.0% | **93.5%** | — |
+| plans using any word of their goal | 53.3% | **61.5%** | 70% ⛔ breach |
+| rows saying when or where | 54.0% | **56.5%** | 70% ⛔ breach |
+| `weight-scale` pair overlap | 33% | **17%** | 34% |
+
+⛔ **READ THE EXACT-MATCH ZERO AS A WARNING, NOT A WIN.** "Rows shared across
+goals" went 9.5% → 0.0% and every row is now distinct — while the
+`ROWS REWORDED ONTO ANOTHER GOAL` list runs to sixteen entries containing
+*five* variants of "drink a glass of water after waking" and *six* of "take a
+walk after lunch". **The template did not go away. It learned to paraphrase.**
+`PLAN_TEMPERATURE = 0.7` and an instruction to be specific are together enough
+to reword a generic row every time it is emitted, which defeats an exact
+matcher while changing nothing a person would notice. This is why `near()`
+matches on containment rather than Jaccard, and it is now the main thing the
+exact figure hides — anyone reading these numbers should read the reworded
+list first.
+
+**Where it still collapses is exactly where this file predicted.** The five
+goals whose plans contain no word of their own goal are `weight-one-pound`,
+`weight-hundred-pounds`, `vague-energy`, `stress-exams` and `cooking-budget` —
+every one an abstract outcome that names no activity. The planner is still
+responsive whenever the person hands it a vocabulary and still falls back to
+walk / water / stretch / screens whenever it has to **originate** one. Two
+rounds of prompt-writing have not moved that, and
+`PLAN_SYSTEM_PROMPT` is now 17,285 of its 18,000-character budget, so a third
+round is not available at any useful size.
+
+⛔ **2 of 16 goals got no plan at all** — `quit-year` hit the Groq free-tier
+quota ("MedHelp is busy right now") and `meds-routine` returned no suggestion.
+That is a **12.5% failure rate on the deployed app**, separate from
+responsiveness and arguably more visible to a real person than any figure
+above. The `Busy` path is working as designed; there is simply not much quota
+behind it.
+
+**What this does not settle.** Responsiveness only. Nothing here says a plan is
+safe, achievable or clinically sound, and no clinician has read the prompt that
+wrote any of it.
+
 ##### How much of a plan is backed, said out loud (2026-09-20)
 
 Asked for by the repository owner: goals that are *"already previously tested
