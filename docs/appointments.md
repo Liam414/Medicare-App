@@ -166,6 +166,30 @@ is the whole design:
 - Results are still ordered by distance only, and providers with no distance
   sink to the bottom rather than being dropped.
 
+#### ⛔ The endpoint sorts. It used to only claim to (FIXED 2026-09-20)
+
+Found by searching 89109 against the live deployment: it returned 2.9, 1.6,
+(none), 2.5, 0.4, 1.9 miles **in that order** — the nearest clinic fifth, the
+unplaceable one mid-list, and the whole page in alphabetical order by name,
+which is the order NPPES supplied.
+
+It could not have been anything else. `distances_for` runs *after*
+`search_providers` has already fixed the order, so nothing `/providers/search`
+ever returned had been ordered by distance — while the code directly above the
+response carried a ⛔ comment asserting that "results stay sorted by distance
+only", and this file said it twice.
+
+**It was invisible because `ProviderSearchScreen` sorts the list again on
+arrival**, so the one client there is has always rendered correctly. That is
+the reason it was worth fixing rather than leaving alone: distance-only
+ordering is this app's neutrality guarantee — the thing that stops MedHelp
+ranking clinics on any clinical or commercial ground — and a guarantee
+implemented in one screen is one that the next consumer silently does not get.
+The client sort stays; it is idempotent and harmless.
+
+`test_results_come_back_nearest_first_with_unplaceable_ones_last` holds it,
+and nothing but distance may ever enter that sort key.
+
 ### Third-party vendor: US Census Bureau geocoder — BAA status
 
 `app/services/address_geocoder.py` sends provider street addresses to

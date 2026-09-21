@@ -48,7 +48,16 @@ const INDEX: { domain: DomainName; name: string; text: string }[] = [
   { domain: "symptoms", name: "Symptoms", text: "Describe what is wrong and get an estimate of how soon you may need care." },
   { domain: "medications", name: "Medications", text: "Scan a prescription label or type it in, then set your own reminder times." },
   { domain: "care", name: "Care", text: "Search a public directory of providers and keep your visits in one place." },
-  { domain: "goals", name: "Goals", text: "Write down what you intend to do, and tick it off." },
+  // ⛔ THIS LINE MUST SAY THAT MEDHELP WRITES THE PLAN. It used to read "Write
+  // down what you intend to do, and tick it off", which stopped being true on
+  // 2026-09-12 when the feature began proposing a plan and a schedule for any
+  // goal typed in. That is the same falsehood `GoalCreateScreen`'s footnote was
+  // rewritten for on the same day — "MedHelp tracks what you decide to do, does
+  // not decide what your goals should be" — and CLAUDE.md says plainly that the
+  // old framing must not come back. It survived here, on the first screen a new
+  // account ever reads, describing the app as recording choices it in fact
+  // authors. Restates `GoalCreateScreen`'s own subtitle, per the rule above.
+  { domain: "goals", name: "Goals", text: "Write what you want to work towards, then confirm the plan MedHelp suggests." },
 ];
 
 interface AuthShellProps {

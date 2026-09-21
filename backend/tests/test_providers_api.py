@@ -200,6 +200,78 @@ def test_an_unmeasurable_distance_is_null_not_zero(
     assert response.json()["providers"][0]["distance_miles"] is None
 
 
+def test_results_come_back_nearest_first_with_unplaceable_ones_last(
+    client, auth_headers, monkeypatch
+):
+    """
+    ⛔ THE ENDPOINT SORTS. THIS IS NOT THE CLIENT'S JOB TO DO AGAIN.
+
+    Found against the live deployment: a real search of 89109 returned
+    2.9, 1.6, (none), 2.5, 0.4, 1.9 miles in that order — the nearest clinic
+    fifth, the unplaceable one mid-list, and the whole list in alphabetical
+    order by name. It could not have been anything else: `distances_for` runs
+    after `search_providers` has already fixed the order, so nothing this
+    endpoint returned had ever been ordered by distance, while its own comment
+    and CLAUDE.md both said it was.
+
+    It was invisible because `ProviderSearchScreen` sorts again on arrival.
+    That is the reason to hold it here: distance-only ordering is this app's
+    neutrality guarantee — it is how MedHelp avoids ranking clinics on any
+    clinical or commercial ground — and a guarantee that lives in one screen
+    is one the next consumer silently does not get.
+    """
+    def _provider(npi: str, name: str, postal_code: str) -> Provider:
+        return Provider(
+            npi=npi,
+            name=name,
+            specialty="Clinic/Center, Urgent Care",
+            phone="(212) 555-0143",
+            address_line="1 Synthetic Plaza",
+            city="New York",
+            state="NY",
+            postal_code=postal_code,
+        )
+
+    # Deliberately in alphabetical order, which is how NPPES supplied them and
+    # what the endpoint used to pass straight through.
+    far = _provider("1000000001", "Alpha Clinic", "10001")
+    unplaceable = _provider("1000000002", "Beta Clinic", "10001")
+    near = _provider("1000000003", "Gamma Clinic", "10001")
+
+    monkeypatch.setattr(
+        providers_api,
+        "search_providers",
+        lambda *args, **kwargs: [far, unplaceable, near],
+    )
+    monkeypatch.setattr(
+        providers_api,
+        "distances_for",
+        lambda providers, postal_code, db: {
+            far.npi: 9.4,
+            near.npi: 0.4,
+            # `unplaceable` is absent, which is how an unmeasurable distance
+            # arrives — not as a zero.
+        },
+    )
+
+    response = client.get(
+        "/providers/search?postal_code=10001&care_setting=urgent_care",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    rows = response.json()["providers"]
+
+    assert [row["name"] for row in rows] == [
+        "Gamma Clinic",
+        "Alpha Clinic",
+        "Beta Clinic",
+    ]
+    assert [row["distance_miles"] for row in rows] == [0.4, 9.4, None]
+    # ⛔ Sunk to the bottom, never dropped: a missing distance says nothing
+    # about the provider.
+    assert len(rows) == 3
+
+
 def test_a_coordinate_resolves_to_a_zip(client, auth_headers):
     """
     The web build's whole reason for this endpoint: a browser can say where the

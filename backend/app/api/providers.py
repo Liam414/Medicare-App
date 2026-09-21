@@ -118,31 +118,56 @@ def search(
     # `provider_geo` for why a zero is the one answer worth suppressing.
     distances = distances_for(providers, postal_code, db)
 
-    # ⛔ ATTACHED AFTER ORDERING, AND ORDERING IS NOT TOUCHED.
+    rows = [
+        _with_scheduling(
+            ProviderOut(
+                npi=provider.npi,
+                name=provider.name,
+                specialty=provider.specialty,
+                phone=provider.phone,
+                address=provider.full_address,
+                city=provider.city,
+                state=provider.state,
+                postal_code=provider.postal_code,
+                source_name=provider.source_name,
+                distance_miles=distances.get(provider.npi),
+            ),
+            provider,
+        )
+        for provider in providers
+    ]
+
+    # ⛔ DISTANCE IS THE ONLY ORDERING THIS APP APPLIES, AND IT IS APPLIED HERE.
     #
-    # Results stay sorted by distance only. A provider with a known booking
-    # page must not float above one without — that would be MedHelp ranking
-    # clinics on a convenience of ours, and this file does not rank providers
-    # at all. See the MedlinePlus topic filter for the same rule.
+    # This block used to be a comment asserting that "results stay sorted by
+    # distance only" while nothing sorted them. It could not have been true:
+    # `distances_for` runs *after* `search_providers` has already fixed the
+    # order, so the response came back in whatever order NPPES supplied —
+    # alphabetical by name, in practice. A live search of 89109 returned
+    # 2.9, 1.6, (none), 2.5, 0.4, 1.9 miles in that order, with the nearest
+    # clinic fifth and the unplaceable one mid-list.
+    #
+    # It was invisible because `ProviderSearchScreen` sorts the list again on
+    # arrival, so the one client there is renders correctly. That is exactly
+    # what makes it worth fixing rather than leaving: the ordering is stated as
+    # a property of this endpoint here and in CLAUDE.md, and the next consumer
+    # to trust it — another screen, a test, a second client — inherits an
+    # arbitrary ranking of clinics with nothing appearing to go wrong.
+    #
+    # A provider with no distance sinks to the bottom rather than being
+    # dropped: a missing distance says nothing about the provider. And nothing
+    # else may enter this key — a known booking page must not float a clinic
+    # above one without, because that would be MedHelp ranking providers on a
+    # convenience of ours. See the MedlinePlus topic filter for the same rule.
+    rows.sort(
+        key=lambda row: (
+            row.distance_miles is None,
+            row.distance_miles if row.distance_miles is not None else 0.0,
+        )
+    )
+
     return ProviderSearchOut(
-        providers=[
-            _with_scheduling(
-                ProviderOut(
-                    npi=provider.npi,
-                    name=provider.name,
-                    specialty=provider.specialty,
-                    phone=provider.phone,
-                    address=provider.full_address,
-                    city=provider.city,
-                    state=provider.state,
-                    postal_code=provider.postal_code,
-                    source_name=provider.source_name,
-                    distance_miles=distances.get(provider.npi),
-                ),
-                provider,
-            )
-            for provider in providers
-        ],
+        providers=rows,
         care_setting=care_setting,
         postal_code=postal_code.strip()[:5],
         online_booking_available=delivery_available(),
