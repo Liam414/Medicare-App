@@ -53,6 +53,7 @@ const CARD_STORE = "src/services/emergencyCard.ts";
 const NOTIFY = "src/services/notificationService.web.ts";
 const TODAY = "src/screens/TodayScreen.tsx";
 const REMINDERS_SCREEN = "src/screens/medication-reminders/MedicationRemindersScreen.tsx";
+const API_CLIENT = "src/services/apiClient.ts";
 
 /**
  * Each entry: the rule, in CLAUDE.md's own words, and the smallest edit that
@@ -80,6 +81,24 @@ const MUTATIONS = [
     find: "    return window.sessionStorage ?? null;",
     replace: "    return window.localStorage ?? null;",
     tests: ["__tests__/tokenStorageWeb.test.ts"],
+  },
+  {
+    group: "session",
+    // ⛔ THE COPY OF THE 401 RULE THAT NOTHING TESTED UNTIL 2026-09-20.
+    //
+    // It is implemented in three request paths and was tested in two — and
+    // the untested one is `apiClient`, which goals, providers, appointments
+    // and reminders all go through. Removing this line stranded the most
+    // sessions and left every suite green.
+    //
+    // A kept-but-refused token is restored by `restoreSession()` on the next
+    // launch, `RootNavigator` opens on Home because a token exists, and the
+    // first request fails: a signed-in app that cannot load anything.
+    label: "a refused token is kept instead of dropped on a 401",
+    file: API_CLIENT,
+    find: "      void logout();",
+    replace: "      // void logout();",
+    tests: ["__tests__/apiClient.test.ts"],
   },
   {
     group: "no-network",
