@@ -275,6 +275,42 @@ def contraction_misses() -> tuple[list[str], list[str]]:
     return lost, reassured
 
 
+# ⛔ A HYPHEN WHERE THE LIST HAS A SPACE.
+#
+# `chest pain` is screened; `chest-pain` is not. `short of breath` is screened;
+# `short-of-breath` is not. Every phrase in the lists is written with spaces,
+# and a hyphen is not one, so the word boundary fails.
+#
+# This belongs with the contraction and invisible-character findings rather
+# than with the vocabulary ones: it is MECHANICAL and BOUNDED. Treating a
+# hyphen as a space in `normalize_query` closes it for every phrase at once,
+# needs no clinical judgement, and is one-directional in exactly the way the
+# existing case-split is — it only ever separates, never joins, so it can make
+# screening more sensitive and cannot make it less.
+#
+# ⛔ NOT THE SAME AS A MISSPELLING, AND THE DIFFERENCE MATTERS. `siezure`,
+# `unconcious` and `sucidal` also miss, and those are NOT proposed as fixable
+# here: misspellings are an unbounded class, and closing them would mean fuzzy
+# matching, which trades the determinism this whole rule layer is built on for
+# a false-positive rate nobody has measured. A clinician can read a phrase
+# list; nobody can read an edit-distance threshold. See the report.
+_HYPHENATED_PROBES: tuple[tuple[str, str], ...] = (
+    ("I have chest-pain", "I have chest pain"),
+    ("I am short-of-breath", "I am short of breath"),
+    ("I have chest-tightness", "I have chest tightness"),
+)
+
+
+def hyphen_misses() -> list[tuple[str, str]]:
+    """Pairs where the spaced form screens and the hyphenated one does not."""
+    return [
+        (variant, canonical)
+        for variant, canonical in _HYPHENATED_PROBES
+        if emergency.screen_for_emergency(canonical)
+        and not emergency.screen_for_emergency(variant)
+    ]
+
+
 # ⛔ INVISIBLE CHARACTERS THAT DEFEAT SCREENING ENTIRELY.
 #
 # `normalize_query` collapses `\s+`, and Python's `\s` on a str pattern matches
@@ -464,6 +500,25 @@ def main() -> int:
         print("  The 2026-09-19 run counted the phrases. This is what they cost:")
         print("  a lost red flag alone falls to URGENT; beside a recognised")
         print("  minor complaint it falls to SELF_CARE. See FINDING 0.")
+
+    print()
+    print("-" * 74)
+    print(" ⛔ A HYPHEN WHERE THE LIST HAS A SPACE")
+    print("-" * 74)
+    hyphenated = hyphen_misses()
+    if hyphenated:
+        print("  %d screened phrase(s) stop matching when hyphenated:" % len(hyphenated))
+        for variant, canonical in hyphenated:
+            print("      %-34s (but %r screens)" % (variant, canonical))
+        print()
+        print("  Mechanical and bounded, like the contractions above: treating")
+        print("  a hyphen as a space in normalize_query closes it everywhere.")
+        print("  ⛔ Misspellings — siezure, unconcious, sucidal — also miss and")
+        print("     are NOT proposed as fixable: that class is unbounded and")
+        print("     closing it means fuzzy matching, trading this layer's")
+        print("     determinism for an unmeasured false-positive rate.")
+    else:
+        print("  None. A hyphen is folded before matching.")
 
     print()
     print("-" * 74)

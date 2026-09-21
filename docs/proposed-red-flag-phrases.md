@@ -236,6 +236,38 @@ that it "landed only after the user approved it directly in conversation" and
 that **"no agent may repeat this on its own authority."** Measured every run by
 `phrasing_sweep.py`.
 
+## The three mechanical fixes, together, and why they are one decision
+
+Three of the items in this document need **no clinical judgement at all**,
+because none of them adds a wording. Each makes spellings the reviewed lists
+already hold reachable, and each is one-directional — it adds ways to match a
+pattern that must still match in full, so screening can only become more
+sensitive.
+
+| | what misses today | fix |
+|---|---|---|
+| contractions | `do not want to be alive` | generate the expansion, as `plural_tolerant` generates plurals |
+| invisible characters | `chest<U+200B> pain` | strip category-Cf characters in `normalize_query` |
+| hyphens | `chest-pain`, `short-of-breath` | treat a hyphen as a space in `normalize_query` |
+
+All three live in `normalize_query` or beside `plural_tolerant`, all three are
+a few lines, and all three close their gap for **every phrase in every
+category at once** rather than one wording at a time. Approving them as one
+change is reasonable; approving the phrase list below is a separate, larger
+question for somebody qualified.
+
+### ⛔ Misspellings are NOT on this list, deliberately
+
+`siezure`, `unconcious`, `sucidal thoughts` and `cant breath` all miss, and
+they are reported rather than proposed.
+
+Misspellings are an unbounded class. Closing them means fuzzy matching, and
+that would trade the property this entire rule layer is built on — a
+clinician can read a phrase list line by line and know what it does — for an
+edit-distance threshold nobody can review and a false-positive rate nobody has
+measured. The right answer is probably the licensed protocol content
+`protocol_content.py` is already built to load, not a similarity score.
+
 ## Two separate items, already open
 
 - **Contractions written out in full** (2026-09-19 FINDING 1): 36 reviewed
