@@ -111,6 +111,24 @@ export const MIRRORED_MEDICATION_LIMIT = 25;
 export const KEYSTORE_VALUE_MAX_BYTES = 1800;
 
 /**
+ * The platform's own approximate ceiling, used where a value is bounded by its
+ * shape rather than budgeted.
+ *
+ * ⛔ THE CARD FITS BY 102 BYTES, AND ONLY BECAUSE IT HAS SIX FIELDS. All six at
+ * `FIELD_MAX_LENGTH` serialise to 1,946 bytes. A **seventh** 300-character
+ * field takes the record to roughly 2,250 — over the limit, written silently,
+ * lost silently, and the person's whole emergency card is then simply not
+ * there. Unlike the medication mirror, the card cannot drop a field to fit:
+ * every one of them is something a responder may need.
+ *
+ * So the margin is asserted by a test rather than left to arithmetic nobody
+ * redoes. If that test goes red, the answer is a smaller `FIELD_MAX_LENGTH` or
+ * a byte budget like `mirrorMedications` has — never a bigger number in the
+ * assertion.
+ */
+export const KEYSTORE_VALUE_MAX_BYTES_HARD = 2048;
+
+/**
  * UTF-8 length of a string, without assuming a `TextEncoder`.
  *
  * Not every React Native runtime provides one, and this runs on the path that

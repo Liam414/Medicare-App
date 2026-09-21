@@ -35,6 +35,7 @@ import {
   EMPTY_CARD,
   FIELD_MAX_LENGTH,
   KEYSTORE_VALUE_MAX_BYTES,
+  KEYSTORE_VALUE_MAX_BYTES_HARD,
   MIRRORED_MEDICATION_LIMIT,
   clearCard,
   dialableNumber,
@@ -128,6 +129,35 @@ describe("emergencyCard", () => {
       await saveCard({ ...EMPTY_CARD, allergies: "a".repeat(FIELD_MAX_LENGTH + 200) });
 
       expect((await loadCard()).allergies).toHaveLength(FIELD_MAX_LENGTH);
+    });
+
+    it("⛔ the whole card fits the keystore with every field at its cap", async () => {
+      // It fits — 1,946 bytes with all six fields at FIELD_MAX_LENGTH — but
+      // only by 102 bytes, and only because there are exactly six fields. A
+      // SEVENTH 300-character field takes the record to roughly 2,250, over
+      // Android's limit, where the write is lost silently and the person's
+      // whole emergency card is simply not there.
+      //
+      // Unlike the medication mirror, the card cannot drop a field to fit:
+      // every one of them is something a responder may need. So the margin is
+      // asserted here rather than left to arithmetic nobody redoes.
+      //
+      // ⛔ If this goes red, the answer is a smaller FIELD_MAX_LENGTH or a byte
+      // budget like mirrorMedications has — never a bigger number here.
+      await saveCard({
+        bloodType: "B".repeat(FIELD_MAX_LENGTH),
+        allergies: "A".repeat(FIELD_MAX_LENGTH),
+        conditions: "C".repeat(FIELD_MAX_LENGTH),
+        contactName: "N".repeat(FIELD_MAX_LENGTH),
+        contactRelationship: "R".repeat(FIELD_MAX_LENGTH),
+        contactPhone: "P".repeat(FIELD_MAX_LENGTH),
+        updatedAt: null,
+      });
+
+      const written = mockStore.get("medhelp_emergency_card") ?? "";
+      const bytes = new TextEncoder().encode(written).length;
+
+      expect(bytes).toBeLessThanOrEqual(KEYSTORE_VALUE_MAX_BYTES_HARD);
     });
 
     it("erases the card and the medication copy together", async () => {

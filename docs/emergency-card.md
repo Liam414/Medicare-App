@@ -113,6 +113,22 @@ about 1 kB for the whole list — so it exercised the count cap and never the
 byte limit it was named for. It is kept, and a second test now asserts the
 actual invariant at the field caps.
 
+#### ⛔ The card itself fits by 102 bytes, and only because it has six fields
+
+Checked while fixing the mirror. All six card fields at `FIELD_MAX_LENGTH`
+serialise to **1,946 bytes** against the ~2048 limit. It fits — but a
+**seventh** 300-character field takes the record to roughly 2,250, over the
+line, where the write is lost silently and the person's *whole card* is gone.
+
+Unlike the mirror, the card cannot drop a field to fit: every one of them is
+something a responder may need. So the margin is now asserted by a test
+(`the whole card fits the keystore with every field at its cap`) rather than
+left to arithmetic nobody redoes.
+
+⛔ **If that test goes red, the answer is a smaller `FIELD_MAX_LENGTH` or a
+byte budget like `mirrorMedications` has — never a bigger number in the
+assertion.**
+
 **Known limit, not fixed:** truncation is silent. A person with 25 unusually
 long medication names sees the first few and no note saying the list was cut.
 That is strictly better than the previous behaviour of seeing none, and with
