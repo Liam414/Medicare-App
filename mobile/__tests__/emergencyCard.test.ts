@@ -34,6 +34,7 @@ jest.mock("@/services/deviceStorage", () => ({
 import {
   EMPTY_CARD,
   FIELD_MAX_LENGTH,
+  KEYSTORE_VALUE_MAX_BYTES,
   MIRRORED_MEDICATION_LIMIT,
   clearCard,
   dialableNumber,
@@ -163,6 +164,44 @@ describe("emergencyCard", () => {
       );
 
       expect(await loadMirroredMedications()).toHaveLength(MIRRORED_MEDICATION_LIMIT);
+    });
+
+    it("⛔ keeps the written record inside the keystore's size limit", async () => {
+      // The test above passes with "Synthetic 0" / "1 mg" — about 1 kB for the
+      // whole list — so it proves the COUNT cap and nothing about bytes. This
+      // one uses the field caps the module actually permits.
+      //
+      // Android's SecureStore warns above ~2048 bytes and a write over it can
+      // be lost silently, which `mirrorMedications` then swallows because it
+      // must never throw. The failure is therefore invisible: the emergency
+      // card's medication list is simply absent, on the one screen built to be
+      // read when nothing else works.
+      await mirrorMedications(
+        Array.from({ length: MIRRORED_MEDICATION_LIMIT }, () => ({
+          name: "N".repeat(FIELD_MAX_LENGTH),
+          dosage: "D".repeat(FIELD_MAX_LENGTH),
+        }))
+      );
+
+      const written = mockStore.get("medhelp_emergency_medications") ?? "";
+      const bytes = new TextEncoder().encode(written).length;
+
+      expect(bytes).toBeLessThanOrEqual(KEYSTORE_VALUE_MAX_BYTES);
+    });
+
+    it("keeps as many medications as fit rather than dropping the lot", async () => {
+      // Degrading to a shorter list is survivable; degrading to nothing is not.
+      await mirrorMedications(
+        Array.from({ length: MIRRORED_MEDICATION_LIMIT }, (_, index) => ({
+          name: `Synthetic ${index} ${"N".repeat(FIELD_MAX_LENGTH)}`,
+          dosage: "D".repeat(FIELD_MAX_LENGTH),
+        }))
+      );
+
+      const stored = await loadMirroredMedications();
+      expect(stored.length).toBeGreaterThan(0);
+      // And the ones kept are the first ones, in order.
+      expect(stored[0].name.startsWith("Synthetic 0")).toBe(true);
     });
 
     it("never throws, so a storage failure cannot break the medication screen", async () => {

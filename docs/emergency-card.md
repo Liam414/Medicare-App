@@ -78,8 +78,47 @@ loads, and the card reads that.
 - **Name and dosage only**, of at most 25 medications, each field capped at 300
   characters. Not the prescribing doctor, not the notes, not the refill dates:
   none of that helps a responder, and every field left out cannot leak from
-  here. The cap is also what keeps the record inside Android's SecureStore
-  size limit (~2048 bytes), above which a write can be lost silently.
+  here.
+
+#### ⛔ The count cap did NOT keep the record inside the keystore (FIXED 2026-09-20)
+
+This bullet used to end *"The cap is also what keeps the record inside
+Android's SecureStore size limit (~2048 bytes), above which a write can be lost
+silently."* **That was false, and it was false by a factor of seven.**
+
+| 25 medications, fields at | serialises to |
+|---|---|
+| 300 / 300 — the documented caps | **15,601 bytes** |
+| 100 / 40 — long names | 4,101 bytes |
+| 40 / 20 — **ordinary** | 2,101 bytes |
+
+At the caps as written, **three** medications fit under 2048 bytes. With
+ordinary names, 24 of 25 fit — so an average user was already at the edge.
+
+The consequence was invisible by construction. An oversized write is lost
+silently, `mirrorMedications` catches and swallows the failure because it must
+never break the medication screen, and the card then renders **no medication
+list at all** — on the one screen built to be read when nothing else works, by
+somebody with no way to know anything is missing.
+
+`KEYSTORE_VALUE_MAX_BYTES` (1800, with deliberate headroom under the
+approximate platform limit) now budgets the write by UTF-8 bytes. Entries are
+added while they fit and the rest are dropped, so a long list degrades to a
+shorter one rather than to nothing, and order is preserved so what survives is
+the top of the person's own list.
+
+⛔ **The old test passed while proving nothing.** "caps the list, because the
+record has to fit the platform keystore" used `"Synthetic 0"` / `"1 mg"` —
+about 1 kB for the whole list — so it exercised the count cap and never the
+byte limit it was named for. It is kept, and a second test now asserts the
+actual invariant at the field caps.
+
+**Known limit, not fixed:** truncation is silent. A person with 25 unusually
+long medication names sees the first few and no note saying the list was cut.
+That is strictly better than the previous behaviour of seeing none, and with
+ordinary names it does not trigger — but it sits against this screen's own rule
+that a gap is information, and making the card say "showing N of M" needs the
+stored record to carry the original count.
 - It is a **real widening of where health data rests**, stated on the card and
   in the editor. `clearCard()` removes it along with everything else — a clear
   that left a medication list behind would not be a clear.
