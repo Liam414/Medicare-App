@@ -202,6 +202,44 @@ def false_self_care() -> list[tuple[str, str]]:
     ]
 
 
+# Ordinary self-limiting complaints somebody might mention in the same breath
+# as something serious. People list symptoms together; they do not submit one
+# clean red flag per box.
+_SELF_CARE_OPENERS: tuple[str, ...] = (
+    "a dry cough and",
+    "a sore throat and",
+    "a head cold and",
+    "a mild headache and",
+    "a runny nose and",
+)
+
+
+def reassurance_cross_product() -> tuple[int, list[str]]:
+    """
+    Every missed red flag above, placed beside a recognised minor complaint.
+
+    ⛔ THIS IS WHERE THE PHRASING GAP STOPS BEING UNDER-TRIAGE AND BECOMES
+    REASSURANCE. A missed red flag on its own falls to the URGENT default,
+    which is wrong but safe. In the same sentence as a self-limiting complaint
+    the minor phrase matches POSITIVELY, nothing escalates it, and the whole
+    description comes back SELF_CARE.
+
+    Returns `(combinations_checked, descriptions_that_returned_self_care)`.
+    """
+    from app.core import rules_triage
+
+    reassured: list[str] = []
+    checked = 0
+    for descriptions in PHRASINGS.values():
+        for red_flag in descriptions:
+            for opener in _SELF_CARE_OPENERS:
+                text = f"{opener} {red_flag}"
+                checked += 1
+                if rules_triage.classify(text).tier_name == "SELF_CARE":
+                    reassured.append(text)
+    return checked, reassured
+
+
 def sweep() -> dict[str, list[tuple[str, str | None]]]:
     """For each category, every phrasing and the category it actually reached."""
     results: dict[str, list[tuple[str, str | None]]] = {}
@@ -272,6 +310,22 @@ def main() -> int:
         print("  ⛔ If this stays empty, delete the entries rather than leaving")
         print("     a passing list nobody reads — and move them into corpus.py,")
         print("     where the floor test will keep them closed.")
+
+    checked, reassured = reassurance_cross_product()
+    print()
+    print("  Each missed red flag above, beside an ordinary minor complaint:")
+    print("    combinations   %d" % checked)
+    print("    reassured      %d  (%.0f%%)" % (
+        len(reassured), 100 * len(reassured) / checked if checked else 0))
+    for text in reassured[:8]:
+        print("       %s" % text)
+    if len(reassured) > 8:
+        print("       ... and %d more" % (len(reassured) - 8))
+    print()
+    print("  ⛔ These are not separate defects. They are the phrasing gap above")
+    print("     meeting the rule that self-care matches positively — which is")
+    print("     what turns under-triage into reassurance. Closing the phrasing")
+    print("     gap closes almost all of them.")
     # ⛔ Always zero. This reports; it does not gate. A sweep of invented
     # phrasings must never be able to fail somebody's build, and a threshold
     # here would imply these numbers carry an authority they do not have.
