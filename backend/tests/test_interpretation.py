@@ -136,6 +136,83 @@ class TestWhatItMayNotSay:
             ):
                 assert interpretation.interpret("x", result(tier)) is None
 
+    @pytest.mark.parametrize(
+        "text",
+        [
+            # ⛔ EIGHT WAYS TO NAME A CONDITION THAT THE FIRST PATTERN MISSED.
+            #
+            # The three cases above are the three phrasings `_DIAGNOSIS` was
+            # written from, so they passed while proving nothing about the
+            # shape of the rule. Found 2026-09-20 by writing what a model would
+            # plausibly say rather than what the regex already held.
+            #
+            # Naming a condition is the thing App Scope says this app may never
+            # do, and it is worse here than anywhere else because it appears
+            # beside a tier, which lends it authority the sentence has not
+            # earned.
+            "This looks like appendicitis.",
+            "That is typical of a migraine.",
+            "These are classic signs of a migraine.",
+            "It may well be tonsillitis.",
+            "People with these symptoms often have tonsillitis.",
+            "This points to a kidney infection.",
+            "The likely cause is a sinus infection.",
+            # `sounds like (a|an|the)` required an article, so dropping one
+            # word walked straight through it.
+            "Sounds like flu to me.",
+        ],
+    )
+    def test_more_ways_of_naming_a_condition_are_dropped(self, text):
+        for tier in (Tier.URGENT, Tier.SELF_CARE):
+            with patch.object(llm, "configured", return_value=True), patch.object(
+                llm, "chat", return_value=reply(text)
+            ):
+                assert interpretation.interpret("x", result(tier)) is None
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            # ⛔ SIX WAYS TO REASSURE THAT THE FIRST PATTERN MISSED.
+            #
+            # Each of these printed beside an URGENT tier tells somebody the
+            # opposite of what the tier says. "It can safely wait" under
+            # "get this seen soon" is the property-4 violation this check
+            # exists to make impossible, in words the list did not hold.
+            "You should be fine.",
+            "It is likely harmless.",
+            "Try not to be concerned.",
+            "This will clear up on its own.",
+            "There is no hurry to be seen.",
+            "It can safely wait.",
+        ],
+    )
+    def test_more_ways_of_reassuring_are_dropped_above_self_care(self, text):
+        with patch.object(llm, "configured", return_value=True), patch.object(
+            llm, "chat", return_value=reply(text)
+        ):
+            assert interpretation.interpret("x", result(Tier.URGENT)) is None
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "This usually settles on its own with rest.",
+            "There is no rush, but see someone if it changes.",
+        ],
+    )
+    def test_reassurance_is_still_allowed_at_self_care(self, text):
+        """
+        ⛔ The widened list must not start refusing the tier it is FOR.
+
+        SELF_CARE means "this usually settles on its own" — saying so there is
+        the honest answer, not a violation. Over-dropping at SELF_CARE would
+        silently delete the interpretation on the one tier where reassurance
+        is correct, and the failure is invisible because failure is silence.
+        """
+        with patch.object(llm, "configured", return_value=True), patch.object(
+            llm, "chat", return_value=reply(text)
+        ):
+            assert interpretation.interpret("x", result(Tier.SELF_CARE)) is not None
+
     def test_an_answer_longer_than_the_cap_is_dropped(self):
         long = "This is a plain sentence about timing. " * 40
         with patch.object(llm, "configured", return_value=True), patch.object(
