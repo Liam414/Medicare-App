@@ -271,3 +271,41 @@ class TestEverySelfCarePhraseIsBoundedByTheModifierCheck:
             "these self-care phrases survive an escalating modifier, so the "
             f"bound CLAUDE.md relies on does not hold for them: {escaped[:10]}"
         )
+
+    def test_every_listed_modifier_actually_escalates(self):
+        """
+        ⛔ THE SAME MECHANISM FROM THE OTHER SIDE.
+
+        The test above asks whether every self-care phrase is caught by the
+        modifiers. This asks whether every modifier catches. Both are needed:
+        the first would still pass if half the list were non-functional, as
+        long as the four it samples work.
+
+        A modifier present in `_ESCALATING_MODIFIERS` but not actually
+        escalating is worse than an absent one, because the list is what a
+        reviewer reads to decide the mechanism is adequate. Dead entries make
+        it look more covered than it is.
+
+        All 55 work today. This keeps that true — a phrase added with a typo,
+        or one whose wording cannot match after a change to how these compile,
+        fails here rather than sitting in the list looking like protection.
+        """
+        from app.core import rules_triage
+
+        base = "I have a sore throat"
+        assert classify(base).tier_name == "SELF_CARE", (
+            "the base description no longer earns SELF_CARE, so this test "
+            "cannot tell an escalation from a description that was never "
+            "self-care to begin with"
+        )
+
+        dead = [
+            modifier
+            for modifier in rules_triage._ESCALATING_MODIFIERS
+            if classify(f"{base} {modifier}").tier_name == "SELF_CARE"
+        ]
+
+        assert len(rules_triage._ESCALATING_MODIFIERS) > 20, "list looks truncated"
+        assert dead == [], (
+            f"these modifiers are in the list but do not escalate: {dead[:10]}"
+        )
