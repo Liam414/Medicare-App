@@ -1,7 +1,7 @@
 import logging
 import re
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -111,8 +111,21 @@ async def add_security_headers(request: Request, call_next):
     location" button, and `default-src 'none'` would stop the bundle loading at
     all. Today nothing here serves HTML except the docs pages.
     """
-    response = await call_next(request)
+    return _apply_security_headers(request, await call_next(request))
 
+
+def _apply_security_headers(request: Request, response: Response) -> Response:
+    """
+    The headers themselves. See `add_security_headers` above for why each.
+
+    ⛔ THIS IS A FUNCTION SO THAT THE 500 HANDLER CAN CALL IT TOO. An
+    unhandled exception is turned into a response by Starlette's
+    `ServerErrorMiddleware`, which wraps the application OUTSIDE the
+    `@app.middleware("http")` stack — so the middleware above never runs on
+    it, and a 500 went out carrying none of these. Measured: every one of the
+    five headers CLAUDE.md calls universal was absent, on a response whose
+    only headers were content-type and content-length.
+    """
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
@@ -234,9 +247,16 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
     the load-bearing half of this pair, not this handler.
     """
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Something went wrong. Please try again."},
+    # ⛔ The security headers are applied HERE as well as in the middleware.
+    # Starlette builds this response inside `ServerErrorMiddleware`, which sits
+    # outside the `@app.middleware("http")` stack, so `add_security_headers`
+    # does not run on it and this response went out bare.
+    return _apply_security_headers(
+        request,
+        JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Something went wrong. Please try again."},
+        ),
     )
 
 
