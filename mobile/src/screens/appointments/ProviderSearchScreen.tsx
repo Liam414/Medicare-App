@@ -10,6 +10,7 @@ import { Screen } from "@/components/Screen";
 import { InfoPanel } from "@/components/InfoPanel";
 import {
   ApiError,
+  formatDistanceMiles,
   searchProviders,
   type Provider,
 } from "@/services/providerService";
@@ -118,14 +119,6 @@ function sortByDistance(providers: Provider[]): Provider[] {
   });
 }
 
-function formatDistance(miles: number | null): string | null {
-  if (miles === null) return null;
-  // "~" and one decimal below ten miles. The tilde is doing real work: this is
-  // a straight-line estimate between ZIP centroids, not a driving distance,
-  // and it should not read as though the app has measured the route.
-  return miles < 10 ? `~${miles.toFixed(1)} mi` : `~${Math.round(miles)} mi`;
-}
-
 function ProviderRow({
   provider,
   onPress,
@@ -133,7 +126,7 @@ function ProviderRow({
   provider: Provider;
   onPress: () => void;
 }) {
-  const distance = formatDistance(provider.distanceMiles);
+  const distance = formatDistanceMiles(provider.distanceMiles);
 
   return (
     <Pressable

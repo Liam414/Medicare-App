@@ -294,3 +294,55 @@ def test_no_provider_yields_no_call(monkeypatch, db_session):
 
     assert resolve_coordinates([], db_session) == {}
     assert geocoder.calls == []
+
+
+class TestTheZeroRuleCoversBothBranches:
+    """
+    ⛔ "None where that estimate would be a zero" WAS ENFORCED ON ONE BRANCH.
+
+    `distance_for` has two. The centroid-to-centroid estimate checked for a
+    zero; the exact-coordinate branch returned `haversine_miles(...)` straight
+    out. So the path that looks like it measured something was the one that
+    could still answer 0.0.
+
+    It is reachable without anything going wrong: a geocoder that can place an
+    address to ZIP level but no further returns the ZIP's own centroid, and the
+    distance from a centroid to itself is exactly zero. `provider_geo`'s own
+    docstring says why that must not be shown — it reads as "next door" for a
+    clinic that may be three miles away — and `providerService.ts` records that
+    a whole page once read "~0.0 mi" for exactly this reason.
+    """
+
+    class _Provider:
+        """Synthetic. Not a real provider."""
+
+        npi = "0000000000"
+        postal_code = "10001"
+
+    def test_an_exact_coordinate_on_the_centroid_is_no_distance(self):
+        from app.services.provider_geo import distance_for
+        from app.services.zip_geography import centroid
+
+        origin = centroid("10001")
+        assert origin is not None, "no centroid for the probe ZIP, so this proves nothing"
+
+        assert distance_for("10001", self._Provider(), origin) is None
+
+    def test_a_real_coordinate_still_measures_normally(self):
+        # Guards against the fix above being "always return None".
+        from app.services.provider_geo import distance_for
+        from app.services.zip_geography import centroid
+
+        origin = centroid("10001")
+        assert origin is not None
+
+        miles = distance_for("10001", self._Provider(), (origin[0] + 0.2, origin[1]))
+
+        assert miles is not None
+        assert miles > 1
+
+    def test_the_estimate_branch_is_unchanged(self):
+        # The half that was already right stays right.
+        from app.services.provider_geo import distance_for
+
+        assert distance_for("10001", self._Provider(), None) is None
