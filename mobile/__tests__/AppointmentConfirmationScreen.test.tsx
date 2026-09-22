@@ -87,9 +87,15 @@ describe("AppointmentConfirmationScreen", () => {
     renderScreen();
 
     /*
-      `getAllByText`, because the reason and the preferred time each appear
-      twice on purpose since the call card was added: once in the record of
-      what was saved, and once in "What to tell them" beside the Call button.
+      Both values appear twice on purpose since the call card was added: once
+      in the record of what was saved, and once in "What to tell them" beside
+      the Call button. The preferred time is repeated verbatim, so it matches
+      twice here. The reason is repeated WRAPPED — "An appointment about: …" —
+      so an exact match finds only the saved-record copy, and the call-card
+      copy is asserted in "shows what to say, next to the button that makes
+      the call" below. Hence exactly 1 here, not "at least 1": this used to
+      read `toBeGreaterThanOrEqual(1)` under a comment claiming two matches,
+      which hid that the comment was wrong.
 
       ⛔ That repetition is the feature, not an oversight. This screen is read
       while a receptionist is on the line, and the things you have to say out
@@ -98,9 +104,7 @@ describe("AppointmentConfirmationScreen", () => {
       need to diverge, the call card is the one that must keep matching what
       the user actually wrote.
     */
-    expect(
-      screen.getAllByText("Sore throat and a fever since Tuesday.").length
-    ).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Sore throat and a fever since Tuesday.")).toHaveLength(1);
     expect(screen.getAllByText("Thursday morning").length).toBe(2);
     expect(
       screen.getByText("Requested — not yet arranged with the provider")
