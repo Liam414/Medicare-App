@@ -10,7 +10,16 @@ import {
 } from "react-native";
 
 import { useDomain } from "@/hooks/useDomain";
-import { MIN_TAP_TARGET, colors, elevation, radius, spacing, typography } from "@/theme";
+import {
+  BORDER_WIDTH,
+  EDGE_WIDTH,
+  MIN_TAP_TARGET,
+  colors,
+  elevation,
+  radius,
+  spacing,
+  typography,
+} from "@/theme";
 
 /**
  * React Native's built-in `Button` renders as borderless blue text on iOS and
@@ -28,6 +37,17 @@ import { MIN_TAP_TARGET, colors, elevation, radius, spacing, typography } from "
  * - `outline` (L2) — a real control, but not the thing the screen is for.
  * - `secondary` (L3) — borderless text, for an action that sits beside
  *   something else rather than ending a task.
+ *
+ * ## The solid bottom edge
+ *
+ * A `primary` button carries a `EDGE_WIDTH` bottom border in the pressed
+ * colour, and loses it while held down — so pressing it looks like the button
+ * sinking onto the page. It replaces the drop shadow the panel pass used.
+ *
+ * ⛔ It is a **border**, not a shadow, on purpose: greyscale, forced-colours
+ * and high-contrast rendering all discard shadows and all keep borders. A
+ * button whose only affordance disappears in high contrast is a button a
+ * low-vision user cannot find.
  *
  * ## The colour comes from the screen, not from here
  *
@@ -85,11 +105,17 @@ export function AppButton({
       ? {
           backgroundColor: hovered ? domain.pressed : domain.fill,
           borderColor: hovered ? domain.pressed : domain.fill,
+          borderBottomColor: domain.edge,
         }
       : variant === "outline"
         ? {
-            borderColor: domain.ink,
-            backgroundColor: hovered ? domain.surface : colors.surface,
+            // ⛔ A neutral border and a white fill, not the destination's hue.
+            // Only ONE control on a screen wears the colour, and it is the
+            // filled one — an outline button in the same hue reads as a second
+            // primary and puts the reader back where the prominence ladder
+            // exists to stop them being. The hue stays on the label.
+            borderColor: colors.border,
+            backgroundColor: hovered ? domain.surface : colors.background,
           }
         : hovered
           ? { backgroundColor: domain.surface }
@@ -111,7 +137,16 @@ export function AppButton({
         pressed &&
           !isInactive &&
           (isPrimary
-            ? { backgroundColor: domain.pressed, borderColor: domain.pressed, ...elevation.sm }
+            ? {
+                backgroundColor: domain.pressed,
+                borderColor: domain.pressed,
+                borderBottomColor: domain.pressed,
+                // Sinks onto the page by giving back exactly the height the
+                // edge occupied, so nothing around it shifts.
+                borderBottomWidth: BORDER_WIDTH,
+                marginTop: EDGE_WIDTH - BORDER_WIDTH,
+                ...elevation.sm,
+              }
             : { backgroundColor: domain.surface }),
         isInactive && INACTIVE[variant],
         style,
@@ -141,12 +176,12 @@ export function AppButton({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: MIN_TAP_TARGET,
+    minHeight: MIN_TAP_TARGET + spacing.xs,
     justifyContent: "center",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: BORDER_WIDTH,
   },
   content: {
     flexDirection: "row",
@@ -160,22 +195,34 @@ const styles = StyleSheet.create({
   primary: {
     backgroundColor: colors.accent,
     borderColor: colors.accent,
-    ...elevation.md,
+    borderBottomColor: colors.accentPressed,
+    borderBottomWidth: EDGE_WIDTH,
+    ...elevation.none,
   },
   primaryInactive: {
     backgroundColor: colors.accentDisabled,
     borderColor: colors.accentDisabled,
-    // A disabled control should not look like it is floating above the page.
+    /*
+      A disabled button keeps the edge's HEIGHT and loses its colour.
+
+      ⛔ Do not shrink `borderBottomWidth` here. Only the pressed state does
+      that, and it pays the height back as `marginTop` so nothing around it
+      moves. A disabled button that were 4pt shorter would make the control
+      jump the moment a form became valid — which on this app's forms is the
+      moment someone finishes typing and is looking straight at it.
+    */
+    borderBottomColor: colors.accentDisabled,
+    borderBottomWidth: EDGE_WIDTH,
     ...elevation.none,
   },
 
   outline: {
-    backgroundColor: colors.surface,
-    borderColor: colors.accent,
+    backgroundColor: colors.background,
+    borderColor: colors.border,
   },
   outlineInactive: {
     backgroundColor: colors.surfaceMuted,
-    borderColor: colors.borderStrong,
+    borderColor: colors.border,
   },
 
   secondary: {
@@ -187,7 +234,7 @@ const styles = StyleSheet.create({
   },
 
   label: {
-    ...typography.bodyStrong,
+    ...typography.button,
     textAlign: "center",
   },
   labelPrimary: {

@@ -8,11 +8,11 @@ import { Wordmark } from "@/components/Mark";
 import { DomainProvider } from "@/hooks/useDomain";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
 import {
+  BORDER_WIDTH,
   MIN_TAP_TARGET,
   colors,
   domains,
-  meter,
-  radius,
+    radius,
   spacing,
   typography,
   type DomainName,
@@ -325,13 +325,11 @@ function NavItem({
       ) : null}
 
       <View style={variant === "rail" ? styles.railIcon : styles.tabIcon}>
-        {variant === "tab" && active ? (
-          <View style={[styles.tabIconActive, { backgroundColor: hue.fill }]}>
-            <Glyph name={tab.icon} size={18} color={colors.textOnAccent} />
-          </View>
-        ) : (
-          <Glyph name={tab.icon} size={variant === "rail" ? 20 : 19} color={tint} />
-        )}
+        <Glyph
+          name={tab.icon}
+          size={variant === "rail" ? 20 : 24}
+          color={tint}
+        />
       </View>
 
       <Text
@@ -412,8 +410,8 @@ const styles = StyleSheet.create({
   // --- rail (expanded) ---
   rail: {
     width: 264,
-    backgroundColor: colors.surface,
-    borderRightWidth: 1,
+    backgroundColor: colors.background,
+    borderRightWidth: BORDER_WIDTH,
     borderRightColor: colors.border,
     paddingVertical: spacing.xl,
     paddingHorizontal: spacing.lg,
@@ -448,7 +446,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    paddingLeft: spacing.md + meter.width,
+    paddingLeft: spacing.md + 4,
     paddingRight: spacing.md,
     overflow: "hidden",
   },
@@ -457,7 +455,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    width: meter.width,
+    width: 4,
   },
   railItemHovered: {
     backgroundColor: colors.surfaceMuted,
@@ -479,7 +477,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
     paddingBottom: spacing.sm,
     // Lines the rule up under the centre of the tab icon above it.
-    paddingLeft: spacing.md + meter.width + 9,
+    paddingLeft: spacing.md + 4 + 9,
   },
   withinRule: {
     width: 2,
@@ -516,8 +514,8 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: "row",
     alignItems: "stretch",
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
+    backgroundColor: colors.background,
+    borderTopWidth: BORDER_WIDTH,
     borderTopColor: colors.border,
     paddingTop: spacing.sm,
     // Clears the home indicator / gesture bar without a safe-area inset,
@@ -537,14 +535,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   tabIcon: {
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tabIconActive: {
-    width: 44,
-    height: 28,
-    borderRadius: radius.sm,
+    height: 30,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -555,7 +546,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   tabLabelActive: {
-    ...typography.overline,
+    ...typography.captionStrong,
+    fontSize: 13,
     letterSpacing: 0,
   },
 

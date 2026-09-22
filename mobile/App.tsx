@@ -12,16 +12,16 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
   them weights nothing here asks for. A subpath import brings in one file.
 
   If you add a weight, add the token in `theme.ts` and the subpath here.
+
+  The bright-card pass dropped Newsreader, the reading serif the panel pass
+  used for quoted text. `fonts.serif*` in `theme.ts` now point at Archivo, so
+  no call site changed; see the note there for what replaced the distinction.
 */
 import { Archivo_400Regular } from "@expo-google-fonts/archivo/400Regular";
 import { Archivo_500Medium } from "@expo-google-fonts/archivo/500Medium";
 import { Archivo_600SemiBold } from "@expo-google-fonts/archivo/600SemiBold";
 import { Archivo_700Bold } from "@expo-google-fonts/archivo/700Bold";
 import { Archivo_800ExtraBold } from "@expo-google-fonts/archivo/800ExtraBold";
-import { Newsreader_400Regular } from "@expo-google-fonts/newsreader/400Regular";
-import { Newsreader_400Regular_Italic } from "@expo-google-fonts/newsreader/400Regular_Italic";
-import { Newsreader_600SemiBold } from "@expo-google-fonts/newsreader/600SemiBold";
-import { Newsreader_700Bold } from "@expo-google-fonts/newsreader/700Bold";
 
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { colors } from "./src/theme";
@@ -45,10 +45,6 @@ export default function App() {
     Archivo_600SemiBold,
     Archivo_700Bold,
     Archivo_800ExtraBold,
-    Newsreader_400Regular,
-    Newsreader_400Regular_Italic,
-    Newsreader_600SemiBold,
-    Newsreader_700Bold,
   });
 
   if (!fontsLoaded && !fontError) {

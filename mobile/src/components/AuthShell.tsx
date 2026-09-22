@@ -9,8 +9,7 @@ import {
   colors,
   domains,
   elevation,
-  meter,
-  radius,
+    radius,
   spacing,
   typography,
   type DomainName,
@@ -78,14 +77,14 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
 
   if (!isExpanded) {
     return (
-      <Screen centerContent meterless>
+      <Screen centerContent>
         {form}
       </Screen>
     );
   }
 
   return (
-    <Screen page centerContent meterless innerStyle={styles.split}>
+    <Screen page centerContent innerStyle={styles.split}>
       {/*
         The panel holds no focusable element — it is text and decorative
         marks — so putting it first costs a returning user no keyboard steps
@@ -185,9 +184,9 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   indexBar: {
-    width: meter.width,
+    width: 4,
     alignSelf: "stretch",
-    borderRadius: meter.width / 2,
+    borderRadius: 2,
   },
   indexBody: {
     flex: 1,

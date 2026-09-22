@@ -1,6 +1,6 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
-import { colors, radius } from "@/theme";
+import { colors, fonts, radius } from "@/theme";
 
 /**
  * Simple geometric marks, drawn from Views.
@@ -23,7 +23,8 @@ export type GlyphName =
   | "search"
   | "chevron"
   | "check"
-  | "alert";
+  | "alert"
+  | "mic";
 
 interface GlyphProps {
   name: GlyphName;
@@ -272,21 +273,74 @@ export function Glyph({ name, size = 22, color = colors.accent }: GlyphProps) {
           />
         </>
       )}
+
+      {/* A capsule, a cradle under it and a stem: the universal microphone. */}
+      {name === "mic" && (
+        <>
+          <View
+            style={{
+              position: "absolute",
+              top: size * 0.06,
+              width: size * 0.34,
+              height: size * 0.5,
+              borderRadius: radius.pill,
+              backgroundColor: color,
+            }}
+          />
+          <View
+            style={{
+              position: "absolute",
+              top: size * 0.4,
+              width: size * 0.62,
+              height: size * 0.34,
+              borderBottomLeftRadius: size * 0.31,
+              borderBottomRightRadius: size * 0.31,
+              borderWidth: stroke,
+              borderTopColor: "transparent",
+              borderLeftColor: color,
+              borderRightColor: color,
+              borderBottomColor: color,
+            }}
+          />
+          <View
+            style={{
+              position: "absolute",
+              bottom: size * 0.04,
+              width: size * 0.4,
+              height: stroke,
+              borderRadius: stroke,
+              backgroundColor: color,
+            }}
+          />
+        </>
+      )}
     </View>
   );
 }
 
 /**
- * A glyph on a tinted rounded tile — the leading element of a nav card or a
- * list row.
+ * A glyph — or a two-letter monogram — on a tinted **round** tile, the leading
+ * element of a list row.
+ *
+ * `label` exists for the one case where a drawn shape loses to a word: "Rx" on
+ * a medication row is instantly legible and a drawn pill is a guess. It takes
+ * at most two characters, because a round tile cannot hold more without
+ * shrinking the text below a readable size.
+ *
+ * Like every glyph this is decorative and hidden from screen readers — the
+ * row's own text says what it is, and a monogram read aloud as "R X" before
+ * every medication would be noise.
  */
 export function GlyphTile({
   name,
+  label,
   size = 44,
   tint = colors.accentSurface,
   color = colors.accent,
 }: {
   name: GlyphName;
+  /** Up to two characters shown instead of the glyph, e.g. "Rx". */
+  label?: string;
   size?: number;
   tint?: string;
   color?: string;
@@ -295,12 +349,18 @@ export function GlyphTile({
     <View
       style={[
         styles.box,
-        { width: size, height: size, borderRadius: radius.sm, backgroundColor: tint },
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: tint },
       ]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <Glyph name={name} size={size * 0.5} color={color} />
+      {label ? (
+        <Text style={[styles.monogram, { fontSize: size * 0.34, color }]}>
+          {label.slice(0, 2)}
+        </Text>
+      ) : (
+        <Glyph name={name} size={size * 0.5} color={color} />
+      )}
     </View>
   );
 }
@@ -309,5 +369,9 @@ const styles = StyleSheet.create({
   box: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  monogram: {
+    fontFamily: fonts.sansBold,
+    letterSpacing: 0.2,
   },
 });

@@ -4,9 +4,10 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { AppButton } from "@/components/AppButton";
 import { EmergencyCallBar } from "@/components/EmergencyCallBar";
+import { GlyphTile } from "@/components/Glyph";
 import { Screen } from "@/components/Screen";
 import { reportAssessmentWrong } from "@/services/intakeService";
-import { colors, elevation, radius, spacing, typography } from "@/theme";
+import { TILE, colors, elevation, radius, spacing, typography } from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
 
 type Props = NativeStackScreenProps<RootStackParamList, "IntakeResult">;
@@ -156,13 +157,27 @@ export function IntakeResultScreen({ navigation, route }: Props) {
         same words.
       */}
       <View style={styles.verdict}>
-        <View
-          style={[
-            styles.verdictRail,
-            assessment.tier === "URGENT" ? styles.verdictRail_urgent : styles.verdictRail_self,
-          ]}
-        />
         <View style={styles.verdictBody}>
+          {/*
+            The answer as one centred mark, which is what the person came for.
+
+            ⛔ The tile is decoration and is hidden from screen readers — the
+            tier is written out underneath it in reviewed words, and those
+            words are the only thing carrying the answer. The colour is the
+            reviewed notice or success family, never a hue of the app's own.
+          */}
+          <GlyphTile
+            name={assessment.tier === "URGENT" ? "clock" : "check"}
+            size={TILE.xl}
+            tint={
+              assessment.tier === "URGENT"
+                ? colors.noticeSurface
+                : colors.successSurface
+            }
+            color={
+              assessment.tier === "URGENT" ? colors.noticeText : colors.successText
+            }
+          />
           {/* EMERGENT returned above, so only these two tiers reach here. */}
           <TierBadge
             label={
@@ -419,20 +434,20 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   verdict: {
-    flexDirection: "row",
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
+    backgroundColor: colors.background,
     borderRadius: radius.lg,
     overflow: "hidden",
     ...elevation.sm,
   },
-  verdictRail: { width: 5 },
-  verdictRail_urgent: { backgroundColor: colors.noticeBorder },
-  verdictRail_self: { backgroundColor: colors.successBorder },
-  verdictBody: { flex: 1, padding: spacing.lg, gap: spacing.sm },
+  verdictBody: {
+    flex: 1,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+    alignItems: "center",
+  },
   badge: {
-    alignSelf: "flex-start",
+    alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
@@ -457,11 +472,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.successSurface,
     borderColor: colors.successBorder,
   },
-  badgeText: { ...typography.bodyStrong },
+  badgeText: { ...typography.title, textAlign: "center" },
   badgeText_emergent: { color: colors.emergencyText },
   badgeText_urgent: { color: colors.noticeText },
   badgeText_self: { color: colors.successText },
-  reasoning: { ...typography.body, color: colors.textPrimary },
+  reasoning: { ...typography.body, color: colors.textPrimary, textAlign: "center" },
   interpretationSource: { ...typography.caption, color: colors.textSecondary },
   escalationNote: { ...typography.caption, color: colors.textSecondary },
   section: {
