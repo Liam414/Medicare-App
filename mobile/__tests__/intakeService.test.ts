@@ -1,5 +1,9 @@
 import { getToken, logout } from "@/services/authService";
-import { IntakeError, submitIntake } from "@/services/intakeService";
+import {
+  IntakeError,
+  reportAssessmentWrong,
+  submitIntake,
+} from "@/services/intakeService";
 
 jest.mock("@/services/authService", () => ({
   getToken: jest.fn(),
@@ -254,6 +258,52 @@ describe("intakeService", () => {
       });
 
       await expect(submitIntake("", false)).rejects.toThrow("Enter a description.");
+    });
+  });
+
+  describe("reportAssessmentWrong", () => {
+    /**
+     * ⛔ "BEST-EFFORT" HAS TO BE IMPLEMENTED, NOT JUST DOCUMENTED.
+     *
+     * The call site is `void reportAssessmentWrong(assessment.id)` with no
+     * `.catch()`, so anything this function rejects with becomes an unhandled
+     * promise rejection. A phone in a lift is the ordinary case, not an edge
+     * one: `fetch` rejects with a TypeError and nobody is listening.
+     *
+     * Nothing about telling MedHelp a tier looked wrong is worth surfacing an
+     * error over — the feedback is a nicety and the assessment is already on
+     * screen. So the function has to absorb it.
+     */
+    it("resolves rather than rejecting when the server is unreachable", async () => {
+      (global.fetch as jest.Mock).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+      await expect(reportAssessmentWrong("assessment-1")).resolves.toBeUndefined();
+    });
+
+    it("resolves rather than rejecting when the server returns an error", async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ detail: "boom" }),
+      });
+
+      await expect(reportAssessmentWrong("assessment-1")).resolves.toBeUndefined();
+    });
+
+    it("still sends the report when everything is working", async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        json: async () => ({}),
+      });
+
+      await reportAssessmentWrong("assessment-1");
+
+      // Guards against the fix above being "return early and never call".
+      expect(global.fetch).toHaveBeenCalled();
+      const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+      expect(url).toContain("/intake/assessment-1/feedback");
+      expect(init.method).toBe("POST");
     });
   });
 });
