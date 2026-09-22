@@ -145,6 +145,26 @@ async def _related_topics(description: str) -> list[SymptomTopicOut]:
     """
     words = content_words(description)
 
+    # ⛔ NO CONTENT WORDS MEANS NO SEARCH, BECAUSE NO RESULT COULD BE KEPT.
+    # `names_match` matches a topic's names against `words`; with `words`
+    # empty it is False for every topic, so the filter below rejects whatever
+    # comes back and this function returns [] regardless. Searching anyway
+    # costs the one thing it should not: `candidate_queries` falls back to the
+    # raw tokens here, and that fallback has no MAX_QUERY_WORDS cap, so the
+    # person's ENTIRE description — digits included — goes to NLM as a GET
+    # query string, to a vendor with no BAA, for a result that cannot be used.
+    #
+    # Measured over 12,602 corpus descriptions: 5 reach this, and 4 of them
+    # are "I can't keep anything down" — an URGENT complaint, not filler. It
+    # empties out because can/anything/down are stopwords and the apostrophe
+    # splits can't into can + t, which is one character and dropped.
+    #
+    # Returning [] here is the same value the loop produced, minus the
+    # request. CLAUDE.md's vendor table says NLM receives "up to 3 keywords";
+    # this is what had made that untrue.
+    if not words:
+        return []
+
     for query in candidate_queries(description):
         try:
             topics = await search_topics(query, limit=5)
