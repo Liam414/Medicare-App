@@ -1,7 +1,14 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { colors, elevation, radius, spacing, typography } from "@/theme";
+import { useDomain } from "@/hooks/useDomain";
+import {
+  MIN_TAP_TARGET,
+  colors,
+  radius,
+  spacing,
+  typography,
+} from "@/theme";
 
 /**
  * Two or three views of the same set of things.
@@ -11,6 +18,12 @@ import { colors, elevation, radius, spacing, typography } from "@/theme";
  * seen two ways, and a reminder has no meaning apart from the medication it
  * belongs to. Splitting those across a hub made the user navigate between
  * them as if they were different features.
+ *
+ * Drawn as a row of pills that size to their own labels rather than as a
+ * full-width inset track: the selected one is filled in the destination's
+ * colour, which is the same mark the tab bar and the screen's one button
+ * already use, so "which view am I on" is answered by the same language as
+ * "where am I".
  *
  * ⛔ This is for alternative views, never for a filter that hides something
  * the user needs to see. A segment that concealed an overdue refill or an
@@ -60,6 +73,7 @@ function SegmentButton({
   active: boolean;
   onPress: () => void;
 }) {
+  const domain = useDomain();
   const [hovered, setHovered] = useState(false);
   const hoverProps: HoverProps = {
     onHoverIn: () => setHovered(true),
@@ -78,9 +92,8 @@ function SegmentButton({
       accessibilityState={{ selected: active }}
       style={({ pressed }) => [
         styles.segment,
-        active && styles.segmentActive,
-        !active && hovered && styles.segmentHovered,
-        !active && pressed && styles.segmentPressed,
+        active && { backgroundColor: pressed ? domain.pressed : domain.fill },
+        !active && (hovered || pressed) && styles.segmentHovered,
       ]}
     >
       <Text
@@ -96,42 +109,25 @@ function SegmentButton({
 const styles = StyleSheet.create({
   track: {
     flexDirection: "row",
-    gap: spacing.xs,
-    padding: spacing.xs,
-    backgroundColor: colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
+    flexWrap: "wrap",
+    gap: spacing.sm,
   },
   segment: {
-    flex: 1,
-    // 44 inside a 4pt-padded track is a 52pt row, so the control as a whole
-    // clears the 48 in `MIN_TAP_TARGET` while the selected pill still reads
-    // as an inset rather than filling the frame.
-    minHeight: 44,
+    minHeight: MIN_TAP_TARGET,
     borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: spacing.md,
-  },
-  segmentActive: {
+    paddingHorizontal: spacing.xl,
     backgroundColor: colors.surface,
-    borderColor: colors.accentBorder,
-    ...elevation.sm,
   },
   segmentHovered: {
-    backgroundColor: colors.background,
-  },
-  segmentPressed: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceMuted,
   },
   label: {
-    ...typography.captionStrong,
+    ...typography.bodyStrong,
     color: colors.textSecondary,
   },
   labelActive: {
-    color: colors.accent,
+    color: colors.textOnAccent,
   },
 });

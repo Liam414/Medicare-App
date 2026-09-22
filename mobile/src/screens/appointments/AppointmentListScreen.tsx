@@ -21,7 +21,14 @@ import {
   updateAppointment,
   type Appointment,
 } from "@/services/appointmentService";
-import { colors, elevation, radius, spacing, typography } from "@/theme";
+import {
+  BORDER_WIDTH,
+  colors,
+  elevation,
+  radius,
+  spacing,
+  typography,
+} from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
 
 type Props = NativeStackScreenProps<RootStackParamList, "AppointmentList">;
@@ -47,7 +54,7 @@ function AppointmentCard({
   const isRequested = appointment.status === "REQUESTED";
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, isRequested && styles.cardRequested]}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardName}>{appointment.providerName}</Text>
         <View
@@ -185,7 +192,7 @@ export function AppointmentListScreen({ navigation }: Props) {
       page={isExpanded}
       band={
         <ScreenBand
-          title="Care"
+          title="Your visits"
           meta="Visits you have recorded. MedHelp does not book appointments and has not contacted anyone."
           page={isExpanded}
         />
@@ -273,12 +280,24 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
+    // Transparent against its own fill: a resting card is separated from the
+    // white page by being grey, not by an outline. The border is present so a
+    // card does not change size when it becomes a REQUESTED one.
+    borderColor: colors.surface,
+    borderWidth: BORDER_WIDTH,
     borderRadius: radius.lg,
     padding: spacing.lg,
     gap: spacing.sm,
     ...elevation.sm,
+  },
+  /*
+    ⛔ Outlined because nobody has been contacted yet and the user still has a
+    call to make — which the card also says in words, twice. The tint is the
+    reviewed notice family rather than the Care hue: a destination colour
+    means "you are in Care", never "this one needs you".
+  */
+  cardRequested: {
+    borderColor: colors.noticeBorder,
   },
   cardHeader: {
     flexDirection: "row",

@@ -8,7 +8,15 @@ import {
   type ReturnKeyTypeOptions,
 } from "react-native";
 
-import { MIN_TAP_TARGET, colors, elevation, radius, spacing, typography } from "@/theme";
+import {
+  BORDER_WIDTH,
+  MIN_TAP_TARGET,
+  colors,
+  elevation,
+  radius,
+  spacing,
+  typography,
+} from "@/theme";
 import { useDomain } from "@/hooks/useDomain";
 
 /**
@@ -129,7 +137,7 @@ const styles = StyleSheet.create({
   input: {
     minHeight: MIN_TAP_TARGET,
     backgroundColor: colors.surface,
-    borderWidth: 1,
+    borderWidth: BORDER_WIDTH,
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
@@ -143,26 +151,24 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   /**
-   * Free text the person is writing about themselves is set in the reading
-   * serif — the same face their words are shown back to them in on the
-   * result screen and the emergency card. Single-line fields (an email, a
-   * dosage, a ZIP) stay in the sans: those are data, not prose.
+   * Free text the person is writing about themselves, set a step larger and
+   * more leaded than `body` — the same treatment their words are given back
+   * to them in on the result screen and the emergency card. Single-line
+   * fields (an email, a dosage, a ZIP) stay at body size: those are data,
+   * not prose.
    */
   inputQuoted: {
     ...typography.bodyQuoted,
   },
   inputFocused: {
     borderColor: colors.borderFocus,
-    // A tinted fill as well as a thicker border, so the active field is
-    // obvious at a glance on a long form.
-    backgroundColor: colors.accentSurface,
-    // Two pixels of border rather than a colour-only change, so focus is
-    // visible without relying on colour perception.
-    borderWidth: 2,
+    // A white fill as well as a coloured border: the field lifts off the grey
+    // card rather than tinting, which keeps a long form legible when several
+    // fields are stacked.
+    backgroundColor: colors.background,
   },
   inputError: {
     borderColor: colors.errorBorder,
-    borderWidth: 2,
   },
   inputDisabled: {
     backgroundColor: colors.surfaceMuted,

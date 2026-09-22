@@ -6,77 +6,114 @@
  * never the only carrier of meaning — errors and emergencies also change
  * wording and iconography.
  *
- * All text/background pairings below meet WCAG AA (4.5:1) at minimum; the
- * ratio is noted where it is close enough to be worth protecting during
- * future palette changes.
+ * ## The 2026 "bright card" pass
  *
- * ## The 2026 "panel" pass
+ * The app was previously a **panel**: cool porcelain ground, ruled chart
+ * paper, a coloured measurement rule down the leading edge, and a grotesque
+ * paired with a reading serif. It was coherent and it was sombre. This pass
+ * replaces it with the shape language of a consumer habit app — the one a
+ * person actually opens five times a week:
  *
- * The app is not a dashboard, it is a **panel** — in the sense a lab report
- * is a panel. Two vernaculars feed it: hospital wayfinding, which colour-codes
- * departments so you can find one without reading; and the printed lab
- * result, which is measured, tabular and left-aligned.
+ * 1. **The ground is plain white and the cards are grey.** Not the other way
+ *    round. A resting card is a soft `surface` fill with no border; the page
+ *    behind it is `background`. That inversion is most of why the screens
+ *    read as light rather than as documents.
+ * 2. **Radii went up and borders got thicker.** 16pt on a card, 2pt when a
+ *    border is doing work. A 1pt hairline is a document; a 2pt round-cornered
+ *    block is a control you press.
+ * 3. **A primary button has a solid bottom edge** (`EDGE_WIDTH`), drawn in
+ *    the pressed colour. It is the one skeuomorphic thing here and it earns
+ *    its place: it says "press me" without a shadow, which is the only depth
+ *    cue that survives greyscale and high-contrast modes.
+ * 4. **The chart-paper ground and the edge meter are gone.** Both were
+ *    measurement metaphors for an app that mostly tells you where to go.
  *
- * Three things changed from the paper pass that preceded this:
+ * ## ⛔ Contrast: the fills are darker than the source mockups, deliberately
  *
- * 1. **The ground went from warm paper to cool porcelain.** A cream ground
- *    under a reading serif was a deliberate choice and a defensible one, but
- *    it reads domestic. This app sits next to a pharmacy label and an
- *    emergency card, and cool porcelain is the colour of the room those are
- *    handled in.
- * 2. **One accent became five.** Each destination in `AppNav` owns a hue —
- *    see `domains` below and the fence on it.
- * 3. **The type is Archivo and Newsreader.** Archivo is a grotesque with
- *    signage lineage, which is the right voice for an app whose main job is
- *    telling you where to go. Newsreader replaces Literata in the same role
- *    it always had: the app quoting somebody.
+ * The reference design used Duolingo's palette — `#58CC02` green and
+ * `#1CB0F6` blue. White text on those is **2.1:1 and 2.4:1**, which fails
+ * WCAG AA (4.5:1) and even AA-large (3:1). This app is read by people who are
+ * unwell, on phones, often outdoors, and it already promised AA throughout.
+ *
+ * So each destination carries **two values of the same hue**:
+ *
+ * - `fill` / `ink` are darkened to clear 4.5:1 against white text and against
+ *   that destination's own tint. These are the only values text ever touches.
+ * - `bright` is the mockup value, untouched, used for marks that carry **no
+ *   text** — an active tab pip, a rule, a decorative tile.
+ *
+ * Flip `bright` into `fill` and the palette is pixel-exact to the reference
+ * and no longer accessible. That is a product decision, not an engineering
+ * one; it is one line per hue if somebody makes it.
  *
  * ⛔ **The notice, error, success and emergency families are byte-for-byte
  * what a reviewer signed off on** and were not touched by this pass, because
- * those carry safety meaning. Only the neutrals, the accents, the type and
+ * those carry safety meaning. Only the neutrals, the accents, the shape and
  * the depth changed. Anyone revisiting the palette should keep that line.
  */
 
 export const colors = {
-  // Surfaces — cool porcelain rather than warm paper
-  background: "#EEF2F5",
-  surface: "#FFFFFF",
-  surfaceMuted: "#E5EBEF",
-  /** Page ground behind a hero panel — one step darker than `background`. */
-  surfaceSunken: "#DFE7EC",
+  // Surfaces. ⛔ The page is white and a card is grey — the inverse of the
+  // panel pass. A component that hardcodes white for a card will disappear.
+  background: "#FFFFFF",
+  surface: "#F7F7F7",
+  surfaceMuted: "#F0F0F0",
+  /** Page ground behind a hero panel — one step darker than `surfaceMuted`. */
+  surfaceSunken: "#EBEBEB",
 
   // Text — on `background` unless noted
-  textPrimary: "#0D1B24", // 15.6:1
-  textSecondary: "#42555F", // 6.9:1
-  /** Quietest readable ink — section labels and footnotes. 4.9:1. */
-  textMuted: "#586C7A",
+  textPrimary: "#3C3C3C", // 11.0:1 on white, 10.3:1 on surface
+  textSecondary: "#666666", // 5.7:1 on white, 5.4:1 on surface
+  /**
+   * Quietest readable ink — section labels and footnotes. 5.3:1 on white,
+   * 5.0:1 on `surface`, 4.7:1 on `surfaceMuted`, which is the worst ground it
+   * lands on and the one that set this value.
+   *
+   * ⛔ The reference design set this at `#8E8E8E` (3.3:1). That is below AA
+   * for body text and this is the colour most of the app's explanatory copy
+   * is set in. Kept darker on purpose; do not "match the mockup" here.
+   */
+  textMuted: "#6B6B6B",
   textOnAccent: "#FFFFFF",
-  /** Secondary text on `accentDeep` — 7.2:1. */
-  textOnAccentMuted: "#A8CEDB",
+  /**
+   * Secondary text on a filled panel.
+   *
+   * ⛔ It is **pure white**, and it has to be. `accent` is the lightest green
+   * that clears 4.5:1 against white text at all (it lands at 4.52), so any
+   * tint dimmer than white on that ground is below AA by construction. The
+   * hierarchy between a panel's heading and its secondary line is therefore
+   * carried by size and weight, never by fading the ink.
+   *
+   * Kept as its own token rather than collapsed into `textOnAccent` so the
+   * next person to reach for a muted tint on a coloured panel finds this note
+   * instead of inventing one.
+   */
+  textOnAccentMuted: "#FFFFFF",
 
-  // Lines. With depth kept almost flat, a hairline is what separates one
-  // block from the next.
-  border: "#C2D1DA",
-  borderStrong: "#A3B6C2",
-  borderFocus: "#0B5E73",
+  // Lines. A resting card has no border at all; these are for the cases
+  // where a border is carrying meaning (selected, focused, dashed-empty).
+  border: "#E5E5E5",
+  borderStrong: "#C7C7C7",
+  borderFocus: "#3A8701",
   /** Hairline between rows inside one card. */
-  divider: "#DEE7EC",
+  divider: "#EDEDED",
 
   // The app-wide primary action. This is the Today hue, which is also the
   // first stop on the domain ramp — see `domains`. A screen inside a
   // destination overrides it with that destination's own colour.
-  accent: "#0B5E73", // white on this: 7.3:1; on `background`: 6.5:1
-  accentPressed: "#084A5B",
-  accentDisabled: "#9FB8C1",
-  /** Header/hero ground. White on this: 12.9:1. */
-  accentDeep: "#08313D",
-  /** Tinted fill for icon tiles and quiet accent chips. accent on it: 6.3:1. */
-  accentSurface: "#E3EFF3",
-  accentBorder: "#BBD6DF",
+  accent: "#3A8701", // white on this: 4.5:1
+  accentPressed: "#2E6B01",
+  accentDisabled: "#D4D4D4",
+  /** Header/hero ground. White on this: 4.5:1. */
+  accentDeep: "#3A8701",
+  /** Tinted fill for icon tiles and quiet accent chips. `accent` on it: 4.5:1. */
+  accentSurface: "#E8F7D9",
+  accentBorder: "#A9E06B",
 
   // ⛔ Everything below this line is reviewed safety colour. Do not restyle
   // it to match a new visual direction — a direction is a preference and
-  // these are a decision someone signed off on.
+  // these are a decision someone signed off on. The bright-card pass left
+  // every value here exactly as it found it.
 
   // Errors: used for "this didn't work", not for medical urgency
   errorText: "#8C1D18", // 8.6:1
@@ -102,19 +139,7 @@ export const colors = {
 /**
  * ## One hue per destination
  *
- * The five places a signed-in person can be each own a colour, and the five
- * sit on a single ramp from teal to magenta.
- *
- * **They are saturated on purpose.** An earlier pass matched all five to the
- * same contrast against white, on the theory that equal weight is what makes
- * a set read as one system. It did — and it also made every one of them the
- * same muted mid-dark, so the ramp was systematic and completely forgettable.
- * What holds this set together is that it is one continuous sweep of hue at
- * the edge of what sRGB will give, not that the five are interchangeable.
- *
- * Each still clears AA in both of its jobs: white on the fill lands between
- * 5.6:1 and 7.1:1, and the ink on the porcelain ground between 5.0:1 and
- * 6.3:1. Change one and re-measure the set, not just the one.
+ * The five places a signed-in person can be each own a colour.
  *
  * ### ⛔ A hue means a *place*, never a state and never a health fact
  *
@@ -125,52 +150,74 @@ export const colors = {
  * implied it would be inventing a clinical fact, which is the same fence the
  * Today screen and `InfoPanel` already carry.
  *
- * ### ⛔ The ramp stops before red, amber and green, and that is structural
+ * ### The four roles
  *
- * Those three hues belong to the reviewed safety families above. Keeping
- * every destination colour on the cool arc means a warm colour anywhere in
- * this app always carries safety meaning — so a disclaimer, an error and
- * emergency guidance are the only warm things on any screen, and they cannot
- * be mistaken for decoration. Do not extend this ramp past magenta.
+ * - `ink` — the hue as **text or an icon** on `background`, `surface`, or its
+ *   own `surface` tint. Cleared against the worst of those three.
+ * - `fill` — a ground for **white text**. Cleared at 4.5:1.
+ * - `edge` — the solid bottom edge under a filled button, and the pressed
+ *   state. Always darker than `fill`.
+ * - `bright` — ⛔ **decoration only, never behind or under text.** This is the
+ *   reference design's original value and most of them fail AA. It is here so
+ *   an active tab pip or a rule can be the vivid colour the design wants
+ *   without putting a word on top of it.
+ * - `surface` / `border` — the quiet tinted chip.
  *
- * `fill` is a ground for white text. `ink` is the same hue as text or an icon
- * on `surface` or `background`. `surface`/`border` are the quiet tinted chip.
+ * ### ⛔ Green now means "Today", and no longer means "success" alone
+ *
+ * The panel pass kept the destination ramp entirely cool so that any warm or
+ * green element in the app necessarily carried safety meaning. This pass
+ * gives Today a green, which spends that property. What replaces it: the
+ * reviewed families above each keep a *distinct ink, tint and border* and are
+ * always rendered as a bordered notice block, never as a filled button. A
+ * `SuccessNotice` and a primary button are different shapes, not just
+ * different greens. Keep it that way.
  */
 export const domains = {
   today: {
-    ink: "#00707F",
-    fill: "#00707F",
-    pressed: "#005965",
-    surface: "#DFEFF1",
-    border: "#A9D6DB",
+    ink: "#377E01",
+    fill: "#3A8701",
+    pressed: "#2E6B01",
+    edge: "#2E6B01",
+    surface: "#E8F7D9",
+    border: "#A9E06B",
+    bright: "#58CC02",
   },
   symptoms: {
-    ink: "#1150D6",
-    fill: "#1150D6",
-    pressed: "#0D3FA8",
-    surface: "#E3EAFB",
-    border: "#B4C6F3",
+    ink: "#1274A2",
+    fill: "#147DAF",
+    pressed: "#0F6488",
+    edge: "#0F6488",
+    surface: "#DDF4FF",
+    border: "#8ED2F2",
+    bright: "#1CB0F6",
   },
   medications: {
-    ink: "#5B2BEA",
-    fill: "#5B2BEA",
-    pressed: "#4720B8",
-    surface: "#E9E3FD",
-    border: "#C6B6F8",
+    ink: "#7C4DDC",
+    fill: "#7C4DDC",
+    pressed: "#6B3FD0",
+    edge: "#6B3FD0",
+    surface: "#F3EEFF",
+    border: "#C9AFF7",
+    bright: "#7C4DDC",
   },
   care: {
-    ink: "#9B1FD0",
-    fill: "#9B1FD0",
-    pressed: "#7B18A6",
-    surface: "#F2E2FA",
-    border: "#DCB6F0",
+    ink: "#C4197E",
+    fill: "#C4197E",
+    pressed: "#9C1264",
+    edge: "#9C1264",
+    surface: "#FCE3EF",
+    border: "#F7C5E3",
+    bright: "#C4197E",
   },
   goals: {
-    ink: "#C40B8A",
-    fill: "#C40B8A",
-    pressed: "#9C096E",
-    surface: "#FBDFF0",
-    border: "#F2AFD8",
+    ink: "#00795C",
+    fill: "#0B8378",
+    pressed: "#08655C",
+    edge: "#08655C",
+    surface: "#D7F2E3",
+    border: "#8BDCC2",
+    bright: "#00CD9C",
   },
 } as const;
 
@@ -178,35 +225,36 @@ export type DomainName = keyof typeof domains;
 export type Domain = (typeof domains)[DomainName];
 
 /**
- * The two faces, by their loaded family names.
+ * The faces, by their loaded family names.
  *
  * ⛔ **Set `fontFamily`, never `fontWeight`.** These are separate font files
  * per weight, and asking Android for a bold weight of a face that is already
- * bold gets you a synthetically smeared double-bold. The same goes for
- * `fontStyle: "italic"` — use `serifItalic` instead of asking the renderer to
- * slant an upright face.
+ * bold gets you a synthetically smeared double-bold.
  *
- * The pairing is not arbitrary. **Archivo** is a grotesque drawn from
- * nineteenth-century American gothics and built for high-performance
- * signage — which is the voice this app wants, because most of what it says
- * is *where to go next*. It is tight enough to hold a dense medication list
- * and sturdy enough to set a screen title at 36pt.
+ * **Archivo** is a grotesque drawn from nineteenth-century American gothics
+ * and built for high-performance signage — the right voice for an app whose
+ * main job is telling you where to go. It is tight enough to hold a dense
+ * medication list and sturdy enough to set a screen title at 32pt.
  *
- * **Newsreader** is a screen reading serif, and it is used here only for text
- * a *person wrote or a source published*: what the user typed into the
- * symptom field, the values on their emergency card, a MedlinePlus summary.
- * That split is the whole idea — the serif is the app quoting, the sans is
- * the app speaking — and it is why a paraphrase can never be dressed as a
- * quotation by accident.
+ * ## ⛔ The reading serif was dropped by the bright-card pass
  *
- * Loaded once in `App.tsx`. Nothing renders until they are ready, because
- * swapping a face in after first paint reflows every screen.
+ * The panel pass used Newsreader for "text a person wrote or a source
+ * published" — the symptom field, emergency card values, a MedlinePlus
+ * summary — so that the serif was the app *quoting* and the sans was the app
+ * *speaking*. That was a good rule and it is gone, because the reference
+ * design sets quoted text in the same sans as everything else.
+ *
+ * The `serif*` keys survive pointing at Archivo so that no call site had to
+ * change. **What replaces the signal:** quoted text is still a distinct
+ * token (`typography.bodyQuoted`) at a larger size with more leading, and it
+ * is still only ever used for words the app did not write. If the serif comes
+ * back, it comes back by repointing these four keys and nothing else.
  */
 export const fonts = {
-  serif: "Newsreader_400Regular",
-  serifItalic: "Newsreader_400Regular_Italic",
-  serifSemibold: "Newsreader_600SemiBold",
-  serifBold: "Newsreader_700Bold",
+  serif: "Archivo_400Regular",
+  serifItalic: "Archivo_400Regular",
+  serifSemibold: "Archivo_600SemiBold",
+  serifBold: "Archivo_700Bold",
   sans: "Archivo_400Regular",
   sansMedium: "Archivo_500Medium",
   sansSemibold: "Archivo_600SemiBold",
@@ -229,18 +277,38 @@ export const spacing = {
  * applied to everything. A single radius across an interface flattens its
  * hierarchy: a chip, a card and a full-bleed panel are not the same kind of
  * object and should not share an outline.
+ *
+ * The bright-card pass roughly doubled these. A 10pt button is a form
+ * control; a 16pt one is a thing you press with a thumb.
  */
 export const radius = {
-  /** Chips, tiles, the meter cap. */
-  sm: 6,
+  /** Chips, small tiles. */
+  sm: 10,
   /** Inputs and buttons — a control you put a finger on. */
-  md: 10,
+  md: 16,
   /** Cards and grouped lists. */
-  lg: 14,
+  lg: 16,
   /** A panel that owns the width of the screen. */
-  xl: 18,
+  xl: 20,
   pill: 999,
 } as const;
+
+/**
+ * Border weight when a border is doing work — a selected row, a focused
+ * input, a dashed empty state. A resting card has **no** border; it is
+ * separated from the white page by its own grey fill.
+ */
+export const BORDER_WIDTH = 2;
+
+/**
+ * The solid bottom edge under a filled button and under a pressed-in card.
+ *
+ * ⛔ It is drawn with `borderBottomWidth`, not a shadow, so it survives
+ * greyscale, forced-colours and high-contrast rendering — which a shadow does
+ * not. A button that loses its only affordance in a high-contrast mode is a
+ * button a low-vision user cannot find.
+ */
+export const EDGE_WIDTH = 4;
 
 /**
  * Figures that line up in a column. Times, doses, dates and counts are read
@@ -251,37 +319,33 @@ export const radius = {
 const TABULAR = { fontVariant: ["tabular-nums"] as "tabular-nums"[] };
 
 export const typography = {
-  /**
-   * The band title — the app's one typographic moment. Heavy, tight, and
-   * knocked out of a field of the destination's colour, which is how a
-   * department is named on a hospital wall.
-   */
+  /** The greeting on a filled hero panel. */
   band: {
     fontFamily: fonts.sansExtrabold,
-    fontSize: 34,
-    lineHeight: 37,
-    letterSpacing: -1.2,
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: -0.6,
   },
   displayLarge: {
     fontFamily: fonts.sansExtrabold,
-    fontSize: 36,
-    lineHeight: 41,
-    letterSpacing: -1.1,
+    fontSize: 32,
+    lineHeight: 38,
+    letterSpacing: -0.8,
   },
   display: {
-    fontFamily: fonts.sansBold,
-    fontSize: 30,
-    lineHeight: 36,
+    fontFamily: fonts.sansExtrabold,
+    fontSize: 26,
+    lineHeight: 32,
     letterSpacing: -0.6,
   },
   title: {
-    fontFamily: fonts.sansSemibold,
-    fontSize: 21,
-    lineHeight: 28,
-    letterSpacing: -0.3,
+    fontFamily: fonts.sansBold,
+    fontSize: 19,
+    lineHeight: 26,
+    letterSpacing: -0.2,
   },
   titleSmall: {
-    fontFamily: fonts.sansSemibold,
+    fontFamily: fonts.sansBold,
     fontSize: 17,
     lineHeight: 24,
     letterSpacing: -0.1,
@@ -292,18 +356,29 @@ export const typography = {
    * line of wrapping and buys legibility.
    */
   body: { fontFamily: fonts.sans, fontSize: 17, lineHeight: 26 },
-  bodyStrong: { fontFamily: fonts.sansSemibold, fontSize: 17, lineHeight: 26 },
+  bodyStrong: { fontFamily: fonts.sansBold, fontSize: 17, lineHeight: 26 },
   /**
    * Text the *user* wrote, or that a source published, shown back to them.
-   * Set in the serif on purpose — see the note on `fonts` — and given more
-   * leading than the sans, because a serif at this size needs the air.
+   * Larger and more leaded than `body` so it is visibly a quotation even
+   * though the serif that used to carry that distinction is gone — see the
+   * note on `fonts`.
    */
-  bodyQuoted: { fontFamily: fonts.serif, fontSize: 19, lineHeight: 31 },
+  bodyQuoted: { fontFamily: fonts.sans, fontSize: 18, lineHeight: 29 },
   caption: { fontFamily: fonts.sans, fontSize: 14, lineHeight: 21 },
-  captionStrong: { fontFamily: fonts.sansSemibold, fontSize: 14, lineHeight: 21 },
+  captionStrong: { fontFamily: fonts.sansBold, fontSize: 14, lineHeight: 21 },
+  /**
+   * The label on a filled button. Bold and slightly tracked — at this weight
+   * a little letter-spacing stops a short all-caps-feeling label closing up.
+   */
+  button: {
+    fontFamily: fonts.sansBold,
+    fontSize: 17,
+    lineHeight: 24,
+    letterSpacing: 0.2,
+  },
   /**
    * A short value read at a glance — a dose, a time, a blood type.
-   * Semibold, tracked, and tabular so a column of them scans cleanly.
+   * Bold, tracked, and tabular so a column of them scans cleanly.
    */
   data: {
     fontFamily: fonts.sansSemibold,
@@ -321,23 +396,20 @@ export const typography = {
     ...TABULAR,
   },
   /**
-   * Section label. Letter-spaced rather than shrunk — it stays at 13px so it
-   * is still legible, since small type is the first thing to fail for anyone
-   * with low vision.
+   * Section label above a group of cards.
    *
    * ⛔ The 13px floor is an accessibility decision and outranks any mockup;
    * a previous visual direction drew these at 11px and was not adopted.
    *
    * **Sentence case, not upper.** Uppercasing a label costs legibility — the
    * word loses its outline shape, which is most of what makes it readable at
-   * a glance — and buys only the look of a label. The tracking and the weight
-   * already do that job.
+   * a glance — and buys only the look of a label.
    */
   overline: {
     fontFamily: fonts.sansBold,
     fontSize: 13,
     lineHeight: 18,
-    letterSpacing: 0.6,
+    letterSpacing: 0.4,
   },
 } as const;
 
@@ -346,13 +418,9 @@ export const typography = {
  *
  * ## Deliberately almost flat
  *
- * Structure is carried by hairlines, by the colour-coded meter and by the
- * prominence ladder — not by shadow. `sm`, which every resting card uses, is
- * flat; `md` and `lg` are a whisper rather than a lift, kept because depth is
- * still the right vocabulary for a floating bar or a pressed button.
- *
- * Shadows are tinted with the deep ink rather than pure black: a
- * neutral-black shadow over a cool porcelain ground reads as smudge.
+ * Structure is carried by the grey-card-on-white-page inversion, by the
+ * prominence ladder, and by `EDGE_WIDTH` under a pressable — not by shadow.
+ * `sm`, which every resting card uses, is flat.
  *
  * Depth is decoration only. Nothing in this app uses a shadow to signal
  * urgency, state, or hierarchy that isn't also carried by text.
@@ -366,7 +434,7 @@ export const elevation = {
     shadowRadius: 0,
     elevation: 0,
   },
-  /** Resting cards and inputs — flat, separated by their border instead. */
+  /** Resting cards and inputs — flat, separated by their fill instead. */
   sm: {
     shadowColor: "transparent",
     shadowOffset: { width: 0, height: 0 },
@@ -374,17 +442,17 @@ export const elevation = {
     shadowRadius: 0,
     elevation: 0,
   },
-  /** Raised: primary buttons, hovered cards. */
+  /** Raised: hovered cards. */
   md: {
-    shadowColor: "#0D1B24",
+    shadowColor: "#3C3C3C",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 3,
     elevation: 1,
   },
-  /** Floating: hero panels and sticky bars. */
+  /** Floating: sticky bars. */
   lg: {
-    shadowColor: "#0D1B24",
+    shadowColor: "#3C3C3C",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 14,
@@ -393,77 +461,17 @@ export const elevation = {
 } as const;
 
 /**
- * ## The meter
- *
- * The one bold device in this design, and the reason it earns its place is
- * that it does three jobs with one mark.
- *
- * It is a measured vertical rule down the leading edge of a screen, drawn in
- * that screen's `domains` colour:
- *
- * - **Identity.** It is the app's memorable element.
- * - **Orientation.** Its colour answers "which part of MedHelp am I in"
- *   before a word has been read — the same job hospital wayfinding gives to a
- *   coloured line on a corridor floor.
- * - **Information.** On the Today screen it is an actual axis: the waking day
- *   with a stop at each reminder time the person set and a marker at the
- *   current moment.
- *
- * ⛔ **It is never the only carrier of anything.** Colour-blind readers,
- * screen-reader users and anyone who has turned contrast up get the same
- * information from the screen title and the row text; the meter is a second,
- * faster route to it and never the first. Nothing may be encoded in it that
- * is not also written down.
- */
-/**
- * ## The ground is measured paper
- *
- * Every clinical record is drawn on a ruled grid — ECG strips, growth charts,
- * flowsheets, telemetry. `assets/chart-grid.png` is a 40pt tile of it: a rule
- * every 8pt and a heavier one every 40, baked opaque over `colors.background`
- * so tiling it costs no alpha compositing.
- *
- * It is what makes the meter make sense. A coloured line down the edge of a
- * flat white page is a brand device; the same line on ruled paper is a
- * measurement, which is what this app is actually doing.
- *
- * ⛔ **It stays under the content, never behind text.** Cards, groups and
- * notices are opaque and sit on top, exactly as a label sits on chart paper.
- * Do not raise its contrast: it is at roughly 5% and 10% ink, which is enough
- * to read as texture at arm's length and not enough to interfere with a word.
- * This app is read by people who are unwell.
- */
-export const chart = {
-  /** Edge of one tile, in points. Also the major rule interval. */
-  tile: 40,
-  /** Minor rule interval — and the unit the mark is drawn on. */
-  unit: 8,
-} as const;
-
-export const meter = {
-  /** Width of the quiet edge on an ordinary screen. */
-  width: 4,
-  /** Width of the rule when it is carrying the day's axis on Today. */
-  axisWidth: 2,
-  /** Diameter of a stop on the axis. */
-  stop: 11,
-  /** Column the axis and its time labels occupy. */
-  axisColumn: 64,
-} as const;
-
-/**
  * ## The prominence ladder
  *
  * Every block on every screen sits at one of four levels, and **a screen gets
- * exactly one level-one action**. This is the half of the visual direction
- * that is not about colour at all: without it, a screen's destinations are
+ * exactly one level-one action**. Without it, a screen's destinations are
  * drawn identically, nothing is primary, and the reader has to read all of
  * them to choose one.
  *
- *   L1  ACT      filled in the screen's domain colour, white text. One per screen.
- *   L2  READ     `surface` with a 1px `border`. Titled blocks and rows.
- *   L3  CONTEXT  `surfaceMuted` fill, no border. Supporting detail.
- *   L4  FINE     no fill; a `border` hairline above it. Footnotes.
+ *   L1  ACT      filled in the screen's domain colour with an `edge`. One per screen.
+ *   L2  READ     `surface` fill, no border. Titled blocks and rows.
+ *   L3  CONTEXT  `surfaceMuted` fill. Supporting detail.
+ *   L4  FINE     no fill; a `divider` hairline above it. Footnotes.
  *
  * ⛔ **The emergency palette is exempt.** `EmergencyCallBar`'s "Call 911" and
  * the emergency card's contact call stay filled wherever they appear, however
@@ -493,8 +501,7 @@ export const MIN_TAP_TARGET = 48;
  *
  * `page` is different in kind. It is for a screen that lays *columns* out
  * beside each other rather than stretching one column — the Today screen does
- * this above `BREAKPOINT.expanded`. Nothing inside it exceeds the line-length
- * limits above; there are simply two or three of them side by side.
+ * this above `BREAKPOINT.expanded`.
  */
 export const CONTENT_WIDTH = { form: 480, wide: 660, page: 1180 } as const;
 
@@ -505,10 +512,18 @@ export const CONTENT_WIDTH = { form: 480, wide: 660, page: 1180 } as const;
  * crossing 760px gets the two-column layout whether it is a tablet or a
  * desktop, and a phone never does. Screens read them through
  * `useBreakpoint()`.
- *
- * `medium` is deliberately above the widest common phone in landscape (a
- * 430pt phone is 932 long-edge, but the app is portrait-locked on native, so
- * this only ever fires in a browser or on a tablet). Below it, every screen
- * keeps the single stacked column it has always had.
  */
 export const BREAKPOINT = { medium: 760, expanded: 1040 } as const;
+
+/**
+ * Sizes for the round icon tile that fronts a row — the "Rx" disc on a
+ * medication, the dot on an appointment.
+ *
+ * ⛔ **Whatever a tint says, the row says in words too.** A row may be tinted
+ * by something the user themselves entered — a reminder time they set has come
+ * round, a refill date they wrote down has passed — but the same fact is
+ * always written beside it ("Due now", "Refill due in 3 days"). Nothing here
+ * may be tinted by a reading of the person's *health*, which MedHelp does not
+ * have: no severity, no adherence, no urgency of its own invention.
+ */
+export const TILE = { sm: 36, md: 44, lg: 56, xl: 88 } as const;

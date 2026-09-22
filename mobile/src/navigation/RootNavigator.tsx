@@ -118,12 +118,12 @@ export function RootNavigator() {
       <Stack.Navigator
         initialRouteName={session === "signed-in" ? "Home" : "Login"}
         screenOptions={{
-          headerStyle: { backgroundColor: colors.surface },
+          headerStyle: { backgroundColor: colors.background },
           headerTitleStyle: {
-            ...typography.titleSmall,
+            ...typography.title,
             color: colors.textPrimary,
           },
-          headerTintColor: colors.accent,
+          headerTintColor: colors.textPrimary,
           // The screens draw their own cards with their own borders; a header
           // hairline on top of that reads as a stray line rather than as
           // structure.
