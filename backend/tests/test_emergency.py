@@ -271,6 +271,65 @@ def test_one_half_of_a_two_term_flag_is_not_enough(description):
     assert screen_for_emergency(description) is None
 
 
+class TestTheOnlyNarrowingInTheFileIsFenced:
+    """
+    ⛔ THE ASYMMETRY THIS CLOSES.
+
+    `_COMBINATIONS` only ever ADDS a detection, and it is fenced by
+    `test_the_set_of_combinations_is_fenced` and probed by the mutation
+    checker. `_VOIDED_BY_PREFIX` REMOVES one — it is described in
+    `emergency.py` as "the only narrowing in that file" — and until now
+    nothing referenced it outside the module at all.
+
+    That is the wrong way round. The set that can only make screening more
+    sensitive was guarded; the set that can make it less sensitive was not.
+
+    CLAUDE.md is explicit about why it matters: "Do not add an entry there to
+    quieten a false positive without the same explicit approval: the
+    one-directional property is what lets the rest of the file be extended
+    without re-reviewing all of it." Every other claim in this module rests on
+    additions being safe. One more voiding prefix, added to silence a noisy
+    match, would cost that argument silently.
+
+    The single entry exists for a reasoned case the owner approved on
+    2026-09-14: somebody typing "food poisoning" is handing the app a
+    self-assigned label, and routing that to Poison Control triages the word
+    rather than the person.
+    """
+
+    def test_there_is_exactly_one_voiding_rule(self):
+        from app.core import emergency
+
+        assert emergency._VOIDED_BY_PREFIX == {"poisoning": ("food",)}, (
+            "a narrowing was added, removed or changed. This is the one "
+            "mechanism here that can make screening LESS sensitive, and "
+            "CLAUDE.md requires explicit approval for each entry — the "
+            "one-directional property every other rule in this file relies on "
+            "is what a second entry spends."
+        )
+
+    @pytest.mark.parametrize(
+        "description",
+        [
+            "poisoning",
+            "I swallowed poison",
+            "he had an overdose",
+            "she drank bleach",
+            "I took too many pills",
+            # ⛔ The near-miss that matters most: a different word before
+            # `poisoning` must NOT be voided. Only `food` is.
+            "my toddler ate rat poisoning",
+            "lead poisoning from the old pipes",
+        ],
+    )
+    def test_the_narrowing_touches_nothing_else(self, description):
+        assert screen_for_emergency(description) is not None, description
+
+    def test_the_one_case_it_exists_for_is_still_voided(self):
+        """The behaviour the entry was approved for, so a change is visible."""
+        assert screen_for_emergency("I have food poisoning, cramps and diarrhea") is None
+
+
 class TestTheCaseSplitCannotBreakAPhrase:
     """
     ⛔ THE PRECONDITION THAT MAKES `normalize_query` ONE-DIRECTIONAL.
