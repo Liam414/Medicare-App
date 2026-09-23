@@ -304,6 +304,11 @@ export async function reportAssessmentWrong(assessmentId: string): Promise<void>
   if (!token) return;
 
   try {
+    // ⛔ The same transport refusal every other request path applies. Without
+    // it this was the one call that would put the bearer token on plain http.
+    // Inside the try, so an insecure base URL means nothing is sent — silently,
+    // like any other failure of a best-effort call.
+    assertSecureBaseUrl();
     await fetch(`${API_BASE_URL}/intake/${encodeURIComponent(assessmentId)}/feedback`, {
       method: "POST",
       headers: {

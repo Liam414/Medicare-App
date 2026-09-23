@@ -33,7 +33,7 @@ from app.schemas.intake import (
 from app.schemas.symptom import EmergencyGuidanceOut, SymptomTopicOut
 from app.services import llm
 from app.services.medlineplus import MedlinePlusUnavailable, search_topics
-from app.services.search_terms import candidate_queries, content_words, names_match
+from app.services.search_terms import _NEGATIONS, candidate_queries, content_words, names_match
 
 logger = logging.getLogger(__name__)
 
@@ -156,13 +156,20 @@ async def _related_topics(description: str) -> list[SymptomTopicOut]:
     #
     # Measured over 12,602 corpus descriptions: 5 reach this, and 4 of them
     # are "I can't keep anything down" — an URGENT complaint, not filler. It
-    # empties out because can/anything/down are stopwords and the apostrophe
-    # splits can't into can + t, which is one character and dropped.
+    # empties out because can/anything/down are stopwords and the CURLY
+    # apostrophe iOS types is not in `_TOKEN_RE`, so can’t splits into can + t
+    # and the t is one character and dropped. (The ASCII one keeps "can't".)
     #
     # Returning [] here is the same value the loop produced, minus the
     # request. CLAUDE.md's vendor table says NLM receives "up to 3 keywords";
     # this is what had made that untrue.
-    if not words:
+    #
+    # ⛔ "No content words" means no words `names_match` can use — and it drops
+    # negations before matching (see `_NEGATIONS`). So a description whose only
+    # surviving word is a negation — "I can't keep anything down" typed with an
+    # ASCII apostrophe leaves exactly ["can't"] — can match nothing either, and
+    # checking `words` alone still sent it.
+    if not [word for word in words if word not in _NEGATIONS]:
         return []
 
     for query in candidate_queries(description):

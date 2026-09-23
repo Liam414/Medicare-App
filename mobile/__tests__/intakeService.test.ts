@@ -290,6 +290,19 @@ describe("intakeService", () => {
       await expect(reportAssessmentWrong("assessment-1")).resolves.toBeUndefined();
     });
 
+    it("sends nothing, token included, when the base URL is not transport-safe", async () => {
+      // ⛔ Every other request path refuses first; this one used raw fetch and
+      // skipped the check, so it was the one call that could put the bearer
+      // token on plain http. Found by review, not by the original fix.
+      const baseUrl = require("@/services/baseUrl");
+      const unsafe = jest.spyOn(baseUrl, "baseUrlIsTransportSafe").mockReturnValue(false);
+
+      await expect(reportAssessmentWrong("assessment-1")).resolves.toBeUndefined();
+      expect(global.fetch).not.toHaveBeenCalled();
+
+      unsafe.mockRestore();
+    });
+
     it("still sends the report when everything is working", async () => {
       (global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,

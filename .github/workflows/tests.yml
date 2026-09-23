@@ -1,8 +1,8 @@
-# The suites this repository already has, run on every push.
+# The suites this repository already has, run on pull requests and on main.
 #
 # ⛔ WHY THIS EXISTS. On 2026-09-21 this branch was failing `tsc --noEmit` for
 # several commits while every `npm test` run stayed green, and nothing noticed.
-# The repository has 1,246 backend tests, 678 client tests, 35 mutation checks
+# The repository has ~1,270 backend tests, ~690 client tests, 40 mutation checks
 # and several measurement harnesses, and none of them gated anything: every
 # check was something a person had to remember to run and to read the output
 # of correctly.
@@ -19,8 +19,17 @@
 name: tests
 
 on:
+  # Pushes to main, plus every pull request. Unfiltered `push` + `pull_request`
+  # ran both jobs twice for every push to a branch with an open PR.
   push:
+    branches: [main]
   pull_request:
+
+# ⛔ Least privilege. This workflow only reads the repository; without this
+# block the token gets the repository default, which may include write — the
+# opposite of "must not learn to publish anything" above.
+permissions:
+  contents: read
 
 jobs:
   backend:

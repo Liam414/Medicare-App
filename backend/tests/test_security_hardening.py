@@ -804,9 +804,20 @@ class TestA500CarriesTheSameHeadersAsAnythingElse:
             if getattr(item, "path", None) != "/__test_unhandled_error"
         ]
 
+    #: An origin the dev CORS policy allows. ⛔ Parity has to be checked WITH
+    #: an Origin: the first version of this test sent none, so it could not see
+    #: that a 500 also lacked Access-Control-Allow-Origin — which a browser
+    #: turns into a CORS block and the client into "Can't reach the server".
+    ALLOWED_ORIGIN = "http://localhost:8081"
+
     def test_a_500_carries_every_header_a_200_carries(self, boom_client):
-        ok = boom_client.get("/health")
-        boom = boom_client.get("/__test_unhandled_error")
+        headers = {"Origin": self.ALLOWED_ORIGIN}
+        ok = boom_client.get("/health", headers=headers)
+        boom = boom_client.get("/__test_unhandled_error", headers=headers)
+
+        assert ok.headers.get("access-control-allow-origin") == self.ALLOWED_ORIGIN, (
+            "the 200 did not echo the origin, so this cannot check CORS parity"
+        )
 
         assert ok.status_code == 200
         assert boom.status_code == 500, "the probe route did not fail as intended"
@@ -836,3 +847,12 @@ class TestA500CarriesTheSameHeadersAsAnythingElse:
         assert body == {"detail": "Something went wrong. Please try again."}
         assert "RuntimeError" not in str(body)
         assert "synthetic failure" not in str(body)
+
+    def test_a_500_does_not_echo_an_origin_the_policy_refuses(self, boom_client):
+        # The fix reuses the CORS policy's own check; this proves it is a check.
+        boom = boom_client.get(
+            "/__test_unhandled_error", headers={"Origin": "https://not-allowed.example"}
+        )
+
+        assert boom.status_code == 500
+        assert "access-control-allow-origin" not in boom.headers

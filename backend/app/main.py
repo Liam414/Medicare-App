@@ -204,6 +204,14 @@ if settings.is_development and settings.cors_allow_private_origins:
 
 app.add_middleware(CORSMiddleware, **_cors_kwargs)
 
+# ⛔ The SAME policy, instantiated only to ask it one question. A 500 is built
+# inside ServerErrorMiddleware, outside the middleware above, so it went out
+# with no Access-Control-Allow-Origin: the browser then blocked it and the web
+# client reported "Can't reach the MedHelp server" for a server that had
+# answered. Reusing the middleware's own `is_allowed_origin` means there is
+# still one allowlist, not a second copy to drift.
+_cors_policy = CORSMiddleware(app=None, **_cors_kwargs)  # type: ignore[arg-type]
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(
@@ -251,13 +259,18 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
     # Starlette builds this response inside `ServerErrorMiddleware`, which sits
     # outside the `@app.middleware("http")` stack, so `add_security_headers`
     # does not run on it and this response went out bare.
-    return _apply_security_headers(
+    response = _apply_security_headers(
         request,
         JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"detail": "Something went wrong. Please try again."},
         ),
     )
+    origin = request.headers.get("origin")
+    if origin and _cors_policy.is_allowed_origin(origin):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
+    return response
 
 
 app.include_router(auth.router)

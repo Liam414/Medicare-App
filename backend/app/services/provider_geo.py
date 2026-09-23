@@ -211,24 +211,20 @@ def distance_for(
     three miles away. `zip_geography` already documents that a wrong distance
     is worse than an absent one for someone deciding how far to travel while
     unwell; a zero here is the wrong distance, so it is not shown.
-
-    ⛔ AND IT APPLIES TO BOTH BRANCHES. The rule was written for the estimate
-    and enforced only there, so the exact branch — the one that looks like it
-    measured something — was the one that could still return a zero.
     """
     if coordinate is not None:
         origin = centroid(from_zip)
         if origin is None:
             return None
-        exact = haversine_miles(origin[0], origin[1], coordinate[0], coordinate[1])
-        # ⛔ THE ZERO RULE APPLIES TO THIS BRANCH TOO. It used to guard only
-        # the estimate below, which left the more trusted path as the one that
-        # could return a zero. A geocoder that can place an address to ZIP
-        # level but no further hands back the ZIP's own centroid, and the
-        # distance from a centroid to itself is exactly 0.0 — the same
-        # "next door" for a clinic that may be three miles away, arriving
-        # through the branch that looks like it measured something.
-        return None if exact == 0.0 else exact
+        # ⛔ DELIBERATELY NOT GUARDED FOR ZERO, unlike the estimate below. A
+        # None sorts LAST (here in providers.py and in the client's
+        # sortByDistance), so turning an exact 0.0 into None would move the
+        # provider nearest the user's ZIP centre to the bottom of the list.
+        # That was tried and reverted after review. A displayed zero is
+        # prevented where it is displayed: `formatDistanceMiles` floors at
+        # "~0.1 mi". An `== 0.0` check would also only catch bit-identical
+        # coordinates, not a coarse geocode a few metres off the centroid.
+        return haversine_miles(origin[0], origin[1], coordinate[0], coordinate[1])
 
     estimate = distance_miles(from_zip, provider.postal_code)
     if estimate is None or estimate == 0.0:

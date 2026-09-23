@@ -39,7 +39,9 @@ describe("formatDistanceMiles", () => {
   it("keeps one decimal below ten miles and rounds above it", () => {
     expect(formatDistanceMiles(0.5)).toBe("~0.5 mi");
     expect(formatDistanceMiles(3.14)).toBe("~3.1 mi");
-    expect(formatDistanceMiles(9.99)).toBe("~10.0 mi");
+    // Rounds first: 9.99 is "~10 mi", matching 10.0, not "~10.0 mi".
+    expect(formatDistanceMiles(9.99)).toBe("~10 mi");
+    expect(formatDistanceMiles(9.94)).toBe("~9.9 mi");
     expect(formatDistanceMiles(10)).toBe("~10 mi");
     expect(formatDistanceMiles(42.4)).toBe("~42 mi");
   });

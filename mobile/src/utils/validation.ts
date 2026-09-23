@@ -46,7 +46,7 @@ export function validatePassword(password: string): string | null {
     // it true for the rest.
     return (
       `That password is too long. Use ${MAX_PASSWORD_BYTES} characters or ` +
-      `fewer — accented letters, symbols and emoji each count as more than one.`
+      `fewer — accented letters, emoji and some symbols each count as more than one.`
     );
   }
   return null;

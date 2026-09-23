@@ -192,9 +192,9 @@ class TestTiers:
             # and the t is one character and dropped.
             #
             # ⛔ THE CURLY APOSTROPHE IS THE ONE iOS TYPES. "can't" with an
-            # ASCII apostrophe survives as a content word and takes the normal
-            # capped path; the same sentence from a phone does not. The
-            # control below pins that difference so it cannot drift.
+            # ASCII apostrophe survives as a content word — but only as a
+            # negation, which `names_match` ignores, so it is not sent either.
+            # See the negation-only test below.
             #
             # Measured over 12,602 corpus descriptions, 5 reach this and 4 of
             # them are this complaint.
@@ -260,17 +260,18 @@ class TestTiers:
         too_long = [q for q in stub_one_topic if len(q.split()) > MAX_QUERY_WORDS]
         assert too_long == [], f"queries over the documented cap reached NLM: {too_long}"
 
-    def test_the_ascii_apostrophe_still_takes_the_capped_path(
+    def test_a_description_whose_only_content_word_is_a_negation_is_not_sent(
         self, client, auth_headers, stub_triage, stub_one_topic, topics_enabled
     ):
         """
-        The control for the case above. "can't" with an ASCII apostrophe keeps
-        its content word, so this description IS searched — and every query is
-        within the cap. Only the curly form empties out, which is why that one
-        is a bug about phones rather than about punctuation in general.
-        """
-        from app.services.search_terms import MAX_QUERY_WORDS
+        The ASCII spelling of the same complaint.
 
+        "can't" with an ASCII apostrophe survives as a content word, so the
+        emptiness check alone let this through — and this test used to assert
+        that it WAS searched. But `names_match` drops negations before matching,
+        so ["can't"] can keep no result either: it was the same pointless
+        request to a vendor with no BAA, pinned as correct. Caught by review.
+        """
         stub_triage(_result(tier=Tier.URGENT))
         client.post(
             "/intake/assess",
@@ -278,8 +279,7 @@ class TestTiers:
             headers=auth_headers,
         )
 
-        assert stub_one_topic, "the ASCII spelling should still be searched"
-        assert [q for q in stub_one_topic if len(q.split()) > MAX_QUERY_WORDS] == []
+        assert stub_one_topic == [], f"sent for no possible result: {stub_one_topic!r}"
 
     @pytest.mark.parametrize("tier", [Tier.SELF_CARE, Tier.URGENT])
     def test_actionable_tiers_carry_sourced_reading_material(
