@@ -512,6 +512,18 @@ export function TodayScreen({ navigation }: Props) {
         accessibilityHint="Better, the same or worse, and how that has gone lately"
       />
       <AppButton
+        label="Follow-ups"
+        variant="secondary"
+        onPress={() => navigation.navigate("FollowUps")}
+        accessibilityHint="Reminders for care you've been asked to come back for"
+      />
+      <AppButton
+        label="Readings and targets"
+        variant="secondary"
+        onPress={() => navigation.navigate("Readings")}
+        accessibilityHint="Log blood pressure, weight, blood sugar or steps"
+      />
+      <AppButton
         label="Health profile and your data"
         variant="secondary"
         onPress={() => navigation.navigate("HealthProfile")}

@@ -112,6 +112,9 @@ export type RootStackParamList = {
   HealthProfile: undefined;
   // "How are you feeling today?" and the trend of the person's own answers.
   CheckIn: undefined;
+  FollowUps: undefined;
+  // Which measure to open on; a fixed literal, never a value.
+  Readings: { kind?: "blood_pressure" | "weight" | "blood_glucose" | "steps" } | undefined;
 
   EmergencyCard: undefined;
   EmergencyCardEdit: undefined;
