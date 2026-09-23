@@ -39,7 +39,7 @@ def _medication(client, headers, profile_id=None, name="Synthetimol"):
 
 @pytest.fixture()
 def stub_triage(monkeypatch):
-    def _fake(description: str, *, followup_already_asked: bool = False):
+    def _fake(description: str, *, followup_already_asked: bool = False, profile=None):
         return TriageResult(
             tier=Tier.URGENT,
             reasoning="Synthetic reasoning.",

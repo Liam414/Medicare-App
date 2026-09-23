@@ -63,7 +63,10 @@ class TestSafetyNetCannotBeOverridden:
 
         assert result.tier is Tier.EMERGENT
         assert result.red_flag_match is True
-        assert result.escalated_by_safety_net is True
+        # Since decision 3 the model is not asked on a red flag at all, so
+        # there is no lower answer for the safety net to override.
+        assert result.model_tier is None
+        assert result.escalated_by_safety_net is False
 
     def test_model_saying_urgent_cannot_downgrade_a_red_flag(self, model_says):
         model_says(Tier.URGENT)
@@ -568,3 +571,42 @@ class TestNeedsMoreInfoCannotBeRankedAgainstATier:
         )
 
         assert verdict.tier is None
+
+
+class TestClinicianSoonOnlyEverRaises:
+    """Decision 2: the fourth tier is reachable upward from SELF_CARE only."""
+
+    def test_it_raises_a_self_care_answer(self, model_says):
+        model_says(Tier.CLINICIAN_SOON)
+        result = assess("I have a cold and a runny nose")
+        assert result.rule_tier is Tier.SELF_CARE
+        assert result.tier is Tier.CLINICIAN_SOON
+
+    def test_it_never_lowers_the_urgent_default(self, model_says):
+        model_says(Tier.CLINICIAN_SOON)
+        result = assess("something feels odd in my left foot")
+        assert result.tier is Tier.URGENT
+
+    def test_the_rule_layer_never_emits_it(self, no_model):
+        from app.core.rules_triage import classify
+
+        for text in ("I have a cold", "sore throat for over a week", "my foot feels odd"):
+            assert classify(text).tier_name != "CLINICIAN_SOON"
+
+    def test_it_is_ordered_between_self_care_and_urgent(self):
+        assert Tier.SELF_CARE < Tier.CLINICIAN_SOON < Tier.URGENT < Tier.EMERGENT
+
+
+def test_a_red_flag_never_waits_on_the_model(monkeypatch):
+    """Emergency guidance must not sit behind a model round trip (decision 3)."""
+
+    def _must_not_be_called(description: str):
+        raise AssertionError("the model was consulted on a red flag")
+
+    monkeypatch.setattr(triage, "credentials_available", lambda: True)
+    monkeypatch.setattr(triage, "_classify_with_model", _must_not_be_called)
+
+    result = assess("crushing chest pain going down my left arm")
+
+    assert result.tier is Tier.EMERGENT
+    assert result.model_tier is None

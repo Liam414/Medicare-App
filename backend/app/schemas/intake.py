@@ -147,7 +147,7 @@ class IntakeHistoryItemOut(BaseModel):
 class IntakeResponse(BaseModel):
     status: Literal["assessed"] = "assessed"
     id: str | None  # null when the user did not consent to storage
-    tier: str  # EMERGENT | URGENT | SELF_CARE
+    tier: str  # EMERGENT | URGENT | CLINICIAN_SOON | SELF_CARE
     reasoning: str
 
     # True when deterministic red-flag screening matched, independent of the

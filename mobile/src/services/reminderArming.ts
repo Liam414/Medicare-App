@@ -38,6 +38,7 @@ import { listMedications } from "@/services/medicationService";
 import { scheduleAll } from "@/services/notificationService";
 import { toRefillAlerts, type RefillAlert } from "@/services/refillAlerts";
 import { getCheckIn, toCheckInAlerts } from "@/services/checkIns";
+import { listFollowUps, toFollowUpAlerts } from "@/services/followUpService";
 import { listProfiles } from "@/services/profileService";
 import {
   listSchedules,
@@ -130,12 +131,27 @@ async function everyonesMedications(leadDays: number) {
  * part of the whole set and `scheduleAll` cancels everything before arming.
  * An unreadable store costs the check-in notification, never the dose ones.
  */
+/**
+ * Every one-off alert: the device check-in plus each person's open
+ * follow-ups. One list, armed in the same call as everything else, because
+ * `cancelAll` clears the lot. A failure on either half costs that half only.
+ */
 async function checkInAlerts() {
-  try {
-    return toCheckInAlerts(await getCheckIn());
-  } catch {
-    return [];
-  }
+  const [checkIn, followUps] = await Promise.all([
+    getCheckIn()
+      .then((c) => toCheckInAlerts(c))
+      .catch(() => []),
+    everyonesFollowUps().catch(() => []),
+  ]);
+  return [...checkIn, ...toFollowUpAlerts(followUps)];
+}
+
+async function everyonesFollowUps() {
+  const profiles = await listProfiles().catch(() => []);
+  const lists = await Promise.all(
+    [null, ...profiles].map((profile) => listFollowUps(profile?.id ?? null).catch(() => []))
+  );
+  return lists.flat();
 }
 
 /**

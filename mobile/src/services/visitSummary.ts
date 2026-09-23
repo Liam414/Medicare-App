@@ -20,6 +20,7 @@
  */
 
 import { PAST_TIER_LABELS, type PastAssessment } from "@/services/intakeService";
+import type { HealthProfile } from "@/services/healthProfileService";
 import type { Medication } from "@/services/medicationService";
 
 const NOT_A_DIAGNOSIS =
@@ -48,6 +49,8 @@ function formatDate(iso: string): string {
 export function buildVisitSummary(input: {
   assessments: PastAssessment[];
   medications: Medication[] | null;
+  /** `null` when it could not be loaded — said so, never silently omitted. */
+  healthProfile?: HealthProfile | null;
   preparedOn: Date;
   /** Whose summary, when it is not the account holder's. */
   forName?: string | null;
@@ -90,6 +93,25 @@ export function buildVisitSummary(input: {
         .filter(Boolean)
         .join(" — ");
       lines.push(`- ${parts}`);
+    }
+  }
+
+  // ⛔ Allergies and conditions are always present as sections. A missing
+  // allergies line reads as "no allergies", so an empty list and a failed
+  // load are both said in words. Entries are quoted as the person typed them.
+  if (input.healthProfile !== undefined) {
+    for (const [heading, key] of [
+      ["ALLERGIES I HAVE RECORDED", "allergies"],
+      ["CONDITIONS I HAVE RECORDED", "conditions"],
+    ] as const) {
+      lines.push("", heading);
+      if (input.healthProfile === null) {
+        lines.push("Could not be loaded when this summary was prepared.");
+      } else if (input.healthProfile[key].length === 0) {
+        lines.push("Not recorded in MedHelp.");
+      } else {
+        for (const entry of input.healthProfile[key]) lines.push(`- ${entry}`);
+      }
     }
   }
 

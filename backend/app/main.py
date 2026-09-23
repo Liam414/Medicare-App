@@ -7,9 +7,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api import (
+    account,
     appointments,
     auth,
+    check_ins,
+    follow_up,
     goals,
+    health_profile,
     intake,
     medications,
     profiles,
@@ -282,6 +286,11 @@ app.include_router(reminders.router)
 app.include_router(appointments.router)
 app.include_router(goals.router)
 app.include_router(profiles.router)
+app.include_router(health_profile.router)
+app.include_router(account.router)
+app.include_router(check_ins.router)
+app.include_router(follow_up.follow_ups)
+app.include_router(follow_up.readings)
 
 
 @app.on_event("startup")

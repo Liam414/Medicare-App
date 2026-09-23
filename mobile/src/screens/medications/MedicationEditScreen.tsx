@@ -104,6 +104,13 @@ export function MedicationEditScreen({ navigation, route }: Props) {
     existing?.dosesPerDay != null ? String(existing.dosesPerDay) : ""
   );
 
+  // Recorded, never advised (decision 4). Round-tripped on every save because
+  // the server replaces all editable fields — dropping them would erase them.
+  const [startedOn, setStartedOn] = useState(existing?.startedOn ?? "");
+  const [stoppedOn, setStoppedOn] = useState(existing?.stoppedOn ?? "");
+  const [startedError, setStartedError] = useState<string | null>(null);
+  const [stoppedError, setStoppedError] = useState<string | null>(null);
+
   const [nameError, setNameError] = useState<string | null>(null);
   const [refillDateError, setRefillDateError] = useState<string | null>(null);
   const [quantityError, setQuantityError] = useState<string | null>(null);
@@ -132,6 +139,15 @@ export function MedicationEditScreen({ navigation, route }: Props) {
       label: "how many times a day you take this",
     });
     const nextCountedOnError = validateIsoDate(quantityCountedOn);
+    const nextStartedError = validateIsoDate(startedOn);
+    const nextStoppedError =
+      validateIsoDate(stoppedOn) ??
+      (startedOn.trim() && stoppedOn.trim() && stoppedOn.trim() < startedOn.trim()
+        ? "The stop date is before the start date."
+        : null);
+    setStartedError(nextStartedError);
+    setStoppedError(nextStoppedError);
+    if (nextStartedError || nextStoppedError) return;
 
     setNameError(nextNameError);
     setRefillDateError(nextDateError);
@@ -166,6 +182,8 @@ export function MedicationEditScreen({ navigation, route }: Props) {
         ? quantityCountedOn.trim() || todayIso()
         : null,
       dosesPerDay: dosesPerDay.trim() ? Number(dosesPerDay.trim()) : null,
+      startedOn: startedOn.trim() || null,
+      stoppedOn: stoppedOn.trim() || null,
     };
 
     setSaving(true);
@@ -364,6 +382,26 @@ export function MedicationEditScreen({ navigation, route }: Props) {
       />
 
       <TextField
+        label="Started on"
+        placeholder="YYYY-MM-DD"
+        value={startedOn}
+        onChangeText={setStartedOn}
+        error={startedError}
+        hint="Optional."
+        editable={!busy}
+      />
+
+      <TextField
+        label="Stopped on"
+        placeholder="YYYY-MM-DD"
+        value={stoppedOn}
+        onChangeText={setStoppedOn}
+        error={stoppedError}
+        hint="Optional. Reminders stop once this date arrives. Talk to your doctor or pharmacist before stopping or changing a medicine."
+        editable={!busy}
+      />
+
+      <TextField
         label="Notes"
         placeholder="Anything you want to remember"
         value={notes}
@@ -379,6 +417,16 @@ export function MedicationEditScreen({ navigation, route }: Props) {
         loading={saving}
         disabled={deleting || (!isEditing && !ready)}
       />
+
+      {existing && (
+        <AppButton
+          label="History"
+          variant="secondary"
+          onPress={() => navigation.navigate("MedicationHistory", { medicationId: existing.id })}
+          accessibilityHint="Doses you marked, start and stop dates, and changes"
+          disabled={busy}
+        />
+      )}
 
       {isEditing && (
         <AppButton

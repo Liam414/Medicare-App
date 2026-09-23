@@ -72,6 +72,7 @@ services:
       python scripts/add_goal_schedule_columns.py &&
       python scripts/add_goal_detail_columns.py &&
       python scripts/add_care_profile_columns.py &&
+      python scripts/add_medication_history_columns.py &&
       uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
@@ -98,6 +99,13 @@ services:
       # short, set one by hand in the dashboard:
       #     python -c "import secrets; print(secrets.token_hex(32))"
       - key: JWT_SECRET_KEY
+        generateValue: true
+
+      # The secret the health profile is encrypted under (app/core/crypto.py).
+      # The API refuses to boot without one of 32+ characters.
+      # ⛔ Never regenerate it on an existing database: everything encrypted
+      # under the old value becomes unreadable.
+      - key: DATA_ENCRYPTION_KEY
         generateValue: true
 
       # The exact origin the app is served from. This is a literal rather than

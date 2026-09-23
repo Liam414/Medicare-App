@@ -26,7 +26,7 @@ assert _spec.loader is not None
 sys.modules[_spec.name] = heldout
 _spec.loader.exec_module(heldout)
 
-RANK = {"SELF_CARE": 0, "URGENT": 1, "EMERGENT": 2}
+RANK = {"SELF_CARE": 0, "CLINICIAN_SOON": 1, "URGENT": 2, "EMERGENT": 3}
 
 
 def score(cases: list) -> dict:

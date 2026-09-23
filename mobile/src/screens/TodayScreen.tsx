@@ -505,6 +505,30 @@ export function TodayScreen({ navigation }: Props) {
         onPress={() => navigation.navigate("CareProfiles")}
         accessibilityHint="Keep medications, symptoms and visits for someone else separately"
       />
+      <AppButton
+        label="How are you feeling today?"
+        variant="secondary"
+        onPress={() => navigation.navigate("CheckIn")}
+        accessibilityHint="Better, the same or worse, and how that has gone lately"
+      />
+      <AppButton
+        label="Follow-ups"
+        variant="secondary"
+        onPress={() => navigation.navigate("FollowUps")}
+        accessibilityHint="Reminders for care you've been asked to come back for"
+      />
+      <AppButton
+        label="Readings and targets"
+        variant="secondary"
+        onPress={() => navigation.navigate("Readings")}
+        accessibilityHint="Log blood pressure, weight, blood sugar or steps"
+      />
+      <AppButton
+        label="Health profile and your data"
+        variant="secondary"
+        onPress={() => navigation.navigate("HealthProfile")}
+        accessibilityHint="Allergies and conditions, and downloading or deleting your data"
+      />
       {isExpanded ? null : (
         <AppButton
           label="Sign out"

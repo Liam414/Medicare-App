@@ -11,7 +11,9 @@ import { getToken, logout } from "@/services/authService";
 import { apiRequest } from "@/services/apiClient";
 import { profileQuery } from "@/services/profileService";
 
-export type Tier = "EMERGENT" | "URGENT" | "SELF_CARE";
+// CLINICIAN_SOON (decision 2) is only ever a raised SELF_CARE, never a
+// lowered URGENT — the backend guarantees it; see `Tier` in triage.py.
+export type Tier = "EMERGENT" | "URGENT" | "CLINICIAN_SOON" | "SELF_CARE";
 
 export interface EmergencyGuidance {
   category: string;
@@ -365,6 +367,7 @@ export interface PastAssessment {
 export const PAST_TIER_LABELS: Record<Tier, string> = {
   EMERGENT: "Emergency guidance was shown",
   URGENT: "Urgent — be seen soon",
+  CLINICIAN_SOON: "See a clinician in the next few days",
   SELF_CARE: "Usually self-care",
 };
 

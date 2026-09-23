@@ -31,6 +31,8 @@ email-validator==2.2.0
 # in this file is two CVEs in one year. PyJWT has no ECDSA dependency.
 # Ported in app/core/security.py: same HS256, same verified claims.
 PyJWT>=2.10,<3
+# Fernet column encryption for the health profile (app/core/crypto.py).
+cryptography>=44,<51
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 # Seven advisories against 0.0.9, all in the parser that runs *before* any route

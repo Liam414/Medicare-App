@@ -56,8 +56,12 @@ import os
 from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import anthropic
+
+if TYPE_CHECKING:
+    from app.core.profile_triage import ProfileContext
 
 from app.core import deduction, rules_triage
 from app.core.config import settings
@@ -89,8 +93,16 @@ class Tier(IntEnum):
     """
 
     SELF_CARE = 1
-    URGENT = 2
-    EMERGENT = 3
+    # Owner decision 2 (2026-09-22). ⛔ Reachable only by RAISING a SELF_CARE
+    # answer — a model or profile rule saying "see someone in the next few
+    # days" about an ordinarily minor complaint. Nothing that was URGENT
+    # before this tier existed may resolve here: the rule layer never emits
+    # it, and `max()` keeps an URGENT rule tier over a CLINICIAN_SOON model
+    # answer. Splitting today's URGENT rules into "today" and "this week" is a
+    # clinician's call and has not been made.
+    CLINICIAN_SOON = 2
+    URGENT = 3
+    EMERGENT = 4
 
     @property
     def wire_value(self) -> str:
@@ -168,6 +180,11 @@ URGENT — this pattern of symptoms is commonly associated with conditions that 
 should be evaluated by a clinician soon (roughly within a day), but that do \
 not usually require emergency services.
 
+CLINICIAN_SOON — an ordinarily minor pattern of symptoms where a routine \
+appointment in the next few days is still worth arranging: for example it has \
+gone on longer than such things usually do, or the person has a recorded \
+long-term condition. Not today, and not emergency services.
+
 SELF_CARE — this pattern of symptoms is commonly managed at home, and routine \
 care is usually sufficient unless things change.
 
@@ -179,7 +196,10 @@ over-triage does not.
 2. If the description is vague or very short but a symptom is identifiable, \
 choose URGENT rather than SELF_CARE. Absence of alarming detail is not \
 evidence of safety. SELF_CARE has to be earned by a recognisable, ordinarily \
-minor complaint — it is never the default for something you do not follow.
+minor complaint — it is never the default for something you do not follow. \
+CLINICIAN_SOON is only for an ordinarily minor complaint with a reason to \
+have it looked at; if you are torn between CLINICIAN_SOON and URGENT, choose \
+URGENT.
 3. Never state or imply a diagnosis. Do not write "you have", "this is", \
 "this sounds like <condition>", or name a specific condition as the person's. \
 Write only about urgency and about what patterns of symptoms are commonly \
@@ -247,7 +267,7 @@ _RESPONSE_SCHEMA = {
             # NEEDS_MORE_INFO is not a fourth tier. It is the model declining
             # to classify, which the caller turns into a follow-up question
             # rather than into an answer.
-            "enum": ["EMERGENT", "URGENT", "SELF_CARE", "NEEDS_MORE_INFO"],
+            "enum": ["EMERGENT", "URGENT", "CLINICIAN_SOON", "SELF_CARE", "NEEDS_MORE_INFO"],
         },
         "reasoning": {
             "type": "string",
@@ -516,7 +536,12 @@ def _reconcile(
     return max(candidates)
 
 
-def assess(description: str, *, followup_already_asked: bool = False) -> TriageResult:
+def assess(
+    description: str,
+    *,
+    followup_already_asked: bool = False,
+    profile: ProfileContext | None = None,
+) -> TriageResult:
     """
     Estimate urgency for a free-text description.
 
@@ -546,12 +571,17 @@ def assess(description: str, *, followup_already_asked: bool = False) -> TriageR
     emergency = rules.emergency
 
     # Step 2: the model, if one is configured. Skipped silently otherwise —
-    # a missing key degrades quality, it does not break the feature. Even on a
-    # red-flag match we still ask when available, so the audit trail records
-    # what the model would have said.
+    # a missing key degrades quality, it does not break the feature.
+    #
+    # ⛔ NEVER ON A RED FLAG (owner decision 3, approved 2026-09-22). This used
+    # to ask the model anyway so the audit trail recorded what it would have
+    # said — which held the 911 guidance behind a network round trip, minutes
+    # long on a local model. The model cannot change an EMERGENT answer
+    # (`_reconcile` is max()), so asking bought an audit column at the price
+    # of the one instruction that matters.
     verdict: ModelVerdict | None = None
 
-    if credentials_available():
+    if emergency is None and credentials_available():
         try:
             verdict = _classify_with_model(cleaned)
         except TriageUnavailable:
@@ -597,6 +627,14 @@ def assess(description: str, *, followup_already_asked: bool = False) -> TriageR
     if model_tier is not None and final_tier > model_tier:
         reasoning += ESCALATION_NOTE
 
+    # Step 3: the health profile (decision 1). Raise-only — see
+    # `profile_triage.apply`, which returns max(tier, floor). Imported here
+    # because that module imports `Tier` from this one.
+    from app.core import profile_triage
+
+    final_tier, profile_ids, profile_note = profile_triage.apply(final_tier, cleaned, profile)
+    reasoning += profile_note
+
     return TriageResult(
         tier=final_tier,
         reasoning=reasoning,
@@ -608,7 +646,7 @@ def assess(description: str, *, followup_already_asked: bool = False) -> TriageR
             model_tier is not None and final_tier > model_tier
         ),
         rule_tier=rule_tier,
-        rule_ids=[match.rule_id for match in rules.matches],
+        rule_ids=[match.rule_id for match in rules.matches] + profile_ids,
         rules_defaulted=rules.defaulted,
         model_confidence=confidence,
         model_requested_followup=model_requested_followup,

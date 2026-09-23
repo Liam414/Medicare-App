@@ -23,7 +23,10 @@ has confirmed on screen - see `services/dose_schedule.py` for why the split
 matters.
 """
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
@@ -85,9 +88,15 @@ def list_schedules(
     Medications with no reminders are included, so the screen can offer to set
     some up rather than hiding them.
     """
+    # ⛔ A medication the person has recorded as stopped is left out, so no
+    # client arms an alarm for it. This list is what `reminderArming` arms.
+    today = date.today()
     medications = (
         db.query(Medication)
-        .filter(Medication.user_id == user.id)
+        .filter(
+            Medication.user_id == user.id,
+            or_(Medication.stopped_on.is_(None), Medication.stopped_on > today),
+        )
         .order_by(Medication.name)
         .all()
     )

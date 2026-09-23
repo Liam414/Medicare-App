@@ -7,7 +7,7 @@ import { EmergencyCallBar } from "@/components/EmergencyCallBar";
 import { GlyphTile } from "@/components/Glyph";
 import { Screen } from "@/components/Screen";
 import { setCheckIn } from "@/services/checkIns";
-import { reportAssessmentWrong } from "@/services/intakeService";
+import { PAST_TIER_LABELS, reportAssessmentWrong, type Tier } from "@/services/intakeService";
 import {
   getPermission,
   requestPermission,
@@ -59,7 +59,7 @@ function CheckInOffer({
   tier,
 }: {
   description: string;
-  tier: "URGENT" | "SELF_CARE";
+  tier: Exclude<Tier, "EMERGENT">;
 }) {
   const [dueAt, setDueAt] = useState<Date | null>(null);
   const [failed, setFailed] = useState(false);
@@ -127,6 +127,8 @@ export function IntakeResultScreen({ navigation, route }: Props) {
   };
 
   const isEmergent = assessment.tier === "EMERGENT";
+  // Both "be seen" tiers get the notice palette and the provider hand-off.
+  const beSeen = assessment.tier === "URGENT" || assessment.tier === "CLINICIAN_SOON";
 
   /*
     The emergency screen is deliberately almost empty.
@@ -236,24 +238,13 @@ export function IntakeResultScreen({ navigation, route }: Props) {
             reviewed notice or success family, never a hue of the app's own.
           */}
           <GlyphTile
-            name={assessment.tier === "URGENT" ? "clock" : "check"}
+            name={beSeen ? "clock" : "check"}
             size={TILE.xl}
-            tint={
-              assessment.tier === "URGENT"
-                ? colors.noticeSurface
-                : colors.successSurface
-            }
-            color={
-              assessment.tier === "URGENT" ? colors.noticeText : colors.successText
-            }
+            tint={beSeen ? colors.noticeSurface : colors.successSurface}
+            color={beSeen ? colors.noticeText : colors.successText}
           />
-          {/* EMERGENT returned above, so only these two tiers reach here. */}
-          <TierBadge
-            label={
-              assessment.tier === "URGENT" ? "Urgent — be seen soon" : "Usually self-care"
-            }
-            tone={assessment.tier === "URGENT" ? "urgent" : "self"}
-          />
+          {/* EMERGENT returned above, so only these three tiers reach here. */}
+          <TierBadge label={PAST_TIER_LABELS[assessment.tier]} tone={beSeen ? "urgent" : "self"} />
           <Text style={styles.reasoning}>{assessment.reasoning}</Text>
           {assessment.escalatedBySafetyNet && (
             <Text style={styles.escalationNote}>
@@ -364,10 +355,11 @@ export function IntakeResultScreen({ navigation, route }: Props) {
         is offered, so it belongs in the clinical reviewer's read of this
         screen rather than being treated as ordinary UI work.
       */}
-      {assessment.tier === "URGENT" && (
+      {beSeen && (
         <View style={styles.section}>
           <Text style={styles.sectionHeading}>Being seen</Text>
           <Text style={styles.sectionBody}>
+            You should consider seeing a clinician. Want help setting that up?
             MedHelp can help you find a provider nearby and keep the details in
             one place. It cannot make the appointment for you — you will still
             need to call — and it does not send anything to a clinic.
@@ -379,7 +371,7 @@ export function IntakeResultScreen({ navigation, route }: Props) {
               navigation.navigate("ProviderSearch", {
                 intake: {
                   reasonForVisit: description ?? "",
-                  tier: "URGENT",
+                  tier: assessment.tier,
                   assessmentId: assessment.id,
                 },
               })
@@ -397,9 +389,10 @@ export function IntakeResultScreen({ navigation, route }: Props) {
         `checkIns.ts`. NOTE FOR REVIEW: new block on a fenced screen; no
         disclaimer or escalation copy changed.
       */}
+      {/* EMERGENT returned above; the cast only restates that for TypeScript. */}
       <CheckInOffer
         description={description ?? ""}
-        tier={assessment.tier === "URGENT" ? "URGENT" : "SELF_CARE"}
+        tier={assessment.tier as Exclude<Tier, "EMERGENT">}
       />
 
       {/*

@@ -316,7 +316,7 @@ export function ProviderSearchScreen({ navigation, route }: Props) {
       {intake && (
         <View style={styles.context}>
           <Text style={styles.contextHeading}>
-            {intake.tier === "URGENT"
+            {intake.tier === "URGENT" || intake.tier === "CLINICIAN_SOON"
               ? "Following up on your symptom check"
               : "From your symptom check"}
           </Text>

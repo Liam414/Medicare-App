@@ -386,4 +386,4 @@ CASES: list[Case] = (
 TIERS: tuple[str, ...] = ("SELF_CARE", "URGENT", "EMERGENT")
 
 # Rank for comparing two tiers, matching triage.Tier's ordering.
-TIER_RANK: dict[str, int] = {"SELF_CARE": 1, "URGENT": 2, "EMERGENT": 3}
+TIER_RANK: dict[str, int] = {"SELF_CARE": 1, "CLINICIAN_SOON": 2, "URGENT": 3, "EMERGENT": 4}

@@ -10,6 +10,7 @@ import { ScreenBand } from "@/components/ScreenBand";
 import { SuccessNotice } from "@/components/SuccessNotice";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { ApiError } from "@/services/apiClient";
+import { getHealthProfile, type HealthProfile } from "@/services/healthProfileService";
 import { PAST_TIER_LABELS, listPastAssessments, type PastAssessment } from "@/services/intakeService";
 import { listMedications, type Medication } from "@/services/medicationService";
 import { buildVisitSummary, shareSummary } from "@/services/visitSummary";
@@ -31,6 +32,8 @@ const SHARE_OUTCOME: Record<string, string> = {
 export function VisitSummaryScreen({ navigation }: Props) {
   const [assessments, setAssessments] = useState<PastAssessment[] | null>(null);
   const [medications, setMedications] = useState<Medication[] | null>(null);
+  // undefined while loading, null if it failed.
+  const [healthProfile, setHealthProfile] = useState<HealthProfile | null | undefined>(undefined);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [includeMedications, setIncludeMedications] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +57,11 @@ export function VisitSummaryScreen({ navigation }: Props) {
             : "We couldn't load what you've saved. Please try again in a moment."
         )
       );
+    // Separate from the two above: a failed profile load is said in the
+    // summary ("could not be loaded") rather than blocking the whole thing.
+    getHealthProfile(profileId)
+      .then(setHealthProfile)
+      .catch(() => setHealthProfile(null));
   }, [ready, profileId]);
 
   const text = useMemo(
@@ -61,10 +69,11 @@ export function VisitSummaryScreen({ navigation }: Props) {
       buildVisitSummary({
         assessments: (assessments ?? []).filter((a) => !excluded.has(a.id)),
         medications: includeMedications ? medications ?? [] : null,
+        healthProfile,
         preparedOn: new Date(),
         forName: active?.displayName ?? null,
       }),
-    [assessments, medications, excluded, includeMedications, active]
+    [assessments, medications, healthProfile, excluded, includeMedications, active]
   );
 
   const toggle = (id: string) =>

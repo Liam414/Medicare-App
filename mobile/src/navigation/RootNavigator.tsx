@@ -8,6 +8,10 @@ import { AppointmentListScreen } from "@/screens/appointments/AppointmentListScr
 import { AppointmentRequestScreen } from "@/screens/appointments/AppointmentRequestScreen";
 import { BookingIdentityScreen } from "@/screens/appointments/BookingIdentityScreen";
 import { CareProfilesScreen } from "@/screens/CareProfilesScreen";
+import { CheckInScreen } from "@/screens/CheckInScreen";
+import { FollowUpsScreen } from "@/screens/FollowUpsScreen";
+import { ReadingsScreen } from "@/screens/ReadingsScreen";
+import { HealthProfileScreen } from "@/screens/HealthProfileScreen";
 import { TodayScreen } from "@/screens/TodayScreen";
 import { EmergencyCardEditScreen } from "@/screens/emergency/EmergencyCardEditScreen";
 import { EmergencyCardScreen } from "@/screens/emergency/EmergencyCardScreen";
@@ -18,6 +22,7 @@ import { IntakeFollowUpScreen } from "@/screens/intake/IntakeFollowUpScreen";
 import { IntakeResultScreen } from "@/screens/intake/IntakeResultScreen";
 import { LoginScreen } from "@/screens/auth/LoginScreen";
 import { MedicationEditScreen } from "@/screens/medications/MedicationEditScreen";
+import { MedicationHistoryScreen } from "@/screens/medications/MedicationHistoryScreen";
 import { MedicationListScreen } from "@/screens/medications/MedicationListScreen";
 import { MedicationRemindersScreen } from "@/screens/medication-reminders/MedicationRemindersScreen";
 import { MedicationScanScreen } from "@/screens/medications/MedicationScanScreen";
@@ -166,6 +171,19 @@ export function RootNavigator() {
           name="CareProfiles"
           component={CareProfilesScreen}
           options={{ title: "People you look after" }}
+        />
+        <Stack.Screen
+          name="MedicationHistory"
+          component={MedicationHistoryScreen}
+          options={{ title: "Medication history" }}
+        />
+        <Stack.Screen name="CheckIn" component={CheckInScreen} options={{ title: "Check-in" }} />
+        <Stack.Screen name="FollowUps" component={FollowUpsScreen} options={{ title: "Follow-ups" }} />
+        <Stack.Screen name="Readings" component={ReadingsScreen} options={{ title: "Readings" }} />
+        <Stack.Screen
+          name="HealthProfile"
+          component={HealthProfileScreen}
+          options={{ title: "Health profile" }}
         />
         <Stack.Screen
           name="SymptomHistory"

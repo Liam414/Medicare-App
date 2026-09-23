@@ -184,6 +184,7 @@ review.
 | 2026-09-12 | removing the health-goal blocking (`MEDICAL_GOAL`, `_FORBIDDEN`) | that removal |
 | 2026-09-13 | detailed, sourced, goal-sized plans | that work |
 | 2026-09-22 | asked by name to approve applying `docs/proposed-emergency-routing-2026-09-22.patch` to `emergency.py` and `rules_triage.py` and building offline emergency screening — "i approve" | that patch and that feature. Applied 2026-09-22, with one narrowing of its own new stroke pattern (a side is required) after it fired on every frozen shoulder in the corpus. |
+| 2026-09-22 | shown eight named decisions for the care-orchestration work (triage reads conditions/allergies and may only raise a tier; a fourth level "see a clinician soon"; skip the model on a red flag and add one-tap 988; a user-marked medication history that says "not marked", never "missed"; trends of the user's own better/same/worse check-ins; user-entered clinical targets and readings; the profile on the server with column encryption; a notice that web dictation goes to the browser's speech service) — "approve all 8" | those eight changes, built phase by phase. **Not** merging or deploying. The skip-the-model edit to `triage.py` was refused by the agent's permission classifier, then allowed by the owner in conversation ("i allow triage edit") and applied: the model is never consulted on a red flag. |
 
 ⛔ **Not one of these is clinical sign-off, and none authorises merging to
 `main`, a second deployment, a custom domain, or any other gated thing that
@@ -536,8 +537,16 @@ read it.** Four rules, each tested:
 
 - One pending "how is it now?" a day after an URGENT or SELF_CARE estimate,
   on the device only. ⛔ **Never offered on EMERGENT.** Tested.
-- ⛔ **Not a triage input.** The earlier tier is shown as a fact and never
-  sent or used; a "new tier may not be lower" floor would be a fenced change.
+- ⛔ **The earlier tier is not a triage input.** It is shown as a fact and
+  never sent or used; a "new tier may not be lower" floor would be a fenced
+  change.
+- **Daily check-ins are server-side** (`app/api/check_ins.py`, decision 5):
+  better / same / worse and an optional encrypted note, one per person per
+  day. The trend draws the person's answers and nothing else — ⛔ no score,
+  streak or "improving". ⛔ A "worse" from today or yesterday floors the next
+  symptom check at CLINICIAN_SOON (`checkin:reported_worse`); it can only
+  raise. That floor goes a step past the eight decisions and was flagged to
+  the owner.
 - ⛔ The notification is generic (lock screen). Explicit sign-out clears the
   check-in; a 401 must not. Armed by `reminderArming` with the whole set.
 - Nothing is added to the person's text when it is prefilled.
@@ -555,6 +564,59 @@ read it.** Four rules, each tested:
   screens wait for the active profile before loading or saving — except
   intake, which never waits. Notifications say whose medicine it is.
 - The emergency card is per person and still makes no network request.
+
+### Health profile and data rights — `app/models/health_profile.py`, `app/api/account.py`
+
+- Conditions and allergies per person (account holder or care profile), free
+  text **stored verbatim**, no picker, never checked or corrected — the
+  emergency card's rule.
+- ⛔ **An empty list means "not recorded", never "none".** Screens say "Not
+  recorded"; the visit summary always carries ALLERGIES and CONDITIONS
+  sections and says a failed load in words. Tested on both sides.
+- ⛔ **The first encrypted table.** `app/core/crypto.py` seals the columns with
+  Fernet under a key derived from `DATA_ENCRYPTION_KEY`; outside development a
+  missing or short secret refuses to boot. A value that will not decrypt
+  **raises** — never reads as an empty allergy list. Never regenerate the key
+  on an existing database.
+- **Triage reads it and may only raise** (`app/core/profile_triage.py`,
+  decision 1): an allergen the person listed named in the description, or
+  "Yes" to the round-one allergy question → URGENT; "not sure" →
+  CLINICIAN_SOON; a recorded condition turns SELF_CARE into CLINICIAN_SOON.
+  ⛔ `apply` returns max(tier, floor), tested exhaustively. Fired floors join
+  `rule_ids` as `profile:*`. A bad or unreadable profile never blocks
+  screening. The model is not yet given the profile.
+
+### The fourth level — `Tier.CLINICIAN_SOON` (decision 2)
+
+- "See a clinician in the next few days", between SELF_CARE and URGENT.
+  ⛔ **Reachable only by raising a SELF_CARE answer** — from the model, the
+  profile floors or a "worse" check-in. The rule layer never emits it, and
+  `max()` keeps an URGENT rule tier over it. Splitting today's URGENT rules
+  into "today" and "this week" is a clinician's call and has not been made.
+- Both "be seen" tiers get the provider hand-off ("You should consider seeing
+  a clinician. Want help setting that up?"); check-ins are offered on every
+  tier except EMERGENT.
+- ⛔ **On a red flag the model is never consulted** (decision 3) — emergency
+  guidance does not wait on a network round trip. One-tap "Call 988" sits
+  beside "Call 911" in `EmergencyCallBar`.
+- Web dictation says, before the first tap, that the browser's speech service
+  may send audio to its maker (decision 8).
+
+### Follow-ups, readings and targets — `app/api/follow_up.py` (decisions 5, 6)
+
+- Follow-ups ("back to Dr X in 2 weeks", a post-visit check-in) are the
+  person's words, encrypted, with a due date; open ones fire a generic
+  one-off 09:00 alert on the day, armed with everything else.
+- ⛔ **A target is the clinician's figure, stored verbatim and never parsed.
+  Nothing compares a reading with it** or calls one high, low, good or bad —
+  that is interpreting a clinical value. "Due" is date arithmetic on the
+  interval the person chose. Entry bounds catch typos; they are not
+  thresholds. Readings are encrypted.
+- `GET /account/export` returns every row the account owns (no password
+  hash); `DELETE /account` needs the password again. ⛔ A new table holding
+  user rows must join `account._OWNED` — a test fails otherwise.
+- `scripts/triage_eval/profile_scenarios.py` is a frozen blind set carrying a
+  profile per case. ⛔ Never add a phrase because one of its cases missed.
 
 ### Interface language — `mobile/src/i18n/strings.ts`
 
@@ -605,8 +667,15 @@ read it.** Four rules, each tested:
   in order to refuse it** — an interval on a PRN label is a maximum, not a
   schedule.
 - ⛔ **A reminder time is a local wall-clock "HH:MM", never a UTC instant.**
-- ⛔ **This is not an adherence record.** A past time is "earlier today", never
-  "missed". No streaks, no percentages, no "3 of 4 done".
+- ⛔ **Never inferred adherence.** A past reminder time is "earlier today",
+  never "missed". No streaks, no percentages, no "3 of 4 done".
+- **Medication history** (decision 4): `medication_doses` holds only what the
+  person tapped, "taken" or "skipped"; an untapped time is ⛔ **"Not marked",
+  never "missed"**. `medication_changes` records name/dose/directions/date
+  changes automatically, encrypted. `started_on`/`stopped_on` are recorded,
+  never advised, and ⛔ **a stopped medication is left out of `/reminders`**,
+  so nothing arms an alarm for it. Needs
+  `scripts/add_medication_history_columns.py` on existing databases.
 - ⛔ **Local notifications only.** No push token, no Expo push, FCM, APNs or
   Web Push without a BAA decision. ⛔ Never ask for permission without a user
   gesture.
@@ -752,9 +821,11 @@ Full text, including the seven closed with tests: `docs/security-posture.md`.
 ⛔ **Still open — each needs a call before the app holds real user data:**
 
 1. The app connects to Postgres as the `postgres` superuser.
-2. **Nothing is encrypted at rest.** `medications`, `intake_assessments`,
+2. **Almost nothing is encrypted at rest.** Only `health_profiles` is
+   (column-level, `app/core/crypto.py`). `medications`, `intake_assessments`,
    `medication_reminders`, `appointments.reason_for_visit`, the goals tables,
-   and the emergency card in a browser. The largest remaining gap.
+   and the emergency card in a browser are still plaintext. The largest
+   remaining gap; `EncryptedJSON` is the tool for closing it table by table.
 3. The dev database holds a real email address. Synthetic data only.
 4. No token revocation and no refresh flow.
 5. Signup discloses whether an address is registered (kept deliberately).

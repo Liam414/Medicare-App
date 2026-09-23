@@ -61,6 +61,11 @@ class MedicationBase(BaseModel):
     quantity_counted_on: date | None = None
     doses_per_day: int | None = Field(None, ge=1, le=MAX_DOSES_PER_DAY)
 
+    # When the person says they started and stopped it. Recorded, never
+    # advised. A change to either is written to the change history.
+    started_on: date | None = None
+    stopped_on: date | None = None
+
     @field_validator("name")
     @classmethod
     def _name_not_blank(cls, value: str) -> str:
@@ -84,6 +89,12 @@ class MedicationBase(BaseModel):
         """
         if self.quantity_remaining is not None and self.quantity_counted_on is None:
             self.quantity_counted_on = date.today()
+        return self
+
+    @model_validator(mode="after")
+    def _stopped_after_started(self) -> "MedicationBase":
+        if self.started_on and self.stopped_on and self.stopped_on < self.started_on:
+            raise ValueError("The stop date is before the start date.")
         return self
 
 

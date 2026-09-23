@@ -77,10 +77,37 @@ def test_two_development_processes_do_not_share_a_generated_secret():
 def test_a_real_secret_is_left_alone():
     secret = "a" * MIN_JWT_SECRET_LENGTH
     settings = Settings(
-        environment="production", jwt_secret_key=secret, _env_file=None
+        environment="production",
+        jwt_secret_key=secret,
+        data_encryption_key=DATA_KEY,
+        _env_file=None,
     )
 
     assert settings.jwt_secret_key == secret
+
+
+# --------------------------------------------------------------------------
+# The key health data is encrypted under
+# --------------------------------------------------------------------------
+
+DATA_KEY = "d" * MIN_JWT_SECRET_LENGTH
+
+
+@pytest.mark.parametrize("key", ["", "too-short"])
+def test_a_missing_or_invalid_data_key_refuses_to_boot_outside_development(key):
+    with pytest.raises(ValidationError) as exc:
+        Settings(
+            environment="production",
+            jwt_secret_key="a" * MIN_JWT_SECRET_LENGTH,
+            data_encryption_key=key,
+            _env_file=None,
+        )
+
+    assert "DATA_ENCRYPTION_KEY" in str(exc.value)
+
+
+def test_development_runs_without_a_data_key():
+    Settings(environment="local", data_encryption_key="", _env_file=None)
 
 
 # --------------------------------------------------------------------------
@@ -94,6 +121,7 @@ def test_wildcard_cors_refused_outside_development():
             environment="production",
             jwt_secret_key="a" * MIN_JWT_SECRET_LENGTH,
             cors_allow_origins="*",
+            data_encryption_key=DATA_KEY,
             _env_file=None,
         )
 
@@ -717,6 +745,12 @@ _ALLOWED_QUERY_PARAMS = {
     "/medications": {"refill_lead_days", "profile_id"},
     "/intake": {"profile_id"},
     "/appointments": {"profile_id"},
+    "/health-profile": {"profile_id"},
+    # `days` is a bounded integer window, never text a person wrote.
+    "/check-ins": {"profile_id", "days"},
+    "/follow-ups": {"profile_id"},
+    # `kind` is one of four fixed literals; `days` a bounded integer.
+    "/readings": {"profile_id", "kind", "days"},
     "/providers/search": {"postal_code", "care_setting", "limit"},
     "/goals": {"on"},
 }

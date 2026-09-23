@@ -14,7 +14,7 @@ import type { Provider } from "@/services/providerService";
  */
 export interface IntakeContext {
   reasonForVisit: string;
-  tier: "EMERGENT" | "URGENT" | "SELF_CARE";
+  tier: "EMERGENT" | "URGENT" | "CLINICIAN_SOON" | "SELF_CARE";
   assessmentId: string | null;
 }
 
@@ -83,6 +83,8 @@ export type RootStackParamList = {
   MedicationEdit:
     | { medication?: Medication; scanned?: ParsedLabel }
     | undefined;
+  // An id only; the screen loads the history itself.
+  MedicationHistory: { medicationId: string };
   /**
    * `savedFor` names the medication whose times were just saved, so the list
    * can confirm it. Only a display name - never anything that is not already
@@ -105,6 +107,14 @@ export type RootStackParamList = {
    */
   // Who this account keeps records for, and which one is on screen.
   CareProfiles: undefined;
+  // Conditions, allergies and the account's export/delete. Takes no params:
+  // health data never travels in a route param (see EmergencyCard above).
+  HealthProfile: undefined;
+  // "How are you feeling today?" and the trend of the person's own answers.
+  CheckIn: undefined;
+  FollowUps: undefined;
+  // Which measure to open on; a fixed literal, never a value.
+  Readings: { kind?: "blood_pressure" | "weight" | "blood_glucose" | "steps" } | undefined;
 
   EmergencyCard: undefined;
   EmergencyCardEdit: undefined;

@@ -46,6 +46,9 @@ export interface Medication {
   quantityRemaining: number | null;
   quantityCountedOn: string | null;
   dosesPerDay: number | null;
+  /** When the person says they started and stopped it. Recorded, never advised. */
+  startedOn?: string | null;
+  stoppedOn?: string | null;
   /**
    * A date the user wrote down, and the flags derived from it. Not the same
    * claim as `refillEstimate` below, which is arithmetic MedHelp does — one is
@@ -73,6 +76,8 @@ export interface MedicationInput {
    * falls back to the reminder times the user confirmed.
    */
   dosesPerDay?: number | null;
+  startedOn?: string | null;
+  stoppedOn?: string | null;
 }
 
 export class MedicationError extends Error {
@@ -141,6 +146,8 @@ interface ApiMedication {
   quantity_remaining: number | null;
   quantity_counted_on: string | null;
   doses_per_day: number | null;
+  started_on?: string | null;
+  stopped_on?: string | null;
   refill_due_soon: boolean;
   refill_overdue: boolean;
   days_until_refill: number | null;
@@ -192,6 +199,8 @@ function fromApi(item: ApiMedication): Medication {
     quantityRemaining: item.quantity_remaining ?? null,
     quantityCountedOn: item.quantity_counted_on ?? null,
     dosesPerDay: item.doses_per_day ?? null,
+    startedOn: item.started_on ?? null,
+    stoppedOn: item.stopped_on ?? null,
     refillDueSoon: item.refill_due_soon,
     refillOverdue: item.refill_overdue,
     daysUntilRefill: item.days_until_refill,
@@ -210,6 +219,8 @@ function toApi(input: MedicationInput) {
     quantity_remaining: input.quantityRemaining ?? null,
     quantity_counted_on: input.quantityCountedOn ?? null,
     doses_per_day: input.dosesPerDay ?? null,
+    started_on: input.startedOn ?? null,
+    stopped_on: input.stoppedOn ?? null,
   };
 }
 
@@ -320,4 +331,80 @@ export async function deleteMedication(id: string): Promise<void> {
     method: "DELETE",
     fallbackMessage: "We couldn't delete this medication. Please try again in a moment.",
   });
+}
+
+// --- History (owner decision 4) -------------------------------------------
+//
+// ⛔ A dose exists only because the person tapped it. A time with no dose is
+// "Not marked" — never "missed": MedHelp has no idea whether it was taken.
+
+export type DoseStatus = "taken" | "skipped";
+
+export interface Dose {
+  id: string;
+  takenOn: string;
+  timeOfDay: string;
+  status: DoseStatus;
+}
+
+export interface MedicationHistory {
+  startedOn: string | null;
+  stoppedOn: string | null;
+  doses: Dose[];
+  changes: { changedAt: string; changes: Record<string, [unknown, unknown]> }[];
+}
+
+type ApiDose = { id: string; taken_on: string; time_of_day: string; status: DoseStatus };
+
+const doseFromApi = (d: ApiDose): Dose => ({
+  id: d.id,
+  takenOn: d.taken_on,
+  timeOfDay: d.time_of_day,
+  status: d.status,
+});
+
+export async function getMedicationHistory(id: string): Promise<MedicationHistory> {
+  const body = (await request(`/medications/${encodeURIComponent(id)}/history`, {
+    method: "GET",
+    fallbackMessage: "We couldn't load this medication's history. Please try again in a moment.",
+  })) as {
+    started_on: string | null;
+    stopped_on: string | null;
+    doses: ApiDose[];
+    changes: { changed_at: string; changes: Record<string, [unknown, unknown]> }[];
+  };
+  return {
+    startedOn: body.started_on,
+    stoppedOn: body.stopped_on,
+    doses: body.doses.map(doseFromApi),
+    changes: body.changes.map((c) => ({ changedAt: c.changed_at, changes: c.changes })),
+  };
+}
+
+/** Record a tap. `timeOfDay` is the reminder's "HH:MM", or "" for none. */
+export async function markDose(
+  id: string,
+  takenOn: string,
+  timeOfDay: string,
+  status: DoseStatus
+): Promise<Dose> {
+  const body = await request(`/medications/${encodeURIComponent(id)}/doses`, {
+    method: "POST",
+    body: JSON.stringify({ taken_on: takenOn, time_of_day: timeOfDay, status }),
+    fallbackMessage: "We couldn't save that. Please try again in a moment.",
+  });
+  return doseFromApi(body as ApiDose);
+}
+
+export async function unmarkDose(id: string, doseId: string): Promise<void> {
+  await request(`/medications/${encodeURIComponent(id)}/doses/${encodeURIComponent(doseId)}`, {
+    method: "DELETE",
+    fallbackMessage: "We couldn't undo that. Please try again in a moment.",
+  });
+}
+
+/** The device's local calendar day as "YYYY-MM-DD" — never a UTC date. */
+export function localDay(date: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }

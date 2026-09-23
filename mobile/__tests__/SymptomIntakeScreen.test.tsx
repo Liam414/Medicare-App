@@ -316,6 +316,20 @@ describe("SymptomIntakeScreen", () => {
     expect(mockedSubmit).toHaveBeenCalledTimes(1);
   });
 
+  it("says, before anyone dictates, that browser dictation may send audio off the device", () => {
+    const { Platform } = require("react-native");
+    const originalOS = Platform.OS;
+    Object.defineProperty(Platform, "OS", { value: "web", configurable: true });
+    (window as any).webkitSpeechRecognition = class {};
+    try {
+      renderScreen();
+      expect(screen.getByText(/may send\s+your voice to the browser's maker/)).toBeTruthy();
+    } finally {
+      Object.defineProperty(Platform, "OS", { value: originalOS, configurable: true });
+      delete (window as any).webkitSpeechRecognition;
+    }
+  });
+
   it("keeps typing available when dictation is unsupported", () => {
     renderScreen();
 

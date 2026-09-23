@@ -12,11 +12,11 @@ import { MIN_TAP_TARGET, colors, radius, spacing, typography } from "@/theme";
  * navigating anywhere. Do not make this conditional on tier.
  */
 export function EmergencyCallBar({ compact = false }: { compact?: boolean }) {
-  const call = () => {
+  const call = (number: "911" | "988") => {
     // telprompt lets iOS users cancel before dialling; Android has no
     // equivalent, so tel: is used there.
     const scheme = Platform.OS === "ios" ? "telprompt" : "tel";
-    Linking.openURL(`${scheme}:911`).catch(() => {
+    Linking.openURL(`${scheme}:${number}`).catch(() => {
       // No dialler (e.g. the web preview) — the number is written below.
     });
   };
@@ -32,13 +32,27 @@ export function EmergencyCallBar({ compact = false }: { compact?: boolean }) {
         <Text style={styles.sublabel}>
           Call 911, or your local emergency number.
         </Text>
+        {/* Approved by the owner 2026-09-22 (decision 3): a one-tap route to
+            the 988 Suicide & Crisis Lifeline beside 911, on every screen that
+            shows this bar. 911 stays the filled, primary action. */}
+        <Text style={styles.sublabel}>
+          For a mental health or suicide crisis, call or text 988.
+        </Text>
       </View>
-      <AppButton
-        label="Call 911"
-        onPress={call}
-        style={styles.button}
-        accessibilityHint="Calls emergency services from your phone"
-      />
+      <View style={styles.buttons}>
+        <AppButton
+          label="Call 911"
+          onPress={() => call("911")}
+          style={styles.button}
+          accessibilityHint="Calls emergency services from your phone"
+        />
+        <AppButton
+          label="Call 988"
+          variant="outline"
+          onPress={() => call("988")}
+          accessibilityHint="Calls the 988 Suicide and Crisis Lifeline from your phone"
+        />
+      </View>
     </View>
   );
 }
@@ -63,6 +77,11 @@ const styles = StyleSheet.create({
   sublabel: {
     ...typography.caption,
     color: colors.emergencyText,
+  },
+  buttons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
   },
   button: {
     alignSelf: "flex-start",

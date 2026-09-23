@@ -18,6 +18,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "AppointmentRequest">;
 const TIER_LABELS: Record<string, string> = {
   EMERGENT: "Emergency",
   URGENT: "Urgent — be seen soon",
+  CLINICIAN_SOON: "See a clinician in the next few days",
   SELF_CARE: "Usually self-care",
 };
 

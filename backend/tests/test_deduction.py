@@ -360,7 +360,8 @@ class TestReconciliationIsUnchangedByTheNewLayer:
         result = assess("I can't breathe")
 
         assert result.tier is Tier.EMERGENT
-        assert result.escalated_by_safety_net is True
+        # Decision 3: the loop is never started on a red flag.
+        assert result.model_tier is None
 
     def test_a_deduced_self_care_cannot_lower_the_rule_default(
         self, script, endpoint_configured
