@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -215,7 +215,7 @@ export function TodayScreen({ navigation }: Props) {
    * here; see the fence at the top of this file.
    */
   const greeting = (
-    <View style={styles.greeting}>
+    <View style={[styles.greeting, isExpanded && styles.greetingExpanded]}>
       <View style={styles.greetingRow}>
         <Text style={styles.greetingTitle} accessibilityRole="header">
           {t("today.greeting")}
@@ -566,7 +566,17 @@ export function TodayScreen({ navigation }: Props) {
           </View>
         )}
 
-        {greeting}
+        <View style={[styles.opening, isExpanded && styles.openingExpanded]}>
+          <View style={styles.openingGreeting}>{greeting}</View>
+          <View style={styles.photoFrame}>
+            <Image
+              source={require("../../assets/home-photo.jpg")}
+              style={styles.homePhoto}
+              resizeMode="contain"
+              accessibilityLabel="Person holding a small round object"
+            />
+          </View>
+        </View>
 
         <ProfileBanner
           active={active}
@@ -632,6 +642,30 @@ const styles = StyleSheet.create({
   screen: {
     gap: spacing.lg,
   },
+  opening: {
+    gap: spacing.md,
+  },
+  openingExpanded: {
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+  openingGreeting: {
+    flex: 1,
+    minWidth: 0,
+  },
+  photoFrame: {
+    alignSelf: "center",
+    padding: spacing.sm,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  homePhoto: {
+    width: 215,
+    height: 369,
+    borderRadius: radius.lg,
+  },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -668,6 +702,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     padding: spacing.xl,
     gap: spacing.xs,
+  },
+  greetingExpanded: {
+    flex: 1,
+    justifyContent: "center",
   },
   greetingRow: {
     flexDirection: "row",
