@@ -211,3 +211,101 @@ class TestDeterminism:
         tiers = {classify(description).tier_name for _ in range(5)}
 
         assert tiers == {"URGENT"}
+
+
+class TestEverySelfCarePhraseIsBoundedByTheModifierCheck:
+    """
+    ⛔ THE PROPERTY THAT MAKES THE SELF-CARE LIST SAFE TO EXTEND.
+
+    Adding a phrase here is the one edit in this module that can LOWER a tier.
+    CLAUDE.md calls each addition "a decision that a complaint is ordinarily
+    minor", and says what bounds it: "the escalating-modifier check still runs
+    over all of them, so 'a head cold and a high fever' and 'reflux for over a
+    week' are URGENT exactly as before."
+
+    That bound had never been measured. Across all 66 phrases and four
+    modifiers — 264 combinations — **none** stays SELF_CARE. The property
+    holds.
+
+    ⛔ THIS IS DELIBERATELY NOT A PIN ON THE LIST'S CONTENTS. Pinning the exact
+    set would make every legitimate addition fail a test, which teaches people
+    to edit the test rather than think. This asserts the thing that actually
+    matters instead: whatever is in the list, adding a modifier still
+    escalates it. A phrase added tomorrow is checked by this automatically,
+    which is the opposite of a list somebody has to remember to update.
+
+    What it would catch: a phrase whose pattern somehow swallows the modifier —
+    the `a cold` / `a cold sore` defect one level up, where a self-care match
+    survives text that should have overridden it. That defect was found by a
+    10,000-case corpus; this finds the same shape for a few milliseconds.
+    """
+
+    MODIFIERS = (
+        "and a high fever",
+        "for over a week",
+        "and it is getting worse",
+        "and severe pain",
+    )
+
+    def test_no_phrase_stays_self_care_once_a_modifier_is_added(self):
+        from app.core import rules_triage
+
+        escaped: list[tuple[str, str]] = []
+        checked = 0
+
+        for phrase in rules_triage._SELF_CARE_PATTERNS:
+            base = f"I have {phrase}"
+            # A phrase that does not earn SELF_CARE alone is bounded already.
+            if classify(base).tier_name != "SELF_CARE":
+                continue
+            for modifier in self.MODIFIERS:
+                checked += 1
+                if classify(f"{base} {modifier}").tier_name == "SELF_CARE":
+                    escaped.append((phrase, modifier))
+
+        # Guards against a vacuous pass: if the list were renamed or the base
+        # sentence stopped matching, nothing would be checked and the
+        # assertion below would succeed having proved nothing.
+        assert checked > 100, f"only {checked} combinations were checked"
+        assert escaped == [], (
+            "these self-care phrases survive an escalating modifier, so the "
+            f"bound CLAUDE.md relies on does not hold for them: {escaped[:10]}"
+        )
+
+    def test_every_listed_modifier_actually_escalates(self):
+        """
+        ⛔ THE SAME MECHANISM FROM THE OTHER SIDE.
+
+        The test above asks whether every self-care phrase is caught by the
+        modifiers. This asks whether every modifier catches. Both are needed:
+        the first would still pass if half the list were non-functional, as
+        long as the four it samples work.
+
+        A modifier present in `_ESCALATING_MODIFIERS` but not actually
+        escalating is worse than an absent one, because the list is what a
+        reviewer reads to decide the mechanism is adequate. Dead entries make
+        it look more covered than it is.
+
+        All 55 work today. This keeps that true — a phrase added with a typo,
+        or one whose wording cannot match after a change to how these compile,
+        fails here rather than sitting in the list looking like protection.
+        """
+        from app.core import rules_triage
+
+        base = "I have a sore throat"
+        assert classify(base).tier_name == "SELF_CARE", (
+            "the base description no longer earns SELF_CARE, so this test "
+            "cannot tell an escalation from a description that was never "
+            "self-care to begin with"
+        )
+
+        dead = [
+            modifier
+            for modifier in rules_triage._ESCALATING_MODIFIERS
+            if classify(f"{base} {modifier}").tier_name == "SELF_CARE"
+        ]
+
+        assert len(rules_triage._ESCALATING_MODIFIERS) > 20, "list looks truncated"
+        assert dead == [], (
+            f"these modifiers are in the list but do not escalate: {dead[:10]}"
+        )

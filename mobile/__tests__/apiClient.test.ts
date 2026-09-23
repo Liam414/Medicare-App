@@ -58,7 +58,7 @@ describe("apiRequest", () => {
 
     const error = (await apiRequest("/goals", {
       fallbackMessage: "unused",
-    }).catch((caught: ApiError) => caught)) as ApiError;
+    }).catch((caught: unknown) => caught)) as ApiError;
 
     expect(error).toBeInstanceOf(ApiError);
     expect(error.isAuthError).toBe(true);
@@ -78,7 +78,7 @@ describe("apiRequest", () => {
 
     const error = (await apiRequest("/goals", {
       fallbackMessage: "unused",
-    }).catch((caught: ApiError) => caught)) as ApiError;
+    }).catch((caught: unknown) => caught)) as ApiError;
 
     expect(error.isAuthError).toBe(false);
     expect(logout).not.toHaveBeenCalled();
@@ -89,7 +89,7 @@ describe("apiRequest", () => {
 
     const error = (await apiRequest("/goals", {
       fallbackMessage: "unused",
-    }).catch((caught: ApiError) => caught)) as ApiError;
+    }).catch((caught: unknown) => caught)) as ApiError;
 
     expect(error.isAuthError).toBe(true);
     expect(global.fetch).not.toHaveBeenCalled();
@@ -105,7 +105,7 @@ describe("apiRequest", () => {
 
     const error = (await apiRequest("/goals", {
       fallbackMessage: "Can't reach the MedHelp server.",
-    }).catch((caught: ApiError) => caught)) as ApiError;
+    }).catch((caught: unknown) => caught)) as ApiError;
 
     expect(error.isNetworkError).toBe(true);
     expect(error.isAuthError).toBe(false);

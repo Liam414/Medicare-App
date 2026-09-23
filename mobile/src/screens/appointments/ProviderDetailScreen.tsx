@@ -4,19 +4,18 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { AppButton } from "@/components/AppButton";
 import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
+import { formatDistanceMiles } from "@/services/providerService";
 import { colors, elevation, radius, spacing, typography } from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ProviderDetail">;
 
-function formatDistance(miles: number | null): string | null {
-  if (miles === null) return null;
-  return miles < 10 ? `~${miles.toFixed(1)} mi away` : `~${Math.round(miles)} mi away`;
-}
-
 export function ProviderDetailScreen({ navigation, route }: Props) {
   const { provider, intake } = route.params;
-  const distance = formatDistance(provider.distanceMiles);
+  // The shared formatter owns the "~" and the never-a-zero rule; this screen
+  // only adds the wording it uses around it.
+  const formatted = formatDistanceMiles(provider.distanceMiles);
+  const distance = formatted === null ? null : `${formatted} away`;
 
   return (
     <Screen wide domain="care">

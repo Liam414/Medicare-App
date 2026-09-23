@@ -760,3 +760,99 @@ def test_the_query_parameter_allowlist_is_not_stale():
         "the allowlist names routes that no longer exist: "
         f"{sorted(set(_ALLOWED_QUERY_PARAMS) - live)}"
     )
+
+
+class TestA500CarriesTheSameHeadersAsAnythingElse:
+    """
+    ⛔ "EVERY RESPONSE CARRIES..." WAS NOT TRUE OF 500s, AND THE HEADER TESTS
+    ABOVE COULD NOT SEE IT — THEY ALL ASK `/health`, WHICH RETURNS 200.
+
+    An unhandled exception is turned into a response by Starlette's
+    `ServerErrorMiddleware`, which wraps the app OUTSIDE the
+    `@app.middleware("http")` stack. `add_security_headers` therefore never
+    ran on it. Measured before the fix: a 500's only headers were
+    `content-type` and `content-length` — no nosniff, no DENY, no
+    no-referrer, no no-store, no CSP.
+
+    ⛔ THIS ASSERTS PARITY, NOT A LIST. Pinning the five names would mean a
+    header added to the middleware tomorrow is quietly absent from 500s again
+    and nothing fails. Comparing against a real 200 makes the next header
+    automatic.
+    """
+
+    #: Legitimately differ per response, so parity cannot be required.
+    VARIES = {"content-length", "content-type", "date", "server"}
+
+    @pytest.fixture()
+    def boom_client(self):
+        """A client returning 500s instead of re-raising, and a route that fails."""
+        from fastapi.testclient import TestClient
+
+        from app.main import app
+
+        @app.get("/__test_unhandled_error")
+        async def _boom():  # pragma: no cover - the raise is the point
+            raise RuntimeError("synthetic failure raised by a test")
+
+        yield TestClient(app, raise_server_exceptions=False)
+
+        # Never leave it behind: another test hitting it would see a 500 from
+        # a route that has nothing to do with it.
+        app.router.routes = [
+            item
+            for item in app.router.routes
+            if getattr(item, "path", None) != "/__test_unhandled_error"
+        ]
+
+    #: An origin the dev CORS policy allows. ⛔ Parity has to be checked WITH
+    #: an Origin: the first version of this test sent none, so it could not see
+    #: that a 500 also lacked Access-Control-Allow-Origin — which a browser
+    #: turns into a CORS block and the client into "Can't reach the server".
+    ALLOWED_ORIGIN = "http://localhost:8081"
+
+    def test_a_500_carries_every_header_a_200_carries(self, boom_client):
+        headers = {"Origin": self.ALLOWED_ORIGIN}
+        ok = boom_client.get("/health", headers=headers)
+        boom = boom_client.get("/__test_unhandled_error", headers=headers)
+
+        assert ok.headers.get("access-control-allow-origin") == self.ALLOWED_ORIGIN, (
+            "the 200 did not echo the origin, so this cannot check CORS parity"
+        )
+
+        assert ok.status_code == 200
+        assert boom.status_code == 500, "the probe route did not fail as intended"
+
+        expected = {
+            name.lower(): value
+            for name, value in ok.headers.items()
+            if name.lower() not in self.VARIES
+        }
+        assert expected, "the 200 carried no headers, so this proved nothing"
+
+        missing = {
+            name: value
+            for name, value in expected.items()
+            if boom.headers.get(name) != value
+        }
+        assert missing == {}, (
+            "a 500 response is missing headers that a 200 carries, so the "
+            f"'every response' rule does not hold: {sorted(missing)}"
+        )
+
+    def test_the_500_body_still_says_nothing_about_the_failure(self, boom_client):
+        # The headers are the point of this class, but applying them must not
+        # have changed what the body is allowed to say.
+        body = boom_client.get("/__test_unhandled_error").json()
+
+        assert body == {"detail": "Something went wrong. Please try again."}
+        assert "RuntimeError" not in str(body)
+        assert "synthetic failure" not in str(body)
+
+    def test_a_500_does_not_echo_an_origin_the_policy_refuses(self, boom_client):
+        # The fix reuses the CORS policy's own check; this proves it is a check.
+        boom = boom_client.get(
+            "/__test_unhandled_error", headers={"Origin": "https://not-allowed.example"}
+        )
+
+        assert boom.status_code == 500
+        assert "access-control-allow-origin" not in boom.headers

@@ -17,7 +17,10 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
+from passlib.context import CryptContext
+
 from app.api.auth import login_limiter, signup_limiter
+from app.core import security
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
@@ -32,6 +35,25 @@ from app.models import (  # noqa: F401
     provider_location,
     reminder,
     user,
+)
+
+
+# ⛔ THE COST FACTOR IS LOWERED FOR TESTS ONLY, AND test_security.py ASSERTS
+# THE REAL ONE IS NOT. bcrypt is deliberately slow: at the configured cost of
+# 12 a single hash takes ~0.166s, and `verify_dummy` burns a second one on
+# every failed login to keep the timing of "no such account" and "wrong
+# password" indistinguishable. That is right in production and it dominated
+# the suite here — test_appointments_api.py alone spent 54s, of which 0.3s was
+# the tests and the rest was hashing synthetic passwords nobody attacks.
+#
+# ⛔ This weakens hashing inside pytest, so on its own it would mean the suite
+# could no longer notice production being weakened the same way. It does not,
+# because `test_the_production_cost_factor_is_not_the_test_one` reads the real
+# configuration in a fresh interpreter, out of this swap's reach, and asserts
+# its cost is still >= 12. Lower the real one and that test fails.
+security.pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=4, deprecated="auto")
+security._DUMMY_PASSWORD_HASH = security.pwd_context.hash(
+    "synthetic-no-such-account-value-used-only-in-tests"
 )
 
 

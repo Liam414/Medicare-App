@@ -181,6 +181,106 @@ class TestTiers:
         # The lookup was never attempted — no symptom text left the app.
         assert stub_one_topic == []
 
+    @pytest.mark.parametrize(
+        "description",
+        [
+            # ⛔ EVERY ONE OF THESE IS A REAL CORPUS DESCRIPTION THAT EMPTIES
+            # OUT. "I can’t keep anything down" is an URGENT complaint
+            # (cannot_keep_fluids_down), not filler: can/anything/down are all
+            # stopwords, and _TOKEN_RE is [a-z0-9']+ — it contains the ASCII
+            # apostrophe but not the curly one, so can’t splits into can + t
+            # and the t is one character and dropped.
+            #
+            # ⛔ THE CURLY APOSTROPHE IS THE ONE iOS TYPES. "can't" with an
+            # ASCII apostrophe survives as a content word — but only as a
+            # negation, which `names_match` ignores, so it is not sent either.
+            # See the negation-only test below.
+            #
+            # Measured over 12,602 corpus descriptions, 5 reach this and 4 of
+            # them are this complaint.
+            "I can’t keep anything down",
+            "I can’t keep anything down. should I be worried?",
+            "there is I can’t keep anything down and it started yesterday",
+            "I feel a bit off today",
+            # Digits survive tokenising but are dropped as content words, so
+            # this one would have put what looks like a height on the wire.
+            "I am 5 2 and it has been a while now",
+        ],
+    )
+    def test_a_description_with_no_content_words_is_never_sent_to_nlm(
+        self, client, auth_headers, stub_triage, stub_one_topic, topics_enabled, description
+    ):
+        """
+        ⛔ NOT A TEST THAT THE RESULT IS EMPTY — A TEST THAT NOTHING WAS SENT.
+
+        `names_match` compares a topic's names against the description's
+        content words. With none, it is False for every topic, so the filter
+        rejects whatever comes back and the endpoint returns [] either way.
+        Asserting only on `related_topics` would therefore pass just as well
+        with the request still going out.
+
+        What makes that expensive is the fallback it takes: `candidate_queries`
+        gives up and joins the RAW tokens, and unlike every other path it
+        applies no MAX_QUERY_WORDS cap. So the person's entire description
+        would reach NLM — a vendor with no BAA — as a GET query string, for a
+        result that could not have been used.
+
+        CLAUDE.md's vendor table says NLM receives "up to 3 keywords from
+        symptom text". This is the assertion that keeps that sentence true.
+        """
+        stub_triage(_result(tier=Tier.URGENT))
+
+        body = client.post(
+            "/intake/assess", json={"description": description}, headers=auth_headers
+        ).json()
+
+        assert body["related_topics"] == []
+        assert stub_one_topic == [], (
+            "the whole description went to NLM for a search whose results "
+            f"could not be kept: {stub_one_topic!r}"
+        )
+
+    def test_every_query_that_does_go_out_respects_the_documented_cap(
+        self, client, auth_headers, stub_triage, stub_one_topic, topics_enabled
+    ):
+        """
+        The other half: for descriptions that DO have content words, no query
+        may exceed the cap CLAUDE.md documents to the vendor.
+        """
+        from app.services.search_terms import MAX_QUERY_WORDS
+
+        stub_triage(_result(tier=Tier.URGENT))
+        client.post(
+            "/intake/assess",
+            json={"description": "I have had a dry cough and a mild headache for days"},
+            headers=auth_headers,
+        )
+
+        assert stub_one_topic, "nothing was searched, so this proved nothing"
+        too_long = [q for q in stub_one_topic if len(q.split()) > MAX_QUERY_WORDS]
+        assert too_long == [], f"queries over the documented cap reached NLM: {too_long}"
+
+    def test_a_description_whose_only_content_word_is_a_negation_is_not_sent(
+        self, client, auth_headers, stub_triage, stub_one_topic, topics_enabled
+    ):
+        """
+        The ASCII spelling of the same complaint.
+
+        "can't" with an ASCII apostrophe survives as a content word, so the
+        emptiness check alone let this through — and this test used to assert
+        that it WAS searched. But `names_match` drops negations before matching,
+        so ["can't"] can keep no result either: it was the same pointless
+        request to a vendor with no BAA, pinned as correct. Caught by review.
+        """
+        stub_triage(_result(tier=Tier.URGENT))
+        client.post(
+            "/intake/assess",
+            json={"description": "I can't keep anything down"},
+            headers=auth_headers,
+        )
+
+        assert stub_one_topic == [], f"sent for no possible result: {stub_one_topic!r}"
+
     @pytest.mark.parametrize("tier", [Tier.SELF_CARE, Tier.URGENT])
     def test_actionable_tiers_carry_sourced_reading_material(
         self, client, auth_headers, stub_triage, stub_one_topic, topics_enabled, tier

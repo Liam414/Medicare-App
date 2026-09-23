@@ -303,12 +303,35 @@ export async function reportAssessmentWrong(assessmentId: string): Promise<void>
   const token = getToken();
   if (!token) return;
 
-  await fetch(`${API_BASE_URL}/intake/${encodeURIComponent(assessmentId)}/feedback`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ reported_wrong: true }),
-  });
+  try {
+    // ⛔ The same transport refusal every other request path applies. Without
+    // it this was the one call that would put the bearer token on plain http.
+    // Inside the try, so an insecure base URL means nothing is sent — silently,
+    // like any other failure of a best-effort call.
+    assertSecureBaseUrl();
+    await fetch(`${API_BASE_URL}/intake/${encodeURIComponent(assessmentId)}/feedback`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ reported_wrong: true }),
+    });
+  } catch {
+    // ⛔ BEST-EFFORT HAS TO BE IMPLEMENTED, NOT JUST DOCUMENTED. The only
+    // call site is `void reportAssessmentWrong(id)` with no `.catch()`, so a
+    // rejection here became an unhandled promise rejection. A phone out of
+    // signal is the ordinary case, not an edge one: `fetch` rejects with a
+    // TypeError and nothing is listening.
+    //
+    // Swallowing it is right rather than lazy. Telling MedHelp a tier looked
+    // wrong is a nicety; the assessment and its escalation guidance are
+    // already on screen, and nothing the person needs depends on this
+    // request arriving. An error surfaced here would interrupt someone who
+    // had just been told how urgently to seek care, to report that a
+    // courtesy failed.
+    //
+    // A non-OK status was always ignored — the response is never read — so
+    // this only adds the transport half of the same promise.
+  }
 }

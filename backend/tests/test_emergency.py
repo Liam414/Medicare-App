@@ -271,6 +271,172 @@ def test_one_half_of_a_two_term_flag_is_not_enough(description):
     assert screen_for_emergency(description) is None
 
 
+class TestTheOnlyNarrowingInTheFileIsFenced:
+    """
+    ⛔ THE ASYMMETRY THIS CLOSES.
+
+    `_COMBINATIONS` only ever ADDS a detection, and it is fenced by
+    `test_the_set_of_combinations_is_fenced` and probed by the mutation
+    checker. `_VOIDED_BY_PREFIX` REMOVES one — it is described in
+    `emergency.py` as "the only narrowing in that file" — and until now
+    nothing referenced it outside the module at all.
+
+    That is the wrong way round. The set that can only make screening more
+    sensitive was guarded; the set that can make it less sensitive was not.
+
+    CLAUDE.md is explicit about why it matters: "Do not add an entry there to
+    quieten a false positive without the same explicit approval: the
+    one-directional property is what lets the rest of the file be extended
+    without re-reviewing all of it." Every other claim in this module rests on
+    additions being safe. One more voiding prefix, added to silence a noisy
+    match, would cost that argument silently.
+
+    The single entry exists for a reasoned case the owner approved on
+    2026-09-14: somebody typing "food poisoning" is handing the app a
+    self-assigned label, and routing that to Poison Control triages the word
+    rather than the person.
+    """
+
+    def test_there_is_exactly_one_voiding_rule(self):
+        from app.core import emergency
+
+        assert emergency._VOIDED_BY_PREFIX == {"poisoning": ("food",)}, (
+            "a narrowing was added, removed or changed. This is the one "
+            "mechanism here that can make screening LESS sensitive, and "
+            "CLAUDE.md requires explicit approval for each entry — the "
+            "one-directional property every other rule in this file relies on "
+            "is what a second entry spends."
+        )
+
+    @pytest.mark.parametrize(
+        "description",
+        [
+            "poisoning",
+            "I swallowed poison",
+            "he had an overdose",
+            "she drank bleach",
+            "I took too many pills",
+            # ⛔ The near-miss that matters most: a different word before
+            # `poisoning` must NOT be voided. Only `food` is.
+            "my toddler ate rat poisoning",
+            "lead poisoning from the old pipes",
+        ],
+    )
+    def test_the_narrowing_touches_nothing_else(self, description):
+        assert screen_for_emergency(description) is not None, description
+
+    def test_the_one_case_it_exists_for_is_still_voided(self):
+        """The behaviour the entry was approved for, so a change is visible."""
+        assert screen_for_emergency("I have food poisoning, cramps and diarrhea") is None
+
+
+class TestTheCaseSplitCannotBreakAPhrase:
+    """
+    ⛔ THE PRECONDITION THAT MAKES `normalize_query` ONE-DIRECTIONAL.
+
+    `normalize_query` inserts a space at every lowercase-to-uppercase boundary
+    so a pasted list — "Chest painShortness of breath" — is split before
+    matching. The module argues this is safe in one direction: "it only ever
+    inserts a space, so it can make screening more sensitive and can never make
+    it less."
+
+    That argument is sound **only while no phrase in the lists contains such a
+    boundary itself**. A phrase written "chestPain", or any phrase with an
+    internal capital, would be split down the middle by the very normalisation
+    meant to help it, and would then match nothing.
+
+    Checked: all 212 phrases, zero contain one. So the guarantee holds today —
+    and this keeps it holding, because the day somebody adds `McBurney` or
+    `ePainScore` to a list the argument quietly stops being true and nothing
+    else would notice.
+
+    ⛔ It is a precondition test, not a behaviour test. It does not check that
+    the split works; `test_emergency.py` already covers that. It checks that
+    the reason the split is safe is still the case.
+    """
+
+    def test_no_phrase_contains_a_lowercase_to_uppercase_boundary(self):
+        import re
+
+        from app.core import emergency
+
+        boundary = re.compile(r"(?<=[a-z])(?=[A-Z])")
+        offenders = [
+            (rule[0], phrase)
+            for rule in emergency._EMERGENCY_RULES
+            for phrase in rule[3]
+            if boundary.search(phrase)
+        ]
+
+        assert offenders == [], (
+            "these phrases would be split in half by normalize_query's own "
+            f"case-split, and would then match nothing: {offenders}"
+        )
+
+
+class TestThePluralRuleHoldsForEveryPhrase:
+    """
+    ⛔ `plural_tolerant` GENERALISES, AND NOW SOMETHING SAYS SO.
+
+    The 2026-09-14 fix was found from five broken plurals — chest pains,
+    seizures, head injuries, overdoses, strokes — and is tested on exactly
+    those five. That is the shape of coverage this repository keeps finding
+    wanting: correct on the examples it was written from, silent about the
+    rule.
+
+    Measured across all 212 phrases in `_EMERGENCY_RULES`: 211 can be
+    meaningfully pluralised and **all 211 still match**. So the rule does hold
+    generally, and this asserts it rather than leaving it to five examples and
+    a hope.
+
+    What it protects: `plural_tolerant` appends optional trailing characters to
+    a pattern. A future change to how phrases are compiled — a stricter
+    boundary, an escape, a word-boundary guard put back — could quietly undo it
+    for some phrases and not the five that are named elsewhere. "I am getting
+    chest pains" returning nothing is the failure this whole rule exists to
+    prevent, and it was live once.
+
+    ⛔ Adds nothing to `emergency.py` and changes nothing in it.
+    """
+
+    @staticmethod
+    def _pluralise(phrase: str) -> str | None:
+        """The ordinary English plural of the phrase's last word."""
+        head, _, last = phrase.rpartition(" ")
+        word = last or phrase
+        if not word.isalpha():
+            return None
+        if word.endswith(("s", "x", "z", "ch", "sh")):
+            plural = word + "es"
+        elif word.endswith("y") and len(word) > 1 and word[-2] not in "aeiou":
+            plural = word[:-1] + "ies"
+        else:
+            plural = word + "s"
+        return f"{head} {plural}".strip() if head else plural
+
+    def test_every_phrase_still_matches_in_the_plural(self):
+        from app.core import emergency
+
+        lost: list[tuple[str, str]] = []
+        checked = 0
+
+        for rule in emergency._EMERGENCY_RULES:
+            for phrase in rule[3]:
+                plural = self._pluralise(phrase)
+                if plural is None or plural == phrase:
+                    continue
+                checked += 1
+                if screen_for_emergency(phrase) and not screen_for_emergency(plural):
+                    lost.append((phrase, plural))
+
+        # Guards against the assertion passing because nothing was checked —
+        # a rename of the rule tuple's shape would otherwise make this vacuous.
+        assert checked > 150, f"only {checked} phrases were pluralised"
+        assert lost == [], (
+            f"these lose their red flag in the plural: {lost[:10]}"
+        )
+
+
 class TestEveryCategoryGivesAWayToGetHelp:
     """
     ⛔ THE HIGHEST-CONSEQUENCE LITERALS IN THE APPLICATION.

@@ -1,7 +1,7 @@
 import logging
 import re
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -111,8 +111,21 @@ async def add_security_headers(request: Request, call_next):
     location" button, and `default-src 'none'` would stop the bundle loading at
     all. Today nothing here serves HTML except the docs pages.
     """
-    response = await call_next(request)
+    return _apply_security_headers(request, await call_next(request))
 
+
+def _apply_security_headers(request: Request, response: Response) -> Response:
+    """
+    The headers themselves. See `add_security_headers` above for why each.
+
+    ⛔ THIS IS A FUNCTION SO THAT THE 500 HANDLER CAN CALL IT TOO. An
+    unhandled exception is turned into a response by Starlette's
+    `ServerErrorMiddleware`, which wraps the application OUTSIDE the
+    `@app.middleware("http")` stack — so the middleware above never runs on
+    it, and a 500 went out carrying none of these. Measured: every one of the
+    five headers CLAUDE.md calls universal was absent, on a response whose
+    only headers were content-type and content-length.
+    """
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
@@ -191,6 +204,14 @@ if settings.is_development and settings.cors_allow_private_origins:
 
 app.add_middleware(CORSMiddleware, **_cors_kwargs)
 
+# ⛔ The SAME policy, instantiated only to ask it one question. A 500 is built
+# inside ServerErrorMiddleware, outside the middleware above, so it went out
+# with no Access-Control-Allow-Origin: the browser then blocked it and the web
+# client reported "Can't reach the MedHelp server" for a server that had
+# answered. Reusing the middleware's own `is_allowed_origin` means there is
+# still one allowlist, not a second copy to drift.
+_cors_policy = CORSMiddleware(app=None, **_cors_kwargs)  # type: ignore[arg-type]
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(
@@ -234,10 +255,22 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
     the load-bearing half of this pair, not this handler.
     """
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Something went wrong. Please try again."},
+    # ⛔ The security headers are applied HERE as well as in the middleware.
+    # Starlette builds this response inside `ServerErrorMiddleware`, which sits
+    # outside the `@app.middleware("http")` stack, so `add_security_headers`
+    # does not run on it and this response went out bare.
+    response = _apply_security_headers(
+        request,
+        JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "Something went wrong. Please try again."},
+        ),
     )
+    origin = request.headers.get("origin")
+    if origin and _cors_policy.is_allowed_origin(origin):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
+    return response
 
 
 app.include_router(auth.router)

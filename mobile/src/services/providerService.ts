@@ -185,3 +185,36 @@ export async function searchProviders(
     onlineBookingAvailable: body?.online_booking_available === true,
   };
 }
+
+/**
+ * Miles as the UI shows them, or null when there is no distance to show.
+ *
+ * ⛔ ONE COPY, BECAUSE THIS IS A RULE AND NOT A FORMAT. CLAUDE.md states it as
+ * "Distance only, always rendered with a '~', and a zero is never shown." It
+ * was implemented twice — once in ProviderSearchScreen and once in
+ * ProviderDetailScreen — which is how a rule written in one place becomes true
+ * in some places.
+ *
+ * ⛔ THE TILDE IS LOAD-BEARING. This is a straight-line estimate from the
+ * centre of the user's ZIP to the provider's geocoded address, never a driving
+ * distance, and it must not read as though the app measured a route.
+ *
+ * ⛔ NEVER "~0.0 mi". A rendered zero reads as "next door" for a clinic that
+ * may be a few streets away, and that page has been shipped before: when the
+ * provider end was still a ZIP centroid, same-ZIP results all measured exactly
+ * zero and a whole page read "~0.0 mi". The backend returns null for a zero
+ * ESTIMATE, but an exact coordinate can still measure 0.0 or 0.0138 — and it
+ * is left that way on purpose, because null sorts last and would sink the
+ * nearest provider to the bottom. This floor is therefore the one place the
+ * rule is enforced. The displayed value is floored at 0.1 — which
+ * also errs toward overstating the journey, the safe direction for someone
+ * deciding whether they can get there while unwell.
+ */
+export function formatDistanceMiles(miles: number | null): string | null {
+  if (miles === null) return null;
+  // Round first, then pick the format: 9.96 rounds to 10.0, and choosing the
+  // format on the raw value printed it as "~10.0 mi" beside a "~10 mi".
+  const tenths = Math.max(Math.round(miles * 10) / 10, 0.1);
+  if (tenths >= 10) return `~${Math.round(miles)} mi`;
+  return `~${tenths.toFixed(1)} mi`;
+}

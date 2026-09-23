@@ -1,0 +1,93 @@
+# The suites this repository already has, run on pull requests and on main.
+#
+# ⛔ WHY THIS EXISTS. On 2026-09-21 this branch was failing `tsc --noEmit` for
+# several commits while every `npm test` run stayed green, and nothing noticed.
+# The repository has ~1,270 backend tests, ~690 client tests, 40 mutation checks
+# and several measurement harnesses, and none of them gated anything: every
+# check was something a person had to remember to run and to read the output
+# of correctly.
+#
+# This adds no new check. It runs what is already here, so the answer to "did
+# that break something?" stops depending on whether somebody ran it.
+#
+# ⛔ IT DOES NOT DEPLOY, AND MUST NOT LEARN TO. CLAUDE.md fences "merging to
+# `main`, releasing, or deploying anywhere" behind explicit human approval.
+# This workflow reads the repository, runs tests, and reports. Adding a step
+# that publishes anything would turn a test runner into the thing that fence
+# exists to prevent.
+
+name: tests
+
+on:
+  # Pushes to main, plus every pull request. Unfiltered `push` + `pull_request`
+  # ran both jobs twice for every push to a branch with an open PR.
+  push:
+    branches: [main]
+  pull_request:
+
+# ⛔ Least privilege. This workflow only reads the repository; without this
+# block the token gets the repository default, which may include write — the
+# opposite of "must not learn to publish anything" above.
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    env:
+      # The suite runs against SQLite and needs no Postgres. `test` is one of
+      # the environments `config.py` accepts as non-production, which is what
+      # lets it generate a throwaway signing key instead of refusing to boot.
+      ENVIRONMENT: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Tests
+        working-directory: backend
+        run: python -m pytest -q
+
+      # The offline measurement harnesses. They call no model and no network,
+      # so they cost nothing here — and `--strict` is what turns the triage
+      # ratchet from a number somebody reads into a build that fails.
+      #
+      # ⛔ `goal_plan_eval` is deliberately NOT here: it calls a live model and
+      # costs whatever that costs. `phrasing_sweep` is not here either, because
+      # it always exits 0 by design and would report nothing.
+      - name: Triage corpus (122 cases)
+        working-directory: backend
+        run: python scripts/triage_eval/measure.py --strict
+      - name: Triage corpus (11,272 cases)
+        working-directory: backend
+        run: python scripts/triage_eval/measure_common_illness.py --all --strict
+      - name: Symptom picker coverage
+        working-directory: backend
+        run: python scripts/check_picker_coverage.py --strict
+
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install
+        working-directory: mobile
+        run: npm ci
+      # ⛔ FIRST, AND ON ITS OWN STEP. This is the check that was failing while
+      # the tests passed. Running it before them means a type error is reported
+      # as a type error rather than buried under a suite that also ran.
+      - name: Typecheck
+        working-directory: mobile
+        run: npm run typecheck
+      - name: Tests
+        working-directory: mobile
+        run: npm test

@@ -294,3 +294,38 @@ def test_no_provider_yields_no_call(monkeypatch, db_session):
 
     assert resolve_coordinates([], db_session) == {}
     assert geocoder.calls == []
+
+
+class TestTheNearestProviderIsNotSunkByTheZeroRule:
+    """
+    ⛔ AN EXACT 0.0 KEEPS ITS DISTANCE, SO THE NEAREST PROVIDER SORTS FIRST.
+
+    A change on this branch made the exact-coordinate path return None for
+    0.0, to match the estimate path. Review caught what that costs: None sorts
+    LAST in providers.py and in the client's sortByDistance, so the provider
+    closest to the user's ZIP centre dropped below ones twenty miles away. It
+    was reverted. The displayed zero is prevented where it is displayed —
+    `formatDistanceMiles` floors at "~0.1 mi".
+    """
+
+    class _Provider:
+        """Synthetic. Not a real provider."""
+
+        npi = "0000000000"
+        postal_code = "10001"
+
+    def test_an_exact_coordinate_on_the_centroid_keeps_a_distance(self):
+        from app.services.provider_geo import distance_for
+        from app.services.zip_geography import centroid
+
+        origin = centroid("10001")
+        assert origin is not None, "no centroid for the probe ZIP, so this proves nothing"
+
+        assert distance_for("10001", self._Provider(), origin) == 0.0
+
+    def test_the_estimate_branch_still_suppresses_its_zero(self):
+        # That one is different: same-ZIP centroid-to-centroid is zero for
+        # EVERY provider, so it carries no ordering information to lose.
+        from app.services.provider_geo import distance_for
+
+        assert distance_for("10001", self._Provider(), None) is None

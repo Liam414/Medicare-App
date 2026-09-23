@@ -90,8 +90,23 @@ describe("EmergencyCardScreen", () => {
     expect(await screen.findByText("A negative")).toBeTruthy();
     expect(screen.getByText("Allergies")).toBeTruthy();
     expect(screen.getByText("Known conditions")).toBeTruthy();
-    // Allergies, conditions, contact name, relationship, phone, medications.
-    expect(screen.getAllByText("Not provided").length).toBeGreaterThanOrEqual(5);
+    // ⛔ EXACT, NOT "AT LEAST". Six rows have no value here: allergies, known
+    // conditions, contact name, relationship, phone, and the mirrored
+    // medication list.
+    //
+    // This read `.toBeGreaterThanOrEqual(5)` beside a comment naming all six,
+    // so it tolerated one row vanishing — the exact regression this test is
+    // named for. Allergies and known conditions were covered anyway by the
+    // label assertions above, but the other four were not: measured, wrapping
+    // the relationship row in `card.contactRelationship ? ... : null` left
+    // this test PASSING, and fails now.
+    //
+    // A row that vanishes is the dangerous direction, because an absent row
+    // reads as an answer: no allergies, no conditions, no one to call.
+    //
+    // If a row is legitimately added or removed, change the number and name
+    // the row here. Do not loosen the comparison.
+    expect(screen.getAllByText("Not provided")).toHaveLength(6);
   });
 
   it("labels every row even when the card has never been filled in", async () => {
