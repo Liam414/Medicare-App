@@ -37,6 +37,7 @@ import { getRefillLeadDays } from "@/services/appSettings";
 import { listMedications } from "@/services/medicationService";
 import { scheduleAll } from "@/services/notificationService";
 import { toRefillAlerts, type RefillAlert } from "@/services/refillAlerts";
+import { getCheckIn, toCheckInAlerts } from "@/services/checkIns";
 import {
   listSchedules,
   toDueReminders,
@@ -80,7 +81,10 @@ export async function rearm(): Promise<ArmedState | null> {
       ]);
 
       const refillAlerts = toRefillAlerts(medications, leadDays);
-      await scheduleAll(toDueReminders(schedules), { refillAlerts });
+      await scheduleAll(toDueReminders(schedules), {
+        refillAlerts,
+        checkIns: await checkInAlerts(),
+      });
       return { schedules, refillAlerts, leadDays };
     } catch {
       // Signed out, offline, or the API is down. Whatever was already armed
@@ -97,6 +101,19 @@ export async function rearm(): Promise<ArmedState | null> {
 }
 
 /**
+ * The pending check-in, if any. Read from the device every time, because it is
+ * part of the whole set and `scheduleAll` cancels everything before arming.
+ * An unreadable store costs the check-in notification, never the dose ones.
+ */
+async function checkInAlerts() {
+  try {
+    return toCheckInAlerts(await getCheckIn());
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Arm from a set the caller has already loaded, without reading it again.
  *
  * `MedicationRemindersScreen` fetches all of this to render, so making it fetch
@@ -108,6 +125,7 @@ export async function rearmFrom(state: ArmedState): Promise<void> {
     try {
       await scheduleAll(toDueReminders(state.schedules), {
         refillAlerts: state.refillAlerts,
+        checkIns: await checkInAlerts(),
       });
     } catch {
       // As above: arming is best-effort and never the person's problem.

@@ -288,6 +288,7 @@ rules above.
 | `docs/medication-reminders.md` | dose-schedule phrase lists, delivery per platform, arming, refill forecasting |
 | `docs/label-scanning.md` | the two OCR engines, the parser rules, the corpus and the two defects it found |
 | `docs/symptom-history.md` | reading back stored assessments, the verbatim visit summary, what leaves the device, consent |
+| `docs/check-ins.md` | the day-later check-in, why it is not a triage input, storage, sign-out, arming |
 | `docs/emergency-card.md` | storage per platform, the mirrored medication list, the palette exception, the rejected lock-screen widget |
 | `docs/security-posture.md` | auth, tokens, session persistence, CORS, headers, transport, and all nine closed findings with their fixes |
 | `docs/deployment.md` | the Render blueprint, the procedure, the failure modes, what publishing changed |
@@ -497,6 +498,16 @@ read it.** Four rules, each tested:
 - Audit fields (rule ids, model tier, confidence) are never in the read-back.
 - Only consented rows exist; the intake consent sentence says so, and that
   sentence belongs in the reviewer's read of the intake screen.
+
+### Check-ins — `docs/check-ins.md`
+
+- One pending "how is it now?" a day after an URGENT or SELF_CARE estimate,
+  on the device only. ⛔ **Never offered on EMERGENT.** Tested.
+- ⛔ **Not a triage input.** The earlier tier is shown as a fact and never
+  sent or used; a "new tier may not be lower" floor would be a fenced change.
+- ⛔ The notification is generic (lock screen). Explicit sign-out clears the
+  check-in; a 401 must not. Armed by `reminderArming` with the whole set.
+- Nothing is added to the person's text when it is prefilled.
 
 ### Emergency card — `docs/emergency-card.md`
 

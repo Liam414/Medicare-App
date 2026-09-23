@@ -30,7 +30,10 @@ export type RootStackParamList = {
   // still holds the previous description in its own state — so starting a new
   // description has to be asked for explicitly rather than assumed from a
   // fresh mount that never happens.
-  SymptomIntake: { reset?: boolean } | undefined;
+  // `checkIn` opens it prefilled from the pending check-in on the device.
+  // A flag, never the text: route params are serialisable and dev tooling
+  // persists them, so a description does not belong in one.
+  SymptomIntake: { reset?: boolean; checkIn?: boolean } | undefined;
   // Shown when the description was not understood. Carries the original text
   // and consent forward so the second submission is a complete one.
   IntakeFollowUp: {

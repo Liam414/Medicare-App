@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react-nativ
 
 import { TodayScreen } from "@/screens/TodayScreen";
 import { logout } from "@/services/authService";
+import { clearCheckIn, getCheckIn } from "@/services/checkIns";
 import { listAppointments, type Appointment } from "@/services/appointmentService";
 import { listMedications, type Medication } from "@/services/medicationService";
 import { listSchedules, type MedicationSchedule } from "@/services/reminderService";
@@ -13,6 +14,12 @@ jest.mock("@/services/medicationService", () => ({
   ...jest.requireActual("@/services/medicationService"),
   listMedications: jest.fn(),
 }));
+jest.mock("@/services/checkIns", () => ({
+  ...jest.requireActual("@/services/checkIns"),
+  getCheckIn: jest.fn(async () => null),
+  clearCheckIn: jest.fn(async () => undefined),
+}));
+jest.mock("@/services/reminderArming", () => ({ rearm: jest.fn(async () => null) }));
 jest.mock("@/services/reminderService", () => ({
   ...jest.requireActual("@/services/reminderService"),
   listSchedules: jest.fn(),
@@ -32,6 +39,7 @@ jest.mock("@react-navigation/native", () => {
 });
 
 const mockMedications = listMedications as jest.MockedFunction<typeof listMedications>;
+const mockGetCheckIn = getCheckIn as jest.MockedFunction<typeof getCheckIn>;
 const mockSchedules = listSchedules as jest.MockedFunction<typeof listSchedules>;
 const mockAppointments = listAppointments as jest.MockedFunction<typeof listAppointments>;
 
@@ -116,6 +124,7 @@ beforeEach(() => {
   mockMedications.mockResolvedValue([medication()]);
   mockSchedules.mockResolvedValue([schedule()]);
   mockAppointments.mockResolvedValue([appointment()]);
+  mockGetCheckIn.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -232,6 +241,29 @@ describe("TodayScreen", () => {
 
     expect(logout).toHaveBeenCalled();
     expect(reset).toHaveBeenCalledWith({ index: 0, routes: [{ name: "Login" }] });
+  });
+
+  it("⛔ clears a pending check-in on sign-out, so its text is not left for the next person", async () => {
+    renderToday();
+    await waitFor(() => expect(screen.getByText("Sign out")).toBeTruthy());
+
+    fireEvent.press(screen.getByText("Sign out"));
+
+    expect(clearCheckIn).toHaveBeenCalled();
+  });
+
+  it("shows a due check-in and opens the form prefilled from it", async () => {
+    mockGetCheckIn.mockResolvedValue({
+      dueAt: "2020-01-01T00:00:00Z",
+      createdAt: "2019-12-31T00:00:00Z",
+      earlierTier: "URGENT",
+      description: "synthetic description",
+    });
+    const { navigate } = renderToday();
+
+    fireEvent.press(await screen.findByText("Check in now"));
+
+    expect(navigate).toHaveBeenCalledWith("SymptomIntake", { checkIn: true });
   });
 
   it("keeps the rest of the day when one of the three lists fails", async () => {

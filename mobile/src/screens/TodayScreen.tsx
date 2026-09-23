@@ -14,6 +14,8 @@ import { DomainProvider } from "@/hooks/useDomain";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { logout } from "@/services/authService";
 import { listAppointments, type Appointment } from "@/services/appointmentService";
+import { clearCheckIn, getCheckIn, isDue, type CheckIn } from "@/services/checkIns";
+import { rearm } from "@/services/reminderArming";
 import { listMedications, type Medication } from "@/services/medicationService";
 import { listSchedules, type MedicationSchedule } from "@/services/reminderService";
 import { dueState, formatTimeOfDay, sortByTime } from "@/services/reminderTiming";
@@ -75,6 +77,7 @@ export function TodayScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const [checkIn, setCheckIn] = useState<CheckIn | null>(null);
 
   /**
    * The three lists are independent, so one failing must not blank the other
@@ -113,6 +116,9 @@ export function TodayScreen({ navigation }: Props) {
     useCallback(() => {
       void load();
       setNow(new Date());
+      // On the device, so it shows with no network — the notification is the
+      // bonus and this card is the part that is always correct.
+      void getCheckIn().then(setCheckIn).catch(() => setCheckIn(null));
     }, [load])
   );
 
@@ -123,6 +129,11 @@ export function TodayScreen({ navigation }: Props) {
   }, []);
 
   const handleSignOut = () => {
+    // ⛔ A pending check-in holds symptom text. On a shared computer the next
+    // person to sign in would otherwise find it prefilled. Cleared here, on an
+    // explicit sign-out only — a 401 must not clear it, because a check-in is
+    // due a day later and the session will long since have expired.
+    void clearCheckIn();
     void logout();
     navigation.reset({ index: 0, routes: [{ name: "Login" }] });
   };
@@ -245,6 +256,36 @@ export function TodayScreen({ navigation }: Props) {
           style={styles.heroButton}
         />
       </View>
+      {checkIn && (
+        <View style={styles.quietCard}>
+          <Text style={styles.quietTitle}>
+            {isDue(checkIn, now)
+              ? "Time to check in"
+              : `Check-in set for ${new Date(checkIn.dueAt).toLocaleString(undefined, {
+                  weekday: "long",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}`}
+          </Text>
+          <Text style={styles.quietText}>
+            How are things now compared with when you last described them?
+          </Text>
+          <AppButton
+            label={isDue(checkIn, now) ? "Check in now" : "Check in early"}
+            variant="secondary"
+            onPress={() => navigation.navigate("SymptomIntake", { checkIn: true })}
+            accessibilityHint="Opens the symptom form with what you wrote last time"
+          />
+          <AppButton
+            label="Cancel check-in"
+            variant="secondary"
+            onPress={() => {
+              setCheckIn(null);
+              void clearCheckIn().then(() => rearm());
+            }}
+          />
+        </View>
+      )}
     </DomainProvider>
   );
 

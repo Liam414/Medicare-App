@@ -34,6 +34,7 @@
  * real notification. The web path has been checked end to end.
  */
 
+import type { CheckInAlert } from "@/services/checkIns";
 import type { RefillAlert } from "@/services/refillAlerts";
 import type { DueReminder } from "@/services/reminderTiming";
 import { parseTimeOfDay } from "@/services/reminderTiming";
@@ -51,6 +52,8 @@ export type ReminderPermission = "granted" | "denied" | "prompt" | "unsupported"
  */
 export interface ScheduleOptions {
   refillAlerts?: RefillAlert[];
+  /** One-off "how is it now?" prompts. Generic text only: lock screen. */
+  checkIns?: CheckInAlert[];
   /** Accepted for parity with the web build, which needs a clock. Unused
    * here: the OS holds the schedule and does its own timekeeping. */
   now?: Date;
@@ -176,6 +179,20 @@ export async function scheduleAll(
       });
     } catch {
       // One failed alert must not take the dose reminders with it.
+    }
+  }
+
+  for (const checkIn of options.checkIns ?? []) {
+    try {
+      await notifications.scheduleNotificationAsync({
+        content: { title: checkIn.title, body: checkIn.body },
+        trigger: {
+          type: notifications.SchedulableTriggerInputTypes?.DATE ?? "date",
+          date: checkIn.fireAt,
+        },
+      });
+    } catch {
+      // Today shows a due check-in whether or not this fires.
     }
   }
 
