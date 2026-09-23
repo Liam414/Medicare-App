@@ -469,6 +469,252 @@ _EMERGENCY_RULES: list[tuple[str, str, str, tuple[str, ...]]] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# ⛔ 2026-09-22: LAY PHRASINGS FOUND BY A PROBE THE LISTS WERE NOT WRITTEN FOR
+#
+# Both corpora in scripts/triage_eval/ score 100%, and both were written
+# alongside these lists. A 55-case probe written without reading them caught
+# 5 of 39 emergencies. "he's not breathing", "she won't wake up", "I took 20
+# tylenol" and "i dont want to live anymore" all fell to the URGENT default
+# with no instruction to call anyone.
+#
+# Everything below was derived from that probe (`TUNING` in
+# scripts/triage_eval/heldout.py), generalised to the obvious neighbouring
+# wordings. ⛔ Nothing here was added because a `HELDOUT` case missed: that set
+# is the only honest measure left, and a phrase added for it makes it worthless.
+#
+# All three mechanisms are ADDITIVE and run in the same one-directional way as
+# the rest of this file — they can turn "no guidance" into guidance and can
+# never change or remove guidance a description already got:
+#
+# 1. `_LAY_PHRASES_2026_09_22` — merged into each category's literal list.
+# 2. `_PATTERN_RULES` — number-aware patterns, a pass after the combinator.
+# 3. `_CORRECTIONS` — misspellings and apostrophe-less contractions, applied
+#    only in a last pass, only when nothing else matched, and only here. The
+#    corrected text never reaches the self-care list, so a typo can never earn
+#    SELF_CARE that the original spelling would not have.
+#
+# The repository owner approved these three kinds of change on 2026-09-22 —
+# see "Held-out probe" in CLAUDE.md, which is the record and not the
+# authorisation. No category was added and no copy changed. None of it is
+# clinician-reviewed.
+# ---------------------------------------------------------------------------
+_LAY_PHRASES_2026_09_22: dict[str, tuple[str, ...]] = {
+    "cardiac": (
+        "chest hurts", "chest hurt", "chest is hurting", "chest hurting",
+        "elephant on my chest", "elephant sitting on my chest",
+        "squeezing in my chest", "squeezing my chest", "chest is squeezing",
+        "chest squeezing",
+    ),
+    "breathing": (
+        "not breathing", "stopped breathing", "isn't breathing",
+        "is not breathing", "lips are blue", "lips turning blue",
+        "lips are turning blue", "lips turned blue", "blue lips",
+        "can't breath", "cant breath", "cannot breath",
+        "can not breathe", "can not breath", "gasping for air",
+        "gasping for breath", "can't talk in full sentences",
+        "cant talk in full sentences", "can't speak in full sentences",
+        "cant speak in full sentences", "too breathless to talk",
+    ),
+    "stroke": (
+        "speech is slurred", "slurring my words", "slurring his words",
+        "slurring her words", "slurring their words", "slurring words",
+        "one side of my face", "one side of his face", "one side of her face",
+        "one side of their face", "thunderclap headache",
+        "words are coming out wrong", "words coming out wrong",
+        "words come out wrong", "words are jumbled",
+        "can't get my words out", "cant get my words out",
+    ),
+    "bleeding_trauma": (
+        "won't stop bleeding", "wont stop bleeding", "will not stop bleeding",
+        "blood is spurting", "spurting blood", "blood spurting",
+        "blood is pouring", "pouring blood", "fell off a ladder",
+        "fell off the ladder", "fell off the roof", "fell from a ladder",
+        "fell from the roof",
+    ),
+    "anaphylaxis": (
+        "face is swelling", "face swelling up", "face swelled up",
+        "lips are swelling", "lips swelling up", "throat feels tight",
+        "throat is tight", "throat getting tight", "throat is tightening",
+        "throat tightening",
+    ),
+    "consciousness": (
+        "won't wake up", "wont wake up", "will not wake up", "can't wake him",
+        "can't wake her", "can't wake them", "cant wake him", "cant wake her",
+        "cant wake them", "having a fit", "had a fit", "going to pass out",
+        "gonna pass out", "about to pass out", "like i'll pass out",
+        "like ill pass out",
+    ),
+    "self_harm": (
+        "unalive myself", "don't want to live", "dont want to live",
+        "do not want to live", "don't want to be alive",
+        "dont want to be alive", "no reason to live", "end it all",
+        "ending it all", "better off without me", "better off dead",
+    ),
+    "vision_loss": (
+        "went black in one eye", "black in one eye", "blind in one eye",
+        "lost sight in one eye", "seeing double",
+    ),
+    "sepsis_meningitis": (
+        "don't go away when i press", "dont go away when i press",
+        "doesn't go away when i press", "don't fade when i press",
+        "dont fade when i press", "doesn't fade when pressed",
+        "does not fade when pressed", "dont fade when pressed",
+        "press a glass", "glass test",
+    ),
+    "pregnancy": (
+        "water broke", "waters broke", "water has broken", "water just broke",
+    ),
+    "overdose_poisoning": (
+        "dishwasher pod", "laundry pod", "detergent pod", "tide pod",
+        "got into the pods", "got into the pills", "got into my pills",
+        "got into the medicine", "got into my medicine",
+    ),
+}
+
+_EMERGENCY_RULES = [
+    (category, headline, action, phrases + _LAY_PHRASES_2026_09_22.get(category, ()))
+    for category, headline, action, phrases in _EMERGENCY_RULES
+]
+
+_WORD_NUMBER = r"(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+
+# Number-aware red flags. Each entry is (category, label, regexes); ALL of an
+# entry's regexes must match. Only the infant-fever entry has two, and both
+# halves are read out of that category's own reviewed copy (a baby under
+# three months with a fever) — it is a number, not a new clinical claim.
+_PATTERN_RULES: tuple[tuple[str, str, tuple[re.Pattern[str], ...]], ...] = (
+    (
+        "infant_fever",
+        "baby under three months with a fever",
+        (
+            re.compile(
+                r"\b(?:[1-9]|1[0-2]|one|two|three|four|five|six|seven|eight|"
+                r"nine|ten|eleven|twelve)[- ]?(?:weeks?|wks?)[- ]old\b"
+                r"|\b(?:1|2|one|two)[- ]?months?[- ]old\b",
+                re.IGNORECASE,
+            ),
+            re.compile(r"\b(?:fever|feverish|temp|temperature|burning up)\b", re.IGNORECASE),
+        ),
+    ),
+    (
+        "pregnancy",
+        "bleeding in pregnancy, with the week written as a number",
+        (
+            re.compile(
+                r"\bbleeding (?:at|and i'?m|and i am) " + _WORD_NUMBER + r" ?weeks\b"
+                r"|\b" + _WORD_NUMBER + r" ?weeks pregnant (?:and|with) "
+                r"(?:heavy |a lot of |some )?bleeding\b",
+                re.IGNORECASE,
+            ),
+        ),
+    ),
+    (
+        "overdose_poisoning",
+        "a large number of tablets taken",
+        (
+            # "took 20 tylenol", "took 15 of my pills". Two digits or more, and
+            # not a unit of time, dose or distance — "took 20 minutes" and
+            # "took 20 mg" are ordinary sentences.
+            re.compile(
+                r"\btook (?:like |about |around |maybe )?[1-9]\d+ (?!(?:minutes?|mins?|"
+                r"hours?|hrs?|seconds?|secs?|days?|weeks?|months?|years?|mg|mcg|ml|"
+                r"units?|iu|g|steps?|miles?|km|times?|lbs?|pounds?|percent)\b)\w+",
+                re.IGNORECASE,
+            ),
+        ),
+    ),
+    (
+        "overdose_poisoning",
+        "too many tablets",
+        (
+            re.compile(
+                r"\btoo many (?:of (?:my|his|her|their|the) )?(?:\w+ ){0,2}"
+                r"(?:pills|tablets|capsules|meds|medications?|medicines?)\b",
+                re.IGNORECASE,
+            ),
+        ),
+    ),
+    (
+        "overdose_poisoning",
+        "a household chemical swallowed",
+        (
+            re.compile(
+                r"\b(?:drank|drunk|swallowed|ate|got into) (?:some |some of |the |a |my )*"
+                r"(?:\w+ )?(?:bleach|cleaner|cleaning \w+|detergent|antifreeze|"
+                r"drain \w+|pods?)\b",
+                re.IGNORECASE,
+            ),
+        ),
+    ),
+    (
+        "self_harm",
+        "texting shorthand for kill myself",
+        # "i wanna kms". Not after a number: "ran 5 kms" is a distance.
+        (re.compile(r"(?<![\d.])(?<![\d.] )\bkms\b", re.IGNORECASE),),
+    ),
+    (
+        "bleeding_trauma",
+        "cannot move or feel both legs",
+        (
+            re.compile(
+                r"\bcan'?t (?:move|feel) (?:my|his|her|their) legs\b"
+                r"|\bcannot (?:move|feel) (?:my|his|her|their) legs\b",
+                re.IGNORECASE,
+            ),
+        ),
+    ),
+    (
+        "stroke",
+        "cannot lift or raise one arm",
+        (
+            # ⛔ The side is required. Without it this fired on every frozen
+            # shoulder in the common-illness corpus ("I can't lift my arm up")
+            # and told them to call 911. One-sided weakness is the red flag;
+            # a stiff shoulder is not.
+            re.compile(
+                r"\b(?:can'?t|cannot) (?:lift|raise) (?:my|his|her|their) "
+                r"(?:right|left) arm\b",
+                re.IGNORECASE,
+            ),
+        ),
+    ),
+)
+
+# Applied word by word in the last pass only. Every key is a misspelling or an
+# apostrophe-less contraction that is not itself an ordinary English word —
+# "ill", "hart" and "wont" were considered and left out, because correcting a
+# real word would put an emergency instruction under a sentence that did not
+# contain one, and a red flag that fires on ordinary text is one people learn
+# to ignore.
+_CORRECTIONS: dict[str, str] = {
+    "cant": "can't", "dont": "don't", "im": "i'm", "ive": "i've",
+    "isnt": "isn't", "doesnt": "doesn't", "didnt": "didn't",
+    "couldnt": "couldn't", "wouldnt": "wouldn't", "shouldnt": "shouldn't",
+    "arent": "aren't", "wasnt": "wasn't", "theyre": "they're",
+    "pian": "pain", "pani": "pain", "chset": "chest", "cheast": "chest",
+    "brethe": "breathe", "breate": "breathe", "breahte": "breathe",
+    "breating": "breathing", "breahting": "breathing",
+    "bleading": "bleeding", "bleding": "bleeding", "bledding": "bleeding",
+    "siezure": "seizure", "seizur": "seizure", "sezure": "seizure",
+    "unconcious": "unconscious", "unconsious": "unconscious",
+    "concious": "conscious", "sucide": "suicide", "suicde": "suicide",
+    "suiside": "suicide", "sucidal": "suicidal", "suicidel": "suicidal",
+    "alergic": "allergic", "anaphalaxis": "anaphylaxis",
+    "anaphylaxsis": "anaphylaxis", "swolen": "swollen", "swollin": "swollen",
+    "storke": "stroke", "strok": "stroke", "numbess": "numbness",
+    "poisen": "poison", "posion": "poison", "poision": "poison",
+    "pregant": "pregnant", "pregnent": "pregnant", "prenant": "pregnant",
+    "unresponisve": "unresponsive", "atack": "attack", "attak": "attack",
+}
+
+_WORD = re.compile(r"[A-Za-z]+")
+
+
+def _corrected(text: str) -> str:
+    return _WORD.sub(lambda m: _CORRECTIONS.get(m.group(0).lower(), m.group(0)), text)
+
+
 def normalize_query(query: str) -> str:
     """
     Fold typographic variants so screening is not defeated by a keyboard.
@@ -668,4 +914,36 @@ def screen_for_emergency(query: str) -> EmergencyGuidance | None:
             matched_terms=list(combination.matched_terms),
         )
 
+    # 3 and 4, added 2026-09-22. Both run only once everything above found
+    # nothing, so neither can change an answer that existed before them.
+    guidance = _screen_patterns(normalized)
+    if guidance:
+        return guidance
+
+    corrected = _corrected(normalized)
+    if corrected != normalized:
+        return _screen_literals(corrected) or _screen_patterns(corrected)
+
+    return None
+
+
+def _guidance(category: str, matched: list[str]) -> EmergencyGuidance:
+    headline, action = _COPY_BY_CATEGORY[category]
+    return EmergencyGuidance(
+        category=category, headline=headline, action=action, matched_terms=matched
+    )
+
+
+def _screen_literals(text: str) -> EmergencyGuidance | None:
+    for category, _headline, _action, patterns, phrases in _COMPILED:
+        matched = [p for pattern, p in zip(patterns, phrases) if pattern.search(text)]
+        if matched:
+            return _guidance(category, matched)
+    return None
+
+
+def _screen_patterns(text: str) -> EmergencyGuidance | None:
+    for category, label, regexes in _PATTERN_RULES:
+        if all(r.search(text) for r in regexes):
+            return _guidance(category, [label])
     return None

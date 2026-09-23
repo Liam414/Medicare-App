@@ -89,6 +89,13 @@ def build() -> dict:
             for c, h, a, p in emergency._EMERGENCY_RULES
         ],
         "voidedByPrefix": {k: list(v) for k, v in emergency._VOIDED_BY_PREFIX.items()},
+        # Number-aware patterns: regex source, all case-insensitive, every
+        # regex of an entry must match. And the last-pass word corrections.
+        "patterns": [
+            {"category": c, "label": label, "sources": [r.pattern for r in regexes]}
+            for c, label, regexes in getattr(emergency, "_PATTERN_RULES", ())
+        ],
+        "corrections": dict(getattr(emergency, "_CORRECTIONS", {})),
         "concepts": {k: list(v) for k, v in symptom_concepts._CONCEPTS.items()},
         "combinations": [
             {"category": c.category, "required": list(c.required)}
