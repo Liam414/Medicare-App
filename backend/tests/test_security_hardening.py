@@ -627,6 +627,38 @@ PUBLIC_ROUTES = {
 }
 
 
+def _leaf_routes(routes):
+    """
+    Every concrete route in the app, however FastAPI chooses to nest them.
+
+    ⛔ DO NOT WALK `app.routes` DIRECTLY IN A PROPERTY TEST. FastAPI 0.141 —
+    the version requirements.txt pins and production installs — stopped
+    flattening included routers: `app.routes` now holds one `_IncludedRouter`
+    per `include_router` call, with no `path`, `methods` or `dependant`. A loop
+    over it saw only `/health` and the docs routes, so the authentication and
+    query-parameter tests below were passing while checking none of the API.
+    Nobody noticed because the local environment still had FastAPI 0.115, which
+    flattens; the first clean install (CI) exposed it.
+
+    Recurses through `original_router.routes`, which is public on the router.
+    That is complete for this app because every `include_router` call in
+    main.py is plain — no include-level prefix or dependencies; each router
+    carries its own prefix. On a FastAPI that flattens, nothing has an
+    `original_router` and this returns the list unchanged.
+    """
+    for route in routes:
+        inner = getattr(route, "original_router", None)
+        if inner is not None:
+            yield from _leaf_routes(inner.routes)
+        else:
+            yield route
+
+
+#: Fewer concrete routes than this means the walk has broken again, not that
+#: the API shrank. Today there are 31 with a dependency tree.
+_MIN_CHECKED_ROUTES = 25
+
+
 def test_every_other_route_requires_authentication():
     """
     A route added without `get_current_user` is a route that hands one user's
@@ -637,13 +669,15 @@ def test_every_other_route_requires_authentication():
     from app.main import app
 
     unguarded: list[str] = []
+    checked = 0
 
-    for route in app.routes:
+    for route in _leaf_routes(app.routes):
         methods = getattr(route, "methods", set()) - {"HEAD", "OPTIONS"}
         path = getattr(route, "path", "")
         dependant = getattr(route, "dependant", None)
         if not methods or dependant is None:
             continue
+        checked += 1
 
         for method in methods:
             if (method, path) in PUBLIC_ROUTES:
@@ -654,6 +688,9 @@ def test_every_other_route_requires_authentication():
             if get_current_user not in calls:
                 unguarded.append(f"{method} {path}")
 
+    assert checked >= _MIN_CHECKED_ROUTES, (
+        f"only {checked} routes were checked, so this proved nothing — see _leaf_routes"
+    )
     assert not unguarded, f"routes reachable without a token: {sorted(unguarded)}"
 
 
@@ -717,13 +754,15 @@ def test_no_get_route_takes_health_text_in_the_query_string():
 
     unexpected: list[str] = []
     forbidden: list[str] = []
+    checked = 0
 
-    for route in app.routes:
+    for route in _leaf_routes(app.routes):
         methods = getattr(route, "methods", set()) or set()
         dependant = getattr(route, "dependant", None)
         path = getattr(route, "path", "")
         if dependant is None or "GET" not in methods:
             continue
+        checked += 1
 
         names = {parameter.name for parameter in dependant.query_params}
         allowed = _ALLOWED_QUERY_PARAMS.get(path, set())
@@ -733,6 +772,10 @@ def test_no_get_route_takes_health_text_in_the_query_string():
         for name in sorted(names & _FORBIDDEN_QUERY_PARAMS):
             forbidden.append(f"GET {path}?{name}")
 
+    # GET routes only, so a lower floor than the authentication test.
+    assert checked >= 10, (
+        f"only {checked} GET routes were checked, so this proved nothing — see _leaf_routes"
+    )
     assert not forbidden, (
         "these put user text in a URL, where access logs and proxies keep it: "
         f"{sorted(forbidden)}"
@@ -754,7 +797,7 @@ def test_the_query_parameter_allowlist_is_not_stale():
     """
     from app.main import app
 
-    live = {getattr(route, "path", "") for route in app.routes}
+    live = {getattr(route, "path", "") for route in _leaf_routes(app.routes)}
 
     assert set(_ALLOWED_QUERY_PARAMS) <= live, (
         "the allowlist names routes that no longer exist: "
