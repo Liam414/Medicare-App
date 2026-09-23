@@ -37,6 +37,7 @@ from app.models import (  # noqa: F401,E402
     appointment,
     care_profile,
     check_in,
+    follow_up,
     goal,
     health_profile,
     intake,

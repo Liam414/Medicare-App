@@ -26,6 +26,7 @@ from app.db.session import get_db
 from app.models.appointment import Appointment
 from app.models.care_profile import CareProfile
 from app.models.check_in import CheckIn
+from app.models.follow_up import FollowUp, HealthReading, HealthTarget
 from app.models.goal import GoalActivity, GoalCompletion, HealthGoal
 from app.models.health_profile import HealthProfile
 from app.models.intake import IntakeAssessment
@@ -45,6 +46,9 @@ _OWNED = (
     IntakeAssessment,
     Appointment,
     CheckIn,
+    FollowUp,
+    HealthReading,
+    HealthTarget,
     HealthProfile,
     CareProfile,
 )

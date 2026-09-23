@@ -748,6 +748,9 @@ _ALLOWED_QUERY_PARAMS = {
     "/health-profile": {"profile_id"},
     # `days` is a bounded integer window, never text a person wrote.
     "/check-ins": {"profile_id", "days"},
+    "/follow-ups": {"profile_id"},
+    # `kind` is one of four fixed literals; `days` a bounded integer.
+    "/readings": {"profile_id", "kind", "days"},
     "/providers/search": {"postal_code", "care_setting", "limit"},
     "/goals": {"on"},
 }

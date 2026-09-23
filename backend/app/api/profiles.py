@@ -20,6 +20,7 @@ from app.db.session import get_db
 from app.models.appointment import Appointment
 from app.models.care_profile import CareProfile
 from app.models.check_in import CheckIn
+from app.models.follow_up import FollowUp, HealthReading, HealthTarget
 from app.models.health_profile import HealthProfile
 from app.models.intake import IntakeAssessment
 from app.models.medication import Medication
@@ -118,7 +119,16 @@ def delete_profile(
             db.query(child).filter(child.medication_id.in_(medication_ids)).delete(
                 synchronize_session=False
             )
-    for model in (Medication, IntakeAssessment, Appointment, HealthProfile, CheckIn):
+    for model in (
+        Medication,
+        IntakeAssessment,
+        Appointment,
+        HealthProfile,
+        CheckIn,
+        FollowUp,
+        HealthReading,
+        HealthTarget,
+    ):
         db.query(model).filter(
             model.user_id == user.id, model.profile_id == profile_id
         ).delete(synchronize_session=False)
