@@ -14,7 +14,7 @@ import type { Provider } from "@/services/providerService";
  */
 export interface IntakeContext {
   reasonForVisit: string;
-  tier: "EMERGENT" | "URGENT" | "SELF_CARE";
+  tier: "EMERGENT" | "URGENT" | "CLINICIAN_SOON" | "SELF_CARE";
   assessmentId: string | null;
 }
 

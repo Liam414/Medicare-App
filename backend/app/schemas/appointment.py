@@ -146,7 +146,7 @@ class AppointmentBase(BaseModel):
         if cleaned is None:
             return None
         upper = cleaned.upper()
-        if upper not in {"EMERGENT", "URGENT", "SELF_CARE"}:
+        if upper not in {"EMERGENT", "URGENT", "CLINICIAN_SOON", "SELF_CARE"}:
             raise ValueError("Unknown urgency tier.")
         return upper
 

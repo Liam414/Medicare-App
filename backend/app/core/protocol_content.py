@@ -66,11 +66,11 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
-# The app's three tiers. A disposition must name one of these; the loader does
+# The app's four tiers. A disposition must name one of these; the loader does
 # not translate, rank or infer.
-_VALID_TIERS = frozenset({"SELF_CARE", "URGENT", "EMERGENT"})
+_VALID_TIERS = frozenset({"SELF_CARE", "CLINICIAN_SOON", "URGENT", "EMERGENT"})
 
-_TIER_RANK = {"SELF_CARE": 1, "URGENT": 2, "EMERGENT": 3}
+_TIER_RANK = {"SELF_CARE": 1, "CLINICIAN_SOON": 2, "URGENT": 3, "EMERGENT": 4}
 
 
 class ProtocolContentError(Exception):

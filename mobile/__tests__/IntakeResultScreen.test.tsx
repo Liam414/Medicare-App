@@ -135,6 +135,22 @@ describe("IntakeResultScreen", () => {
     });
   });
 
+  describe("CLINICIAN_SOON", () => {
+    it("says see a clinician in the next few days and offers help setting it up", () => {
+      const { navigate } = renderResult({ tier: "CLINICIAN_SOON" });
+
+      expect(screen.getByText("See a clinician in the next few days")).toBeTruthy();
+      expect(screen.getByText(/You should consider seeing a clinician. Want help setting that up\?/)).toBeTruthy();
+      expect(screen.getByText(/cannot make the appointment for you/i)).toBeTruthy();
+
+      fireEvent.press(screen.getByText("Find a provider"));
+      expect(navigate).toHaveBeenCalledWith(
+        "ProviderSearch",
+        expect.objectContaining({ intake: expect.objectContaining({ tier: "CLINICIAN_SOON" }) })
+      );
+    });
+  });
+
   describe("URGENT", () => {
     it("points toward booking care but is honest that it does not contact anyone", () => {
       renderResult({ tier: "URGENT" });

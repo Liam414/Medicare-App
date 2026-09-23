@@ -69,7 +69,7 @@ MAX_RECORDED_STEPS = 1
 # rankable against one. See the note in app/core/triage.py.
 NEEDS_MORE_INFO = "NEEDS_MORE_INFO"
 
-_VALID_TIERS = {"EMERGENT", "URGENT", "SELF_CARE", NEEDS_MORE_INFO}
+_VALID_TIERS = {"EMERGENT", "URGENT", "CLINICIAN_SOON", "SELF_CARE", NEEDS_MORE_INFO}
 _VALID_CONFIDENCE = {"LOW", "MEDIUM", "HIGH"}
 
 
@@ -179,7 +179,7 @@ TOOLS = [
                 "properties": {
                     "tier": {
                         "type": "string",
-                        "enum": ["EMERGENT", "URGENT", "SELF_CARE", NEEDS_MORE_INFO],
+                        "enum": ["EMERGENT", "URGENT", "CLINICIAN_SOON", "SELF_CARE", NEEDS_MORE_INFO],
                     },
                     "reasoning": {
                         "type": "string",

@@ -573,6 +573,30 @@ class TestNeedsMoreInfoCannotBeRankedAgainstATier:
         assert verdict.tier is None
 
 
+class TestClinicianSoonOnlyEverRaises:
+    """Decision 2: the fourth tier is reachable upward from SELF_CARE only."""
+
+    def test_it_raises_a_self_care_answer(self, model_says):
+        model_says(Tier.CLINICIAN_SOON)
+        result = assess("I have a cold and a runny nose")
+        assert result.rule_tier is Tier.SELF_CARE
+        assert result.tier is Tier.CLINICIAN_SOON
+
+    def test_it_never_lowers_the_urgent_default(self, model_says):
+        model_says(Tier.CLINICIAN_SOON)
+        result = assess("something feels odd in my left foot")
+        assert result.tier is Tier.URGENT
+
+    def test_the_rule_layer_never_emits_it(self, no_model):
+        from app.core.rules_triage import classify
+
+        for text in ("I have a cold", "sore throat for over a week", "my foot feels odd"):
+            assert classify(text).tier_name != "CLINICIAN_SOON"
+
+    def test_it_is_ordered_between_self_care_and_urgent(self):
+        assert Tier.SELF_CARE < Tier.CLINICIAN_SOON < Tier.URGENT < Tier.EMERGENT
+
+
 def test_a_red_flag_never_waits_on_the_model(monkeypatch):
     """Emergency guidance must not sit behind a model round trip (decision 3)."""
 

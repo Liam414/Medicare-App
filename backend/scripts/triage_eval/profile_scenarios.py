@@ -29,8 +29,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-E, U, S = "EMERGENT", "URGENT", "SELF_CARE"
-_RANK = {S: 0, U: 1, E: 2}
+E, U, C, S = "EMERGENT", "URGENT", "CLINICIAN_SOON", "SELF_CARE"
+_RANK = {S: 0, C: 1, U: 2, E: 3}
 
 
 @dataclass(frozen=True)
