@@ -289,6 +289,7 @@ rules above.
 | `docs/label-scanning.md` | the two OCR engines, the parser rules, the corpus and the two defects it found |
 | `docs/symptom-history.md` | reading back stored assessments, the verbatim visit summary, what leaves the device, consent |
 | `docs/check-ins.md` | the day-later check-in, why it is not a triage input, storage, sign-out, arming |
+| `docs/proposed-spanish-red-flag-phrases.md` | Spanish red-flag phrases proposed for the fenced list, not applied, and the questions only a clinician and translator can answer |
 | `docs/care-profiles.md` | records kept for someone else: the name-only table, ownership, cascade, the banner, arming for everyone |
 | `docs/emergency-card.md` | storage per platform, the mirrored medication list, the palette exception, the rejected lock-screen widget |
 | `docs/security-posture.md` | auth, tokens, session persistence, CORS, headers, transport, and all nine closed findings with their fixes |
@@ -523,6 +524,18 @@ read it.** Four rules, each tested:
   screens wait for the active profile before loading or saving — except
   intake, which never waits. Notifications say whose medicine it is.
 - The emergency card is per person and still makes no network request.
+
+### Interface language — `mobile/src/i18n/strings.ts`
+
+- ⛔ **Spanish ships switched OFF** (`EXPO_PUBLIC_SPANISH_UI`). Red-flag
+  screening reads English only — "dolor de pecho" gets no 911 guidance — so a
+  Spanish interface would invite the input the screener cannot read. Do not
+  switch it on until Spanish red-flag phrases are approved and in place
+  (`docs/proposed-spanish-red-flag-phrases.md`, not applied) and a translator
+  has reviewed `es`. Tested.
+- ⛔ Only interface chrome is translated. Disclaimers, escalation copy and
+  emergency guidance stay as reviewed; a translated safety instruction is a new
+  one. A test asserts the table holds none.
 
 ### Emergency card — `docs/emergency-card.md`
 

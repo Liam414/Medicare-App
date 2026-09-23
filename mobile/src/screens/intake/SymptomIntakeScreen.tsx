@@ -14,6 +14,7 @@ import { TextField } from "@/components/TextField";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { ProfileBanner } from "@/components/ProfileBanner";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
+import { useLanguage } from "@/i18n/useLanguage";
 import { clearCheckIn, getCheckIn, type CheckIn } from "@/services/checkIns";
 import { IntakeError, PAST_TIER_LABELS, submitIntake } from "@/services/intakeService";
 import { rearm } from "@/services/reminderArming";
@@ -43,6 +44,7 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [checkIn, setCheckInState] = useState<CheckIn | null>(null);
   const { active, profiles, profileId } = useActiveProfile();
+  const { t } = useLanguage();
 
   const reset = route.params?.reset;
   const checkingIn = route.params?.checkIn;
@@ -204,7 +206,7 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
 
       <PageHeader
         icon="symptom"
-        title="What's going on?"
+        title={t("intake.title")}
         /*
           ⛔ THIS SAYS BOTH WAYS IN, AND IT HAS TO.
 
@@ -214,7 +216,7 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
           their own words has already turned away the person who came here
           because they did not want to write anything.
         */
-        subtitle="Type it in your own words, tap it from a list, or do both. Include when it started and anything that's changed."
+        subtitle={t("intake.subtitle")}
       />
 
       {/*
@@ -371,13 +373,13 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
       </Pressable>
 
       <AppButton
-        label={submitting ? "Checking…" : "Get an urgency estimate"}
+        label={submitting ? "Checking…" : t("intake.submit")}
         onPress={handleSubmit}
         loading={submitting}
       />
 
       <AppButton
-        label="Past descriptions"
+        label={t("intake.past")}
         variant="secondary"
         accessibilityHint="The descriptions you chose to save, and a summary to share with a clinician"
         onPress={() => navigation.navigate("SymptomHistory")}

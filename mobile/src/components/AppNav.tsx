@@ -6,6 +6,7 @@ import { AppButton } from "@/components/AppButton";
 import { Glyph, type GlyphName } from "@/components/Glyph";
 import { Wordmark } from "@/components/Mark";
 import { DomainProvider } from "@/hooks/useDomain";
+import { useLanguage } from "@/i18n/useLanguage";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
 import {
   BORDER_WIDTH,
@@ -299,6 +300,8 @@ function NavItem({
   variant: "tab" | "rail";
 }) {
   const [hovered, setHovered] = useState(false);
+  const { t } = useLanguage();
+  const label = t(`tab.${tab.name}`);
   const hoverProps: HoverProps = {
     onHoverIn: () => setHovered(true),
     onHoverOut: () => setHovered(false),
@@ -316,7 +319,7 @@ function NavItem({
       // nothing on web — React Native Web 0.19.13 takes `aria-selected`
       // instead and never reads it, so every tab announced identically and a
       // reader could not tell where they were. It stays for native.
-      accessibilityLabel={`${tab.name}, ${active ? "selected" : "not selected"}`}
+      accessibilityLabel={`${label}, ${active ? "selected" : "not selected"}`}
       // The count is spoken rather than left as a coloured dot, so it is not
       // lost to someone navigating by screen reader.
       accessibilityHint={
@@ -356,7 +359,7 @@ function NavItem({
         ]}
         numberOfLines={1}
       >
-        {tab.name}
+        {label}
       </Text>
 
       {attention ? (

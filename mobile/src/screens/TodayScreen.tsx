@@ -17,6 +17,9 @@ import { listAppointments, type Appointment } from "@/services/appointmentServic
 import { clearCheckIn, getCheckIn, isDue, type CheckIn } from "@/services/checkIns";
 import { ProfileBanner } from "@/components/ProfileBanner";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
+import { SegmentedControl } from "@/components/SegmentedControl";
+import { LANGUAGES, SPANISH_UI_ENABLED, type Language } from "@/i18n/strings";
+import { useLanguage } from "@/i18n/useLanguage";
 import { setActiveProfile } from "@/services/profileService";
 import { rearm } from "@/services/reminderArming";
 import { listMedications, type Medication } from "@/services/medicationService";
@@ -82,6 +85,7 @@ export function TodayScreen({ navigation }: Props) {
   const [now, setNow] = useState(() => new Date());
   const [checkIn, setCheckIn] = useState<CheckIn | null>(null);
   const { active, profiles, ready, profileId } = useActiveProfile();
+  const { language, setLanguage, t } = useLanguage();
 
   /**
    * The three lists are independent, so one failing must not blank the other
@@ -214,7 +218,7 @@ export function TodayScreen({ navigation }: Props) {
     <View style={styles.greeting}>
       <View style={styles.greetingRow}>
         <Text style={styles.greetingTitle} accessibilityRole="header">
-          Hi there
+          {t("today.greeting")}
         </Text>
         {/*
           The reference design puts a user avatar here. MedHelp holds no name,
@@ -252,15 +256,12 @@ export function TodayScreen({ navigation }: Props) {
       <View style={[styles.hero, isExpanded && styles.heroExpanded]}>
         <View style={styles.heroText}>
           <Text style={styles.heroTitle} accessibilityRole="header">
-            Not feeling well?
+            {t("today.heroTitle")}
           </Text>
-          <Text style={styles.heroBody}>
-            MedHelp estimates how soon you may need care. It never names a
-            condition and never recommends a treatment.
-          </Text>
+          <Text style={styles.heroBody}>{t("today.heroBody")}</Text>
         </View>
         <AppButton
-          label="Check my symptoms"
+          label={t("today.heroButton")}
           variant="outline"
           onPress={() => navigation.navigate("SymptomIntake")}
           accessibilityHint="Opens a form to describe what is wrong"
@@ -304,7 +305,7 @@ export function TodayScreen({ navigation }: Props) {
     <View style={styles.section}>
       <View style={styles.sectionHead}>
         <Text style={styles.sectionLabel} accessibilityRole="header">
-          Your medication times
+          {t("today.medicationTimes")}
         </Text>
         <Pressable
           onPress={() => navigation.navigate("MedicationReminders")}
@@ -486,8 +487,20 @@ export function TodayScreen({ navigation }: Props) {
         Sign-out lives in the rail on a wide window and here on a narrow one —
         one place at a time, never both.
       */}
+      {SPANISH_UI_ENABLED && (
+        <SegmentedControl
+          segments={LANGUAGES.map((option) => ({
+            key: option.code,
+            label: option.label,
+            hint: t("language.label"),
+          }))}
+          selected={language}
+          onSelect={(key) => void setLanguage(key as Language)}
+        />
+      )}
+      {language === "es" && <Text style={styles.quietText}>{t("language.notice")}</Text>}
       <AppButton
-        label="People you look after"
+        label={t("today.people")}
         variant="secondary"
         onPress={() => navigation.navigate("CareProfiles")}
         accessibilityHint="Keep medications, symptoms and visits for someone else separately"
