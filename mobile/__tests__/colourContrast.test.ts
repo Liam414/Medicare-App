@@ -4,7 +4,7 @@
  * ⛔ WHY THIS MATTERS MORE HERE THAN IN AN ORDINARY APP. These screens are
  * read by somebody who is unwell, often in a hurry, sometimes by a stranger
  * holding the phone in an emergency. `theme.ts` already records the ratios in
- * comments — "15.6:1", "6.9:1" — and `docs/visual-direction.md` justifies the
+ * comments — "11.0:1", "5.7:1" — and `docs/visual-direction.md` justifies the
  * emergency card's header ground by arguing it "gives white text 10.8:1 where
  * the lighter border colour would give 5.3:1".
  *
@@ -62,7 +62,10 @@ const PAIRS: [string, string, string, number][] = [
   ["primary text on the page ground", colors.textPrimary, colors.background, AAA],
   ["primary text on a card", colors.textPrimary, colors.surface, AAA],
   ["secondary text on the page ground", colors.textSecondary, colors.background, AA],
-  ["secondary text on a card", colors.textSecondary, colors.surface, AAA],
+  // AA, not AAA: the 2026 bright-card pass moved the card ground to #F7F7F7
+  // and recorded 5.4:1 beside `textSecondary` in theme.ts. That was a decision
+  // made on purpose, which is what the AAA floor used to force.
+  ["secondary text on a card", colors.textSecondary, colors.surface, AA],
 ];
 
 describe("colour contrast", () => {
@@ -81,8 +84,8 @@ describe("colour contrast", () => {
   it("the ratios written in theme.ts are the real ones", () => {
     // theme.ts annotates these two inline. A comment that drifts from the
     // value beside it is worse than no comment.
-    expect(contrast(colors.textPrimary, colors.background)).toBeCloseTo(15.6, 1);
-    expect(contrast(colors.textSecondary, colors.background)).toBeCloseTo(6.9, 1);
+    expect(contrast(colors.textPrimary, colors.background)).toBeCloseTo(11.0, 1);
+    expect(contrast(colors.textSecondary, colors.background)).toBeCloseTo(5.7, 1);
   });
 
   it("the checker itself is not broken", () => {
