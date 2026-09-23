@@ -105,6 +105,9 @@ export type RootStackParamList = {
    */
   // Who this account keeps records for, and which one is on screen.
   CareProfiles: undefined;
+  // Conditions, allergies and the account's export/delete. Takes no params:
+  // health data never travels in a route param (see EmergencyCard above).
+  HealthProfile: undefined;
 
   EmergencyCard: undefined;
   EmergencyCardEdit: undefined;

@@ -505,6 +505,12 @@ export function TodayScreen({ navigation }: Props) {
         onPress={() => navigation.navigate("CareProfiles")}
         accessibilityHint="Keep medications, symptoms and visits for someone else separately"
       />
+      <AppButton
+        label="Health profile and your data"
+        variant="secondary"
+        onPress={() => navigation.navigate("HealthProfile")}
+        accessibilityHint="Allergies and conditions, and downloading or deleting your data"
+      />
       {isExpanded ? null : (
         <AppButton
           label="Sign out"
