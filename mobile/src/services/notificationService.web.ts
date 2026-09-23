@@ -25,6 +25,7 @@
  * anywhere. A test asserts it.
  */
 
+import type { CheckInAlert } from "@/services/checkIns";
 import type { RefillAlert } from "@/services/refillAlerts";
 import type { DueReminder } from "@/services/reminderTiming";
 import { nextOccurrence } from "@/services/reminderTiming";
@@ -43,6 +44,8 @@ export type ReminderPermission = "granted" | "denied" | "prompt" | "unsupported"
  */
 export interface ScheduleOptions {
   refillAlerts?: RefillAlert[];
+  /** One-off "how is it now?" prompts. Generic text only: lock screen. */
+  checkIns?: CheckInAlert[];
   /** Test seam and clock source. Defaults to now. */
   now?: Date;
 }
@@ -162,6 +165,26 @@ export async function scheduleAll(
         // nag about a supply the user may already have replaced.
       }, delay)
     );
+  }
+
+  for (const checkIn of options.checkIns ?? []) {
+    const delay = checkIn.fireAt.getTime() - now.getTime();
+    if (delay < 0 || delay > MAX_TIMEOUT_MS) continue;
+    // One-off, like a refill alert. Fires only if this tab is still open a
+    // day later; Today shows it on the next visit either way.
+    timers.push(setTimeout(() => showCheckIn(checkIn), delay));
+  }
+}
+
+function showCheckIn(checkIn: CheckInAlert): void {
+  try {
+    new window.Notification(checkIn.title, {
+      body: checkIn.body,
+      tag: "check-in",
+      requireInteraction: false,
+    });
+  } catch {
+    // Today shows a due check-in whether or not this fires.
   }
 }
 

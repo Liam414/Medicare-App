@@ -28,6 +28,11 @@ class Medication(Base):
     user_id: Mapped[str] = mapped_column(
         String, ForeignKey("users.id"), nullable=False, index=True
     )
+    # Whose medication this is. NULL is the account holder; otherwise one of
+    # their care profiles. See app/models/care_profile.py.
+    profile_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("care_profiles.id"), nullable=True, index=True
+    )
 
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     dosage: Mapped[str | None] = mapped_column(String(120), nullable=True)

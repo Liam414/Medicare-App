@@ -10,10 +10,11 @@ reads — it only estimates urgency and explains that estimate.
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from app.api.profiles import owned_profile_id, profile_filter
 from app.core import followup, interpretation, triage_log
 from app.core.config import settings
 from app.core.dependencies import get_current_user
@@ -24,6 +25,7 @@ from app.models.user import User
 from app.schemas.intake import (
     FollowUpQuestionOut,
     IntakeFeedbackRequest,
+    IntakeHistoryItemOut,
     IntakeRecapEntryOut,
     IntakeRecapOut,
     IntakeRequest,
@@ -345,10 +347,18 @@ async def create_assessment(
         related_topics = await _related_topics(description)
 
     record_id: str | None = None
-    if payload.consent_to_store:
+    try:
+        store_under = owned_profile_id(payload.profile_id, user, db)
+        storable = payload.consent_to_store
+    except HTTPException:
+        # ⛔ A stale or foreign profile id costs the stored row, never the
+        # assessment. The screening above has already run and is returned.
+        store_under, storable = None, False
+    if storable:
         # Stored only with explicit consent; see the PHI note on the model.
         record = IntakeAssessment(
             user_id=user.id,
+            profile_id=store_under,
             description=description,
             tier=result.tier.wire_value,
             reasoning=result.reasoning,
@@ -437,3 +447,87 @@ def report_assessment(
 
     record.user_reported_wrong = payload.reported_wrong
     db.commit()
+
+
+# How many past assessments one read returns. A history, not an archive.
+HISTORY_LIMIT = 50
+
+
+def _recap_out(raw_answers: str | None) -> IntakeRecapOut | None:
+    try:
+        answers = json.loads(raw_answers) if raw_answers else {}
+    except ValueError:
+        answers = {}
+    recap = followup.summarise(answers if isinstance(answers, dict) else {})
+    if recap.is_empty():
+        return None
+    return IntakeRecapOut(
+        understood=[IntakeRecapEntryOut(label=e.label, value=e.value) for e in recap.understood],
+        unclear=recap.unclear,
+    )
+
+
+@router.get("", response_model=list[IntakeHistoryItemOut])
+def list_assessments(
+    profile_id: str | None = Query(None, description="Whose history. Omitted means your own."),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[IntakeHistoryItemOut]:
+    """
+    The caller's own stored assessments, newest first.
+
+    Only assessments the person consented to storing exist to be listed — an
+    unconsented one was never written. Each row is read back exactly as it was
+    stored and shown; nothing is re-assessed, and a tier is never recomputed
+    against today's rules, because that would be a different answer presented
+    as the one they were given.
+    """
+    scope = owned_profile_id(profile_id, user, db)
+    rows = (
+        db.query(IntakeAssessment)
+        .filter(
+            IntakeAssessment.user_id == user.id,
+            profile_filter(IntakeAssessment.profile_id, scope),
+        )
+        .order_by(IntakeAssessment.created_at.desc())
+        .limit(HISTORY_LIMIT)
+        .all()
+    )
+    return [
+        IntakeHistoryItemOut(
+            id=row.id,
+            created_at=row.created_at,
+            tier=row.tier,
+            reasoning=row.reasoning,
+            description=row.description,
+            summary=_recap_out(row.followup_answers),
+        )
+        for row in rows
+    ]
+
+
+@router.delete("/{assessment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_assessment(
+    assessment_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
+    """
+    Remove one of the caller's stored assessments.
+
+    Consent to store is not consent to keep forever. Now that a person can see
+    what was stored, they can also take it back. Another user's id is a 404,
+    never a 403, so the endpoint does not confirm that an id exists.
+    """
+    deleted = (
+        db.query(IntakeAssessment)
+        .filter(
+            IntakeAssessment.id == assessment_id,
+            IntakeAssessment.user_id == user.id,
+        )
+        .delete()
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Assessment not found.")
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -32,6 +32,7 @@ measurement.
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 _spec = importlib.util.spec_from_file_location(
@@ -39,6 +40,7 @@ _spec = importlib.util.spec_from_file_location(
 )
 _corpus = importlib.util.module_from_spec(_spec)
 assert _spec.loader is not None
+sys.modules[_spec.name] = _corpus
 _spec.loader.exec_module(_corpus)
 Case = _corpus.Case
 

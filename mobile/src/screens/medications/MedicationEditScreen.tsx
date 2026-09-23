@@ -17,6 +17,8 @@ import {
 import { colors, radius, spacing, typography } from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
 import { validateIsoDate, validateWholeNumber } from "@/utils/validation";
+import { ProfileBanner } from "@/components/ProfileBanner";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
 
 /** Today as YYYY-MM-DD in the device's own timezone, not UTC. */
 function todayIso(): string {
@@ -110,6 +112,7 @@ export function MedicationEditScreen({ navigation, route }: Props) {
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const { active, profiles, ready, profileId } = useActiveProfile();
 
   const busy = saving || deleting;
 
@@ -170,7 +173,9 @@ export function MedicationEditScreen({ navigation, route }: Props) {
       if (existing) {
         await updateMedication(existing.id, input);
       } else {
-        await createMedication(input);
+        // ⛔ Only once the active profile is known — see `ready` below — so a
+        // new medication can never land on the wrong person's list.
+        await createMedication(input, profileId);
       }
       navigation.goBack();
     } catch (caught) {
@@ -223,6 +228,14 @@ export function MedicationEditScreen({ navigation, route }: Props) {
         title={isEditing ? "Edit medication" : "Add a medication"}
         subtitle="Enter this exactly as it appears on your prescription or packaging. MedHelp does not check or suggest medications or dosages."
       />
+
+      {!isEditing && (
+        <ProfileBanner
+          active={active}
+          profiles={profiles}
+          onChange={() => navigation.navigate("CareProfiles")}
+        />
+      )}
 
       {/*
         The confirmation step for a scanned label, and the reason scanning is
@@ -364,7 +377,7 @@ export function MedicationEditScreen({ navigation, route }: Props) {
         label={saving ? "Saving…" : isEditing ? "Save changes" : "Add medication"}
         onPress={handleSave}
         loading={saving}
-        disabled={deleting}
+        disabled={deleting || (!isEditing && !ready)}
       />
 
       {isEditing && (

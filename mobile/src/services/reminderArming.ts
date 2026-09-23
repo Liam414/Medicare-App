@@ -37,6 +37,8 @@ import { getRefillLeadDays } from "@/services/appSettings";
 import { listMedications } from "@/services/medicationService";
 import { scheduleAll } from "@/services/notificationService";
 import { toRefillAlerts, type RefillAlert } from "@/services/refillAlerts";
+import { getCheckIn, toCheckInAlerts } from "@/services/checkIns";
+import { listProfiles } from "@/services/profileService";
 import {
   listSchedules,
   toDueReminders,
@@ -76,11 +78,14 @@ export async function rearm(): Promise<ArmedState | null> {
       // and losing them must not cost the person their dose reminders.
       const [schedules, medications] = await Promise.all([
         listSchedules(),
-        listMedications(leadDays).catch(() => []),
+        everyonesMedications(leadDays),
       ]);
 
       const refillAlerts = toRefillAlerts(medications, leadDays);
-      await scheduleAll(toDueReminders(schedules), { refillAlerts });
+      await scheduleAll(toDueReminders(schedules), {
+        refillAlerts,
+        checkIns: await checkInAlerts(),
+      });
       return { schedules, refillAlerts, leadDays };
     } catch {
       // Signed out, offline, or the API is down. Whatever was already armed
@@ -97,6 +102,43 @@ export async function rearm(): Promise<ArmedState | null> {
 }
 
 /**
+ * Every person's medications, for their refill estimates.
+ *
+ * ⛔ Not just the active profile's. Arming is the whole set for everyone this
+ * device looks after — a refill alert for Dad's tablets must not depend on
+ * whose list happened to be open last. The medication list endpoint is scoped
+ * per person, so this asks once for the account holder and once per profile
+ * (at most ten). Any one failing costs that person's refill alerts only.
+ */
+async function everyonesMedications(leadDays: number) {
+  const profiles = await listProfiles().catch(() => []);
+  const lists = await Promise.all(
+    [null, ...profiles].map(async (profile) => {
+      const medications = await listMedications(leadDays, profile?.id).catch(() => []);
+      // Only the notification text uses these names, so whose medicine it is
+      // goes into the name here, as it does for dose reminders.
+      return profile
+        ? medications.map((m) => ({ ...m, name: `For ${profile.displayName}: ${m.name}` }))
+        : medications;
+    })
+  );
+  return lists.flat();
+}
+
+/**
+ * The pending check-in, if any. Read from the device every time, because it is
+ * part of the whole set and `scheduleAll` cancels everything before arming.
+ * An unreadable store costs the check-in notification, never the dose ones.
+ */
+async function checkInAlerts() {
+  try {
+    return toCheckInAlerts(await getCheckIn());
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Arm from a set the caller has already loaded, without reading it again.
  *
  * `MedicationRemindersScreen` fetches all of this to render, so making it fetch
@@ -108,6 +150,7 @@ export async function rearmFrom(state: ArmedState): Promise<void> {
     try {
       await scheduleAll(toDueReminders(state.schedules), {
         refillAlerts: state.refillAlerts,
+        checkIns: await checkInAlerts(),
       });
     } catch {
       // As above: arming is best-effort and never the person's problem.

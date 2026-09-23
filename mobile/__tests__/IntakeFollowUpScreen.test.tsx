@@ -154,10 +154,14 @@ describe("IntakeFollowUpScreen", () => {
     fireEvent.press(screen.getByText("Continue"));
 
     await waitFor(() => {
-      expect(submitIntakeMock).toHaveBeenCalledWith("I have been feeling off", false, {
-        location: "my lower back",
-        duration: "Started today",
-      });
+      expect(submitIntakeMock).toHaveBeenCalledWith(
+        "I have been feeling off",
+        false,
+        { location: "my lower back", duration: "Started today" },
+        undefined,
+        // Whose history: none was given, so the account holder's.
+        undefined
+      );
     });
     expect(replace).toHaveBeenCalledWith("IntakeResult", {
       assessment: ASSESSMENT,
@@ -210,11 +214,13 @@ describe("IntakeFollowUpScreen", () => {
     fireEvent.press(screen.getByText("Continue"));
 
     await waitFor(() => {
-      expect(submitIntakeMock).toHaveBeenCalledWith("I have been feeling off", false, {
-        location: "my lower back",
-        duration: "Started today",
-        onset: "Gradually",
-      });
+      expect(submitIntakeMock).toHaveBeenCalledWith(
+        "I have been feeling off",
+        false,
+        { location: "my lower back", duration: "Started today", onset: "Gradually" },
+        undefined,
+        undefined
+      );
     });
   });
 

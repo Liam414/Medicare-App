@@ -12,7 +12,12 @@ import { Screen } from "@/components/Screen";
 import { SymptomPicker } from "@/components/SymptomPicker";
 import { TextField } from "@/components/TextField";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
-import { IntakeError, submitIntake } from "@/services/intakeService";
+import { ProfileBanner } from "@/components/ProfileBanner";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
+import { useLanguage } from "@/i18n/useLanguage";
+import { clearCheckIn, getCheckIn, type CheckIn } from "@/services/checkIns";
+import { IntakeError, PAST_TIER_LABELS, submitIntake } from "@/services/intakeService";
+import { rearm } from "@/services/reminderArming";
 import { composeDescription, labelsFor } from "@/services/symptomVocabulary";
 import {
   BORDER_WIDTH,
@@ -37,8 +42,30 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [checkIn, setCheckInState] = useState<CheckIn | null>(null);
+  const { active, profiles, profileId } = useActiveProfile();
+  const { t } = useLanguage();
 
   const reset = route.params?.reset;
+  const checkingIn = route.params?.checkIn;
+
+  /*
+    Answering a check-in: yesterday's words go back in the box, editable, and
+    the earlier estimate is stated above it as a fact. Nothing is added to the
+    person's text — a "Now:" prefix would be MedHelp's words sent to triage
+    and saved as theirs. The earlier tier never reaches the server.
+  */
+  useEffect(() => {
+    if (!checkingIn) return;
+    navigation.setParams({ checkIn: undefined });
+    void getCheckIn().then((pending) => {
+      if (!pending) return;
+      setCheckInState(pending);
+      setDescription(pending.description ? `${pending.description}\n` : "");
+      setSelectedSymptoms([]);
+      setConsent(false);
+    });
+  }, [checkingIn, navigation]);
 
   /*
     Start "Describe something else" from empty.
@@ -129,7 +156,17 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
     setSubmitting(true);
 
     try {
-      const result = await submitIntake(trimmed, consent, undefined, picked);
+      // ⛔ Whose history this is saved under. Never waited for: if the profile
+      // has not loaded yet, a saved row may be filed under "Me", which is
+      // recoverable; delaying emergency screening is not.
+      const whose = checkIn ? checkIn.profileId ?? null : profileId;
+      const result = await submitIntake(trimmed, consent, undefined, picked, whose);
+      if (checkIn) {
+        // Answered. Cleared only once the server has the new description, so
+        // a failed submission leaves the check-in waiting on Today.
+        setCheckInState(null);
+        void clearCheckIn().then(() => rearm());
+      }
       if (result.status === "needs_detail") {
         // The server could not make sense of this and is asking rather than
         // guessing. A red-flag description never lands here — it comes back
@@ -138,6 +175,7 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
           followUp: result,
           description: composed,
           consent,
+          profileId: whose,
         });
       } else {
         navigation.navigate("IntakeResult", {
@@ -168,7 +206,7 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
 
       <PageHeader
         icon="symptom"
-        title="What's going on?"
+        title={t("intake.title")}
         /*
           ⛔ THIS SAYS BOTH WAYS IN, AND IT HAS TO.
 
@@ -178,7 +216,7 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
           their own words has already turned away the person who came here
           because they did not want to write anything.
         */
-        subtitle="Type it in your own words, tap it from a list, or do both. Include when it started and anything that's changed."
+        subtitle={t("intake.subtitle")}
       />
 
       {/*
@@ -198,6 +236,24 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
 
       {error && (
         <ErrorNotice message={error} onRetry={isOffline ? handleSubmit : undefined} />
+      )}
+
+      {!checkIn && (
+        <ProfileBanner
+          active={active}
+          profiles={profiles}
+          onChange={() => navigation.navigate("CareProfiles")}
+        />
+      )}
+
+      {checkIn && (
+        <View style={styles.checkIn} accessibilityRole="summary">
+          <Text style={styles.checkInText}>
+            Checking in{checkIn.profileName ? ` on ${checkIn.profileName}` : ""} — what you described on{" "}
+            {new Date(checkIn.createdAt).toLocaleDateString(undefined, { weekday: "long" })}.
+            Earlier estimate: {PAST_TIER_LABELS[checkIn.earlierTier]}. Add how things are now.
+          </Text>
+        </View>
       )}
 
       <TextField
@@ -303,17 +359,30 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
         <View style={[styles.checkbox, consent && styles.checkboxChecked]}>
           {consent && <Text style={styles.checkboxMark}>✓</Text>}
         </View>
+        {/*
+          2026-09-22: the second sentence is new. Saving now also puts the
+          description under Past descriptions, and consent has to say what it
+          is consent to. Belongs in the reviewer's read of this screen.
+        */}
         <Text style={styles.consentText}>
           Save this description and the result so MedHelp can review how
           accurate these estimates are. Optional — the estimate works either
-          way.
+          way. Saved ones also appear under Past descriptions, where you can
+          remove them.
         </Text>
       </Pressable>
 
       <AppButton
-        label={submitting ? "Checking…" : "Get an urgency estimate"}
+        label={submitting ? "Checking…" : t("intake.submit")}
         onPress={handleSubmit}
         loading={submitting}
+      />
+
+      <AppButton
+        label={t("intake.past")}
+        variant="secondary"
+        accessibilityHint="The descriptions you chose to save, and a summary to share with a clinician"
+        onPress={() => navigation.navigate("SymptomHistory")}
       />
     </Screen>
     </AppNav>
@@ -321,6 +390,12 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
+  checkIn: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  checkInText: { ...typography.body, color: colors.textPrimary },
   disclaimer: {
     backgroundColor: colors.noticeSurface,
     borderColor: colors.noticeBorder,

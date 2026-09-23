@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -26,6 +27,11 @@ class IntakeRequest(BaseModel):
     # Explicit, per-submission consent. Defaults to False so a client that
     # forgets the field stores nothing.
     consent_to_store: bool = False
+    # Whose description this is, for the history it is stored under. ⛔ Never
+    # read by triage, and never a reason to refuse an assessment: an id the
+    # caller does not own means the row is not stored, not that screening is
+    # withheld.
+    profile_id: str | None = Field(default=None, max_length=64)
     # Answers to the follow-up prompts, keyed by question id. Present on any
     # submission after the first. Merged into the description server-side so
     # the combined text is re-screened from the top — see app/core/followup.py.
@@ -118,6 +124,24 @@ class IntakeRecapOut(BaseModel):
 
     understood: list[IntakeRecapEntryOut]
     unclear: list[str]
+
+
+class IntakeHistoryItemOut(BaseModel):
+    """
+    One stored assessment, read back to the person who made it.
+
+    ⛔ Only fields that were already shown to them on the result screen, and
+    nothing an auditor wants that they do not: no rule ids, no model tier, no
+    confidence. `description` is what was stored — the person's own words with
+    their follow-up answers joined on, verbatim. It is never re-summarised.
+    """
+
+    id: str
+    created_at: datetime
+    tier: str
+    reasoning: str
+    description: str
+    summary: IntakeRecapOut | None
 
 
 class IntakeResponse(BaseModel):

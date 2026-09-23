@@ -30,7 +30,10 @@ export type RootStackParamList = {
   // still holds the previous description in its own state — so starting a new
   // description has to be asked for explicitly rather than assumed from a
   // fresh mount that never happens.
-  SymptomIntake: { reset?: boolean } | undefined;
+  // `checkIn` opens it prefilled from the pending check-in on the device.
+  // A flag, never the text: route params are serialisable and dev tooling
+  // persists them, so a description does not belong in one.
+  SymptomIntake: { reset?: boolean; checkIn?: boolean } | undefined;
   // Shown when the description was not understood. Carries the original text
   // and consent forward so the second submission is a complete one.
   IntakeFollowUp: {
@@ -44,11 +47,17 @@ export type RootStackParamList = {
      * ids present.
      */
     priorAnswers?: Record<string, string>;
+    // Whose history the answer is saved under. An id, never a name or text.
+    profileId?: string | null;
   };
   // `description` is what the user actually wrote (with any follow-up answers
   // merged in). It is carried so the appointment flow can prefill the reason
   // for visit; the assessment itself does not include it.
   IntakeResult: { assessment: IntakeAssessment; description?: string };
+  // Saved descriptions, read back as they were shown, and a verbatim summary
+  // of them for a clinician. No params: both load from the server.
+  SymptomHistory: undefined;
+  VisitSummary: undefined;
 
   // Finding a provider and recording a visit.
   //
@@ -94,6 +103,9 @@ export type RootStackParamList = {
    * card from storage themselves — same rule, and same reason, as
    * `BookingIdentity` taking an id rather than an identity.
    */
+  // Who this account keeps records for, and which one is on screen.
+  CareProfiles: undefined;
+
   EmergencyCard: undefined;
   EmergencyCardEdit: undefined;
 

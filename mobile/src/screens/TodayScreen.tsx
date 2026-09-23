@@ -14,6 +14,14 @@ import { DomainProvider } from "@/hooks/useDomain";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { logout } from "@/services/authService";
 import { listAppointments, type Appointment } from "@/services/appointmentService";
+import { clearCheckIn, getCheckIn, isDue, type CheckIn } from "@/services/checkIns";
+import { ProfileBanner } from "@/components/ProfileBanner";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
+import { SegmentedControl } from "@/components/SegmentedControl";
+import { LANGUAGES, SPANISH_UI_ENABLED, type Language } from "@/i18n/strings";
+import { useLanguage } from "@/i18n/useLanguage";
+import { setActiveProfile } from "@/services/profileService";
+import { rearm } from "@/services/reminderArming";
 import { listMedications, type Medication } from "@/services/medicationService";
 import { listSchedules, type MedicationSchedule } from "@/services/reminderService";
 import { dueState, formatTimeOfDay, sortByTime } from "@/services/reminderTiming";
@@ -75,6 +83,9 @@ export function TodayScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const [checkIn, setCheckIn] = useState<CheckIn | null>(null);
+  const { active, profiles, ready, profileId } = useActiveProfile();
+  const { language, setLanguage, t } = useLanguage();
 
   /**
    * The three lists are independent, so one failing must not blank the other
@@ -86,9 +97,9 @@ export function TodayScreen({ navigation }: Props) {
     setLoading(true);
     const [medicationResult, scheduleResult, appointmentResult] =
       await Promise.allSettled([
-        listMedications(),
+        listMedications(undefined, profileId),
         listSchedules(),
-        listAppointments(),
+        listAppointments(profileId),
       ]);
 
     if (medicationResult.status === "fulfilled") setMedications(medicationResult.value);
@@ -107,13 +118,16 @@ export function TodayScreen({ navigation }: Props) {
           : "Some of today couldn't be loaded. What's shown below is up to date."
     );
     setLoading(false);
-  }, []);
+  }, [profileId]);
 
   useFocusEffect(
     useCallback(() => {
-      void load();
+      if (ready) void load();
       setNow(new Date());
-    }, [load])
+      // On the device, so it shows with no network — the notification is the
+      // bonus and this card is the part that is always correct.
+      void getCheckIn().then(setCheckIn).catch(() => setCheckIn(null));
+    }, [ready, load])
   );
 
   // Keeps "Due now" and "Earlier today" honest without a re-render storm.
@@ -123,6 +137,14 @@ export function TodayScreen({ navigation }: Props) {
   }, []);
 
   const handleSignOut = () => {
+    // ⛔ A pending check-in holds symptom text. On a shared computer the next
+    // person to sign in would otherwise find it prefilled. Cleared here, on an
+    // explicit sign-out only — a 401 must not clear it, because a check-in is
+    // due a day later and the session will long since have expired.
+    void clearCheckIn();
+    // Whose records were on screen is not something the next person to sign
+    // in on this device should inherit.
+    void setActiveProfile(null);
     void logout();
     navigation.reset({ index: 0, routes: [{ name: "Login" }] });
   };
@@ -134,7 +156,11 @@ export function TodayScreen({ navigation }: Props) {
         .map((reminder) => ({
           key: reminder.id,
           timeOfDay: reminder.timeOfDay,
-          name: schedule.medicationName,
+          // Everyone's times, because a caregiver's day includes Dad's doses —
+          // each one saying whose it is.
+          name: schedule.profileName
+            ? `${schedule.profileName}: ${schedule.medicationName}`
+            : schedule.medicationName,
           dosage: schedule.dosage,
         }))
     )
@@ -192,7 +218,7 @@ export function TodayScreen({ navigation }: Props) {
     <View style={styles.greeting}>
       <View style={styles.greetingRow}>
         <Text style={styles.greetingTitle} accessibilityRole="header">
-          Hi there
+          {t("today.greeting")}
         </Text>
         {/*
           The reference design puts a user avatar here. MedHelp holds no name,
@@ -230,21 +256,48 @@ export function TodayScreen({ navigation }: Props) {
       <View style={[styles.hero, isExpanded && styles.heroExpanded]}>
         <View style={styles.heroText}>
           <Text style={styles.heroTitle} accessibilityRole="header">
-            Not feeling well?
+            {t("today.heroTitle")}
           </Text>
-          <Text style={styles.heroBody}>
-            MedHelp estimates how soon you may need care. It never names a
-            condition and never recommends a treatment.
-          </Text>
+          <Text style={styles.heroBody}>{t("today.heroBody")}</Text>
         </View>
         <AppButton
-          label="Check my symptoms"
+          label={t("today.heroButton")}
           variant="outline"
           onPress={() => navigation.navigate("SymptomIntake")}
           accessibilityHint="Opens a form to describe what is wrong"
           style={styles.heroButton}
         />
       </View>
+      {checkIn && (
+        <View style={styles.quietCard}>
+          <Text style={styles.quietTitle}>
+            {isDue(checkIn, now)
+              ? "Time to check in"
+              : `Check-in set for ${new Date(checkIn.dueAt).toLocaleString(undefined, {
+                  weekday: "long",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}`}
+          </Text>
+          <Text style={styles.quietText}>
+            How are things now compared with when you last described them?
+          </Text>
+          <AppButton
+            label={isDue(checkIn, now) ? "Check in now" : "Check in early"}
+            variant="secondary"
+            onPress={() => navigation.navigate("SymptomIntake", { checkIn: true })}
+            accessibilityHint="Opens the symptom form with what you wrote last time"
+          />
+          <AppButton
+            label="Cancel check-in"
+            variant="secondary"
+            onPress={() => {
+              setCheckIn(null);
+              void clearCheckIn().then(() => rearm());
+            }}
+          />
+        </View>
+      )}
     </DomainProvider>
   );
 
@@ -252,7 +305,7 @@ export function TodayScreen({ navigation }: Props) {
     <View style={styles.section}>
       <View style={styles.sectionHead}>
         <Text style={styles.sectionLabel} accessibilityRole="header">
-          Your medication times
+          {t("today.medicationTimes")}
         </Text>
         <Pressable
           onPress={() => navigation.navigate("MedicationReminders")}
@@ -434,6 +487,24 @@ export function TodayScreen({ navigation }: Props) {
         Sign-out lives in the rail on a wide window and here on a narrow one —
         one place at a time, never both.
       */}
+      {SPANISH_UI_ENABLED && (
+        <SegmentedControl
+          segments={LANGUAGES.map((option) => ({
+            key: option.code,
+            label: option.label,
+            hint: t("language.label"),
+          }))}
+          selected={language}
+          onSelect={(key) => void setLanguage(key as Language)}
+        />
+      )}
+      {language === "es" && <Text style={styles.quietText}>{t("language.notice")}</Text>}
+      <AppButton
+        label={t("today.people")}
+        variant="secondary"
+        onPress={() => navigation.navigate("CareProfiles")}
+        accessibilityHint="Keep medications, symptoms and visits for someone else separately"
+      />
       {isExpanded ? null : (
         <AppButton
           label="Sign out"
@@ -472,6 +543,12 @@ export function TodayScreen({ navigation }: Props) {
         )}
 
         {greeting}
+
+        <ProfileBanner
+          active={active}
+          profiles={profiles}
+          onChange={() => navigation.navigate("CareProfiles")}
+        />
 
         {error ? <ErrorNotice message={error} onRetry={load} /> : null}
 

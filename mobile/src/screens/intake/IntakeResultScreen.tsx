@@ -6,7 +6,15 @@ import { AppButton } from "@/components/AppButton";
 import { EmergencyCallBar } from "@/components/EmergencyCallBar";
 import { GlyphTile } from "@/components/Glyph";
 import { Screen } from "@/components/Screen";
+import { setCheckIn } from "@/services/checkIns";
 import { reportAssessmentWrong } from "@/services/intakeService";
+import {
+  getPermission,
+  requestPermission,
+  supportsBackgroundDelivery,
+} from "@/services/notificationService";
+import { getStoredActiveProfile } from "@/services/profileService";
+import { rearm } from "@/services/reminderArming";
 import { TILE, colors, elevation, radius, spacing, typography } from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
 
@@ -42,6 +50,67 @@ function TierBadge({ label, tone }: { label: string; tone: "emergent" | "urgent"
       {/* Decorative: the tier is already written out beside it. */}
       <View style={[styles.badgeDot, styles[`badgeDot_${tone}`]]} />
       <Text style={[styles.badgeText, styles[`badgeText_${tone}`]]}>{label}</Text>
+    </View>
+  );
+}
+
+function CheckInOffer({
+  description,
+  tier,
+}: {
+  description: string;
+  tier: "URGENT" | "SELF_CARE";
+}) {
+  const [dueAt, setDueAt] = useState<Date | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const arrange = async () => {
+    setFailed(false);
+    try {
+      // A button press is the only thing that may ask for permission.
+      if (getPermission() === "prompt") await requestPermission();
+      const checkIn = await setCheckIn(
+        description,
+        tier,
+        new Date(),
+        await getStoredActiveProfile()
+      );
+      setDueAt(new Date(checkIn.dueAt));
+      void rearm();
+    } catch {
+      setFailed(true);
+    }
+  };
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionHeading}>Check in later</Text>
+      {dueAt ? (
+        <Text style={styles.sectionBody} accessibilityLiveRegion="polite">
+          MedHelp will ask how you are feeling on{" "}
+          {dueAt.toLocaleString(undefined, { weekday: "long", hour: "2-digit", minute: "2-digit" })}.
+          {supportsBackgroundDelivery()
+            ? " "
+            : " A browser can only remind you while MedHelp is open in a tab. "}
+          It also shows on Today. You don't have to wait for it.
+        </Text>
+      ) : (
+        <>
+          <Text style={styles.sectionBody}>
+            MedHelp can remind you tomorrow to describe how things are then,
+            with what you wrote today already filled in.
+          </Text>
+          {failed && (
+            <Text style={styles.sectionBody}>This device couldn't save the check-in.</Text>
+          )}
+          <AppButton
+            label="Check in with me tomorrow"
+            variant="secondary"
+            onPress={() => void arrange()}
+            accessibilityHint="Sets one reminder for this time tomorrow"
+          />
+        </>
+      )}
     </View>
   );
 }
@@ -319,6 +388,19 @@ export function IntakeResultScreen({ navigation, route }: Props) {
           />
         </View>
       )}
+
+      {/*
+        A check-in a day later. EMERGENT returned above, so this is never
+        offered there: "we'll ask you tomorrow" must not sit beside "call 911
+        now". It schedules a reminder and nothing else — the earlier tier is
+        shown back as a fact and never feeds the next assessment. See
+        `checkIns.ts`. NOTE FOR REVIEW: new block on a fenced screen; no
+        disclaimer or escalation copy changed.
+      */}
+      <CheckInOffer
+        description={description ?? ""}
+        tier={assessment.tier === "URGENT" ? "URGENT" : "SELF_CARE"}
+      />
 
       {/*
         Hidden entirely while the server has the feature gated off, rather

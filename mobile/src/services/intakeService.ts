@@ -8,6 +8,8 @@
 import { API_BASE_URL, baseUrlIsTransportSafe } from "@/services/baseUrl";
 
 import { getToken, logout } from "@/services/authService";
+import { apiRequest } from "@/services/apiClient";
+import { profileQuery } from "@/services/profileService";
 
 export type Tier = "EMERGENT" | "URGENT" | "SELF_CARE";
 
@@ -163,7 +165,12 @@ export async function submitIntake(
    * separator — see `merge_selected_symptoms` — because two phrases run
    * together match no red-flag rule at all.
    */
-  selectedSymptoms?: string[]
+  selectedSymptoms?: string[],
+  /**
+   * Whose description this is, for the history it is saved under. Never read
+   * by triage; a stale one costs the saved row, never the assessment.
+   */
+  profileId?: string | null
 ): Promise<IntakeAssessment | FollowUpRequest> {
   assertSecureBaseUrl();
 
@@ -191,6 +198,7 @@ export async function submitIntake(
         ...(selectedSymptoms && selectedSymptoms.length > 0
           ? { selected_symptoms: selectedSymptoms }
           : {}),
+        ...(profileId ? { profile_id: profileId } : {}),
       }),
     });
   } catch {
@@ -334,4 +342,58 @@ export async function reportAssessmentWrong(assessmentId: string): Promise<void>
     // A non-OK status was always ignored — the response is never read — so
     // this only adds the transport half of the same promise.
   }
+}
+
+/**
+ * One stored assessment, read back to the person who made it.
+ *
+ * ⛔ A receipt of what they were shown at the time. The tier is the one they
+ * were given then, never recomputed against today's rules — a different
+ * answer presented as the old one would be worse than no history at all.
+ * `description` is their own words with their answers joined on, verbatim.
+ */
+export interface PastAssessment {
+  id: string;
+  createdAt: string;
+  tier: Tier;
+  reasoning: string;
+  description: string;
+  summary: IntakeRecap | null;
+}
+
+/** How each tier reads when looking back at it. Never a diagnosis. */
+export const PAST_TIER_LABELS: Record<Tier, string> = {
+  EMERGENT: "Emergency guidance was shown",
+  URGENT: "Urgent — be seen soon",
+  SELF_CARE: "Usually self-care",
+};
+
+export async function listPastAssessments(profileId?: string | null): Promise<PastAssessment[]> {
+  const body = (await apiRequest(`/intake${profileQuery(profileId)}`, {
+    method: "GET",
+    fallbackMessage: "We couldn't load your past descriptions. Please try again in a moment.",
+  })) as any[] | null;
+  return (body ?? []).map((row) => ({
+    id: row.id,
+    createdAt: row.created_at,
+    tier: row.tier,
+    reasoning: row.reasoning,
+    description: row.description,
+    summary: row.summary
+      ? {
+          understood: (row.summary.understood ?? []).map((entry: any) => ({
+            label: entry.label,
+            value: entry.value,
+          })),
+          unclear: row.summary.unclear ?? [],
+        }
+      : null,
+  }));
+}
+
+export async function deletePastAssessment(id: string): Promise<void> {
+  await apiRequest(`/intake/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    fallbackMessage: "We couldn't remove that description. Please try again in a moment.",
+  });
 }

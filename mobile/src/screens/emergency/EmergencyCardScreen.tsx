@@ -15,6 +15,7 @@ import {
   type EmergencyCard,
   type MirroredMedication,
 } from "@/services/emergencyCard";
+import { getStoredActiveProfile, type CareProfile } from "@/services/profileService";
 import { MIN_TAP_TARGET, colors, fonts, radius, spacing, typography } from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
 
@@ -57,18 +58,22 @@ export function EmergencyCardScreen({ navigation }: Props) {
   const [card, setCard] = useState<EmergencyCard>(EMPTY_CARD);
   const [medications, setMedications] = useState<MirroredMedication[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [profile, setProfile] = useState<CareProfile | null>(null);
 
   // Reloads on return from the editor, so a change made there is on the card
-  // immediately rather than after a restart.
+  // immediately rather than after a restart. ⛔ The profile is read from the
+  // device, never the server — see the no-network note above.
   useFocusEffect(
     useCallback(() => {
       let active = true;
       void (async () => {
+        const whose = await getStoredActiveProfile();
         const [nextCard, nextMedications] = await Promise.all([
-          loadCard(),
-          loadMirroredMedications(),
+          loadCard(whose?.id),
+          loadMirroredMedications(whose?.id),
         ]);
         if (!active) return;
+        setProfile(whose);
         setCard(nextCard);
         setMedications(nextMedications);
         setLoaded(true);
@@ -123,6 +128,13 @@ export function EmergencyCardScreen({ navigation }: Props) {
         <Text style={styles.headerTitle} accessibilityRole="header">
           EMERGENCY CARD
         </Text>
+        {/*
+          ⛔ Whose card, said before anything on it. A responder reading a
+          caregiver's phone must not take Dad's allergies for the owner's.
+        */}
+        {profile && (
+          <Text style={styles.headerTitle}>FOR {profile.displayName.toUpperCase()}</Text>
+        )}
         <Text style={styles.headerSubtitle}>
           Details this phone's owner wrote down in advance. MedHelp did not
           check them and cannot confirm they are current.

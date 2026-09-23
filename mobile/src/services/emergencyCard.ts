@@ -182,8 +182,16 @@ function parseCard(raw: string | null): EmergencyCard {
   };
 }
 
-export async function loadCard(): Promise<EmergencyCard> {
-  return parseCard(await readRaw(CARD_KEY));
+/**
+ * One card per person. `null` / omitted is the account holder, and keeps the
+ * original key, so a card saved before profiles existed is still theirs.
+ */
+function keyFor(base: string, profileId?: string | null): string {
+  return profileId ? `${base}:${profileId}` : base;
+}
+
+export async function loadCard(profileId?: string | null): Promise<EmergencyCard> {
+  return parseCard(await readRaw(keyFor(CARD_KEY, profileId)));
 }
 
 /**
@@ -193,7 +201,10 @@ export async function loadCard(): Promise<EmergencyCard> {
  * than swallowing it: someone who believes they have recorded a penicillin
  * allergy and has not is worse off than someone who knows the save failed.
  */
-export async function saveCard(card: EmergencyCard): Promise<EmergencyCard> {
+export async function saveCard(
+  card: EmergencyCard,
+  profileId?: string | null
+): Promise<EmergencyCard> {
   const stamped: EmergencyCard = {
     bloodType: clean(card.bloodType),
     allergies: clean(card.allergies),
@@ -203,7 +214,7 @@ export async function saveCard(card: EmergencyCard): Promise<EmergencyCard> {
     contactPhone: clean(card.contactPhone),
     updatedAt: new Date().toISOString(),
   };
-  await writeRaw(CARD_KEY, JSON.stringify(stamped));
+  await writeRaw(keyFor(CARD_KEY, profileId), JSON.stringify(stamped));
   return stamped;
 }
 
@@ -213,9 +224,9 @@ export async function saveCard(card: EmergencyCard): Promise<EmergencyCard> {
  * Both, always. Clearing the typed fields but leaving a list of medications
  * behind would be a clear that did not clear.
  */
-export async function clearCard(): Promise<void> {
-  await removeRaw(CARD_KEY);
-  await removeRaw(MEDICATIONS_KEY);
+export async function clearCard(profileId?: string | null): Promise<void> {
+  await removeRaw(keyFor(CARD_KEY, profileId));
+  await removeRaw(keyFor(MEDICATIONS_KEY, profileId));
 }
 
 /**
@@ -245,7 +256,8 @@ export async function clearCard(): Promise<void> {
  * list; it must not cost the user their medication screen.
  */
 export async function mirrorMedications(
-  medications: { name: string; dosage: string | null }[]
+  medications: { name: string; dosage: string | null }[],
+  profileId?: string | null
 ): Promise<void> {
   // ⛔ BUDGETED BY BYTES, NOT ONLY BY COUNT. See KEYSTORE_VALUE_MAX_BYTES: the
   // count cap permits a value seven times the size the keystore accepts, and
@@ -269,14 +281,16 @@ export async function mirrorMedications(
   }
 
   try {
-    await writeRaw(MEDICATIONS_KEY, JSON.stringify(trimmed));
+    await writeRaw(keyFor(MEDICATIONS_KEY, profileId), JSON.stringify(trimmed));
   } catch {
     // See the note above.
   }
 }
 
-export async function loadMirroredMedications(): Promise<MirroredMedication[]> {
-  const raw = await readRaw(MEDICATIONS_KEY);
+export async function loadMirroredMedications(
+  profileId?: string | null
+): Promise<MirroredMedication[]> {
+  const raw = await readRaw(keyFor(MEDICATIONS_KEY, profileId));
   if (!raw) return [];
 
   let parsed: unknown;

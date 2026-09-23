@@ -7,6 +7,7 @@ import { AppointmentConfirmationScreen } from "@/screens/appointments/Appointmen
 import { AppointmentListScreen } from "@/screens/appointments/AppointmentListScreen";
 import { AppointmentRequestScreen } from "@/screens/appointments/AppointmentRequestScreen";
 import { BookingIdentityScreen } from "@/screens/appointments/BookingIdentityScreen";
+import { CareProfilesScreen } from "@/screens/CareProfilesScreen";
 import { TodayScreen } from "@/screens/TodayScreen";
 import { EmergencyCardEditScreen } from "@/screens/emergency/EmergencyCardEditScreen";
 import { EmergencyCardScreen } from "@/screens/emergency/EmergencyCardScreen";
@@ -24,7 +25,9 @@ import { ReminderEditScreen } from "@/screens/medication-reminders/ReminderEditS
 import { ProviderDetailScreen } from "@/screens/appointments/ProviderDetailScreen";
 import { ProviderSearchScreen } from "@/screens/appointments/ProviderSearchScreen";
 import { SignupScreen } from "@/screens/auth/SignupScreen";
+import { SymptomHistoryScreen } from "@/screens/intake/SymptomHistoryScreen";
 import { SymptomIntakeScreen } from "@/screens/intake/SymptomIntakeScreen";
+import { VisitSummaryScreen } from "@/screens/intake/VisitSummaryScreen";
 import { restoreSession } from "@/services/authService";
 import { rearm } from "@/services/reminderArming";
 import { colors, typography } from "@/theme";
@@ -158,6 +161,21 @@ export function RootNavigator() {
           name="IntakeResult"
           component={IntakeResultScreen}
           options={{ title: "What to do next" }}
+        />
+        <Stack.Screen
+          name="CareProfiles"
+          component={CareProfilesScreen}
+          options={{ title: "People you look after" }}
+        />
+        <Stack.Screen
+          name="SymptomHistory"
+          component={SymptomHistoryScreen}
+          options={{ title: "Past descriptions" }}
+        />
+        <Stack.Screen
+          name="VisitSummary"
+          component={VisitSummaryScreen}
+          options={{ title: "Visit summary" }}
         />
         <Stack.Screen
           name="MedicationList"

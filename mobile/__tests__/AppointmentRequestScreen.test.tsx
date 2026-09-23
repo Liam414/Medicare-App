@@ -8,6 +8,16 @@ import {
 import { requestAppointment } from "@/services/appointmentService";
 import type { Provider } from "@/services/providerService";
 
+jest.mock("@/hooks/useActiveProfile", () => ({
+  // Resolved to the account holder, as a single-person account always is.
+  useActiveProfile: () => ({
+    active: null,
+    profiles: [],
+    ready: true,
+    profileId: null,
+    refresh: jest.fn(),
+  }),
+}));
 jest.mock("@/services/appointmentService", () => ({
   ...jest.requireActual("@/services/appointmentService"),
   requestAppointment: jest.fn(),
@@ -194,7 +204,7 @@ describe("filling the form by tapping instead of typing", () => {
 
     await waitFor(() =>
       expect(mockRequest).toHaveBeenCalledWith(
-        expect.objectContaining({ preferredTime: "This week" })
+        expect.objectContaining({ preferredTime: "This week" }), null
       )
     );
   });
@@ -217,7 +227,7 @@ describe("filling the form by tapping instead of typing", () => {
 
     await waitFor(() =>
       expect(mockRequest).toHaveBeenCalledWith(
-        expect.objectContaining({ preferredTime: "As soon as possible" })
+        expect.objectContaining({ preferredTime: "As soon as possible" }), null
       )
     );
   });
@@ -232,7 +242,7 @@ describe("filling the form by tapping instead of typing", () => {
 
     await waitFor(() =>
       expect(mockRequest).toHaveBeenCalledWith(
-        expect.objectContaining({ preferredTime: null })
+        expect.objectContaining({ preferredTime: null }), null
       )
     );
   });
@@ -258,7 +268,7 @@ describe("filling the form by tapping instead of typing", () => {
 
     await waitFor(() =>
       expect(mockRequest).toHaveBeenCalledWith(
-        expect.objectContaining({ reasonForVisit: "Prescription refill" })
+        expect.objectContaining({ reasonForVisit: "Prescription refill" }), null
       )
     );
   });

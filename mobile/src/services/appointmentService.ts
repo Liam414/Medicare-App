@@ -14,6 +14,7 @@
  */
 
 import { apiRequest, ApiError } from "@/services/apiClient";
+import { profileQuery } from "@/services/profileService";
 
 export { ApiError };
 
@@ -110,8 +111,8 @@ function toApi(input: AppointmentInput) {
   };
 }
 
-export async function listAppointments(): Promise<Appointment[]> {
-  const body = await apiRequest("/appointments", {
+export async function listAppointments(profileId?: string | null): Promise<Appointment[]> {
+  const body = await apiRequest(`/appointments${profileQuery(profileId)}`, {
     method: "GET",
     fallbackMessage:
       "We couldn't load your appointments. Please try again in a moment.",
@@ -125,9 +126,10 @@ export async function listAppointments(): Promise<Appointment[]> {
  * Named "request", not "book", because that is what it is.
  */
 export async function requestAppointment(
-  input: AppointmentInput
+  input: AppointmentInput,
+  profileId?: string | null
 ): Promise<Appointment> {
-  const body = await apiRequest("/appointments", {
+  const body = await apiRequest(`/appointments${profileQuery(profileId)}`, {
     method: "POST",
     body: JSON.stringify(toApi(input)),
     fallbackMessage:

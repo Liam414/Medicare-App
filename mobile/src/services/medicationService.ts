@@ -8,6 +8,7 @@
 import { API_BASE_URL, baseUrlIsTransportSafe } from "@/services/baseUrl";
 
 import { getToken, logout } from "@/services/authService";
+import { profileQuery } from "@/services/profileService";
 
 /**
  * When this medication is estimated to run out.
@@ -273,11 +274,16 @@ async function request(
  * `appSettings.ts`), so it is passed on every call rather than held server
  * -side. Omitting it takes the server's own default.
  */
-export async function listMedications(leadDays?: number): Promise<Medication[]> {
-  const query =
-    leadDays === undefined
-      ? ""
-      : `?refill_lead_days=${encodeURIComponent(String(leadDays))}`;
+export async function listMedications(
+  leadDays?: number,
+  /** Whose list. Omitted or null is the account holder's own. */
+  profileId?: string | null
+): Promise<Medication[]> {
+  const params = [
+    leadDays === undefined ? null : `refill_lead_days=${encodeURIComponent(String(leadDays))}`,
+    profileId ? `profile_id=${encodeURIComponent(profileId)}` : null,
+  ].filter(Boolean);
+  const query = params.length ? `?${params.join("&")}` : "";
   const body = await request(`/medications${query}`, {
     method: "GET",
     fallbackMessage: "We couldn't load your medications. Please try again in a moment.",
@@ -285,8 +291,11 @@ export async function listMedications(leadDays?: number): Promise<Medication[]> 
   return ((body as ApiMedication[]) ?? []).map(fromApi);
 }
 
-export async function createMedication(input: MedicationInput): Promise<Medication> {
-  const body = await request("/medications", {
+export async function createMedication(
+  input: MedicationInput,
+  profileId?: string | null
+): Promise<Medication> {
+  const body = await request(`/medications${profileQuery(profileId)}`, {
     method: "POST",
     body: JSON.stringify(toApi(input)),
     fallbackMessage: "We couldn't save this medication. Please try again in a moment.",

@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
 from app.db.session import get_db
+from app.models.care_profile import CareProfile
 from app.models.medication import Medication
 from app.models.reminder import MedicationReminder
 from app.models.user import User
@@ -62,11 +63,13 @@ def _schedule_for(medication: Medication, db: Session) -> MedicationScheduleOut:
         .order_by(MedicationReminder.time_of_day)
         .all()
     )
+    profile = db.get(CareProfile, medication.profile_id) if medication.profile_id else None
     return MedicationScheduleOut(
         medication_id=medication.id,
         medication_name=medication.name,
         dosage=medication.dosage,
         frequency=medication.frequency,
+        profile_name=profile.display_name if profile else None,
         reminders=[ReminderOut.model_validate(reminder) for reminder in reminders],
     )
 
