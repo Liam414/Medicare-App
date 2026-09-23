@@ -14,6 +14,8 @@ words — no clinical vocabulary is authored here:
 3. They have any recorded condition and the estimate was SELF_CARE
    -> CLINICIAN_SOON. Self-care is not earned on a phrase list for someone
    with a long-term condition nobody has reviewed alongside it.
+4. They answered "worse" to a daily check-in today or yesterday
+   -> at least CLINICIAN_SOON (decision 5, "when unsure, higher").
 
 ⛔ `apply` returns max(tier, floor). There is no path here that lowers a tier,
 and a test asserts it for every tier and every floor.
@@ -44,6 +46,11 @@ NOTE_ALLERGEN_UNSURE = (
     " You weren't sure whether you had been in contact with something on your "
     "allergy list, so MedHelp suggests seeing a clinician in the next few days."
 )
+NOTE_WORSE = (
+    " You told MedHelp recently that you are feeling worse, so it suggests "
+    "seeing a clinician in the next few days rather than managing this on your "
+    "own."
+)
 NOTE_CONDITION = (
     " Your health profile lists a long-term condition, so MedHelp suggests "
     "having this looked at by a clinician in the next few days rather than "
@@ -57,6 +64,9 @@ class ProfileContext:
     allergies: tuple[str, ...] = ()
     # The answer to followup.ALLERGY_CONTACT, verbatim ("" when not asked).
     allergy_contact: str = ""
+    # A "worse" daily check-in from today or yesterday (decision 5): when
+    # someone says they are getting worse, self-care is not the answer.
+    reported_worse: bool = False
 
 
 def _tokens(text: str) -> set[str]:
@@ -93,6 +103,9 @@ def apply(tier: Tier, description: str, profile: ProfileContext | None) -> tuple
     if profile.conditions and tier == Tier.SELF_CARE and floor < Tier.CLINICIAN_SOON:
         floor, note = Tier.CLINICIAN_SOON, NOTE_CONDITION
         ids.append("profile:condition_recorded")
+    if profile.reported_worse and floor < Tier.CLINICIAN_SOON:
+        floor, note = Tier.CLINICIAN_SOON, NOTE_WORSE
+        ids.append("checkin:reported_worse")
 
     if floor <= tier:
         return tier, [], ""  # nothing raised, so nothing to explain

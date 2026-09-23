@@ -10,6 +10,7 @@ from app.api import (
     account,
     appointments,
     auth,
+    check_ins,
     goals,
     health_profile,
     intake,
@@ -286,6 +287,7 @@ app.include_router(goals.router)
 app.include_router(profiles.router)
 app.include_router(health_profile.router)
 app.include_router(account.router)
+app.include_router(check_ins.router)
 
 
 @app.on_event("startup")

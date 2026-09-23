@@ -30,6 +30,7 @@ from app.main import app
 from app.models import (  # noqa: F401
     appointment,
     care_profile,
+    check_in,
     goal,
     health_profile,
     intake,

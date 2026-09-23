@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from app.api.check_ins import reported_worse_recently
 from app.api.health_profile import load_health_profile
 from app.api.profiles import owned_profile_id, profile_filter
 from app.core.profile_triage import ProfileContext
@@ -216,15 +217,15 @@ def _profile_context(
     try:
         scoped = owned_profile_id(profile_id, user, db)
         row = load_health_profile(user, scoped, db)
+        worse = reported_worse_recently(user, scoped, db)
     except Exception:  # noqa: BLE001 — see docstring
         logger.warning("Health profile unavailable for an assessment; screening without it.")
         return None
-    if row is None:
-        return None
     return ProfileContext(
-        conditions=tuple(row.conditions),
-        allergies=tuple(row.allergies),
+        conditions=tuple(row.conditions) if row else (),
+        allergies=tuple(row.allergies) if row else (),
         allergy_contact=answers.get(followup.ALLERGY_CONTACT.question_id, ""),
+        reported_worse=worse,
     )
 
 

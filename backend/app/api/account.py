@@ -25,6 +25,7 @@ from app.core.security import verify_password
 from app.db.session import get_db
 from app.models.appointment import Appointment
 from app.models.care_profile import CareProfile
+from app.models.check_in import CheckIn
 from app.models.goal import GoalActivity, GoalCompletion, HealthGoal
 from app.models.health_profile import HealthProfile
 from app.models.intake import IntakeAssessment
@@ -43,6 +44,7 @@ _OWNED = (
     Medication,
     IntakeAssessment,
     Appointment,
+    CheckIn,
     HealthProfile,
     CareProfile,
 )

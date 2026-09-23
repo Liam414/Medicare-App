@@ -22,6 +22,7 @@ CONDITION = ProfileContext(conditions=("synthetic long-term condition",))
             ProfileContext(allergies=("peanut",), allergy_contact="Yes"),
             ProfileContext(allergies=("peanut",), allergy_contact="I'm not sure"),
             ProfileContext(conditions=("x",), allergies=("peanut",), allergy_contact="No"),
+            ProfileContext(reported_worse=True),
         ],
     ),
 )
