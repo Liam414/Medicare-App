@@ -83,6 +83,8 @@ export type RootStackParamList = {
   MedicationEdit:
     | { medication?: Medication; scanned?: ParsedLabel }
     | undefined;
+  // An id only; the screen loads the history itself.
+  MedicationHistory: { medicationId: string };
   /**
    * `savedFor` names the medication whose times were just saved, so the list
    * can confirm it. Only a display name - never anything that is not already

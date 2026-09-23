@@ -19,6 +19,7 @@ import { IntakeFollowUpScreen } from "@/screens/intake/IntakeFollowUpScreen";
 import { IntakeResultScreen } from "@/screens/intake/IntakeResultScreen";
 import { LoginScreen } from "@/screens/auth/LoginScreen";
 import { MedicationEditScreen } from "@/screens/medications/MedicationEditScreen";
+import { MedicationHistoryScreen } from "@/screens/medications/MedicationHistoryScreen";
 import { MedicationListScreen } from "@/screens/medications/MedicationListScreen";
 import { MedicationRemindersScreen } from "@/screens/medication-reminders/MedicationRemindersScreen";
 import { MedicationScanScreen } from "@/screens/medications/MedicationScanScreen";
@@ -167,6 +168,11 @@ export function RootNavigator() {
           name="CareProfiles"
           component={CareProfilesScreen}
           options={{ title: "People you look after" }}
+        />
+        <Stack.Screen
+          name="MedicationHistory"
+          component={MedicationHistoryScreen}
+          options={{ title: "Medication history" }}
         />
         <Stack.Screen
           name="HealthProfile"
