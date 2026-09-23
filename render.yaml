@@ -100,6 +100,13 @@ services:
       - key: JWT_SECRET_KEY
         generateValue: true
 
+      # The secret the health profile is encrypted under (app/core/crypto.py).
+      # The API refuses to boot without one of 32+ characters.
+      # ⛔ Never regenerate it on an existing database: everything encrypted
+      # under the old value becomes unreadable.
+      - key: DATA_ENCRYPTION_KEY
+        generateValue: true
+
       # The exact origin the app is served from. This is a literal rather than
       # a `fromService` reference to the static site, because the site already
       # references this service and Render will not resolve a cycle.

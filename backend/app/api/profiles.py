@@ -19,6 +19,7 @@ from app.core.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.appointment import Appointment
 from app.models.care_profile import CareProfile
+from app.models.health_profile import HealthProfile
 from app.models.intake import IntakeAssessment
 from app.models.medication import Medication
 from app.models.reminder import MedicationReminder
@@ -114,7 +115,7 @@ def delete_profile(
         db.query(MedicationReminder).filter(
             MedicationReminder.medication_id.in_(medication_ids)
         ).delete(synchronize_session=False)
-    for model in (Medication, IntakeAssessment, Appointment):
+    for model in (Medication, IntakeAssessment, Appointment, HealthProfile):
         db.query(model).filter(
             model.user_id == user.id, model.profile_id == profile_id
         ).delete(synchronize_session=False)

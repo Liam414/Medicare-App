@@ -198,6 +198,17 @@ class Settings(BaseSettings):
     # docstring and `tests/test_protocol_content.py`, which asserts none is.
     protocol_content_dir: str = ""
 
+    # Secret the columns `app.core.crypto` encrypts are sealed under (the
+    # health profile); the Fernet key is derived from it. Outside development
+    # it is required, at least 32 characters, and the process refuses to boot
+    # without it. In development it may be empty, and a random one is kept in
+    # `backend/data_encryption.key` (gitignored) so dev data survives a
+    # restart. Generate one with:
+    #   python -c "import secrets; print(secrets.token_hex(32))"
+    # ⛔ Losing this key loses the data it encrypted. Back it up like a
+    # database password, never beside the database backup.
+    data_encryption_key: str = ""
+
     @property
     def is_development(self) -> bool:
         return self.environment.strip().lower() in NON_PRODUCTION_ENVIRONMENTS
@@ -250,6 +261,19 @@ class Settings(BaseSettings):
             "ENVIRONMENT is not one of: %s.",
             ", ".join(sorted(NON_PRODUCTION_ENVIRONMENTS)),
         )
+        return self
+
+    @model_validator(mode="after")
+    def _enforce_data_key(self) -> "Settings":
+        """Health data may not be written unencrypted, or under a key in source."""
+        if self.is_development:
+            return self
+        if len(self.data_encryption_key.strip()) < MIN_JWT_SECRET_LENGTH:
+            raise ValueError(
+                "DATA_ENCRYPTION_KEY is unset or shorter than "
+                f"{MIN_JWT_SECRET_LENGTH} characters. Set one before running with "
+                f"ENVIRONMENT={self.environment!r}."
+            )
         return self
 
     @model_validator(mode="after")
