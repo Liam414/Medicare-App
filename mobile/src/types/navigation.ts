@@ -47,6 +47,8 @@ export type RootStackParamList = {
      * ids present.
      */
     priorAnswers?: Record<string, string>;
+    // Whose history the answer is saved under. An id, never a name or text.
+    profileId?: string | null;
   };
   // `description` is what the user actually wrote (with any follow-up answers
   // merged in). It is carried so the appointment flow can prefill the reason
@@ -101,6 +103,9 @@ export type RootStackParamList = {
    * card from storage themselves — same rule, and same reason, as
    * `BookingIdentity` taking an id rather than an identity.
    */
+  // Who this account keeps records for, and which one is on screen.
+  CareProfiles: undefined;
+
   EmergencyCard: undefined;
   EmergencyCardEdit: undefined;
 

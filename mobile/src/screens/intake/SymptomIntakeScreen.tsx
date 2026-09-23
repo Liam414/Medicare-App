@@ -12,6 +12,8 @@ import { Screen } from "@/components/Screen";
 import { SymptomPicker } from "@/components/SymptomPicker";
 import { TextField } from "@/components/TextField";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
+import { ProfileBanner } from "@/components/ProfileBanner";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { clearCheckIn, getCheckIn, type CheckIn } from "@/services/checkIns";
 import { IntakeError, PAST_TIER_LABELS, submitIntake } from "@/services/intakeService";
 import { rearm } from "@/services/reminderArming";
@@ -40,6 +42,7 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
   const [isOffline, setIsOffline] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [checkIn, setCheckInState] = useState<CheckIn | null>(null);
+  const { active, profiles, profileId } = useActiveProfile();
 
   const reset = route.params?.reset;
   const checkingIn = route.params?.checkIn;
@@ -151,7 +154,11 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
     setSubmitting(true);
 
     try {
-      const result = await submitIntake(trimmed, consent, undefined, picked);
+      // ⛔ Whose history this is saved under. Never waited for: if the profile
+      // has not loaded yet, a saved row may be filed under "Me", which is
+      // recoverable; delaying emergency screening is not.
+      const whose = checkIn ? checkIn.profileId ?? null : profileId;
+      const result = await submitIntake(trimmed, consent, undefined, picked, whose);
       if (checkIn) {
         // Answered. Cleared only once the server has the new description, so
         // a failed submission leaves the check-in waiting on Today.
@@ -166,6 +173,7 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
           followUp: result,
           description: composed,
           consent,
+          profileId: whose,
         });
       } else {
         navigation.navigate("IntakeResult", {
@@ -228,10 +236,18 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
         <ErrorNotice message={error} onRetry={isOffline ? handleSubmit : undefined} />
       )}
 
+      {!checkIn && (
+        <ProfileBanner
+          active={active}
+          profiles={profiles}
+          onChange={() => navigation.navigate("CareProfiles")}
+        />
+      )}
+
       {checkIn && (
         <View style={styles.checkIn} accessibilityRole="summary">
           <Text style={styles.checkInText}>
-            Checking in on what you described on{" "}
+            Checking in{checkIn.profileName ? ` on ${checkIn.profileName}` : ""} — what you described on{" "}
             {new Date(checkIn.createdAt).toLocaleDateString(undefined, { weekday: "long" })}.
             Earlier estimate: {PAST_TIER_LABELS[checkIn.earlierTier]}. Add how things are now.
           </Text>

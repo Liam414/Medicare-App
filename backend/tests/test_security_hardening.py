@@ -672,8 +672,14 @@ def test_every_other_route_requires_authentication():
 # `?description=` on a GET is not a strange thing for somebody to add. It is
 # the obvious way to make a lookup shareable or cacheable, and it would look
 # entirely reasonable in review.
+# `profile_id` (2026-09-22, care profiles) is a server-generated UUID naming
+# whose records to list. It can only ever hold an id MedHelp minted, never
+# anything a person wrote; the display name travels in POST bodies and
+# responses only. `owned_profile_id` 404s any id the caller does not own.
 _ALLOWED_QUERY_PARAMS = {
-    "/medications": {"refill_lead_days"},
+    "/medications": {"refill_lead_days", "profile_id"},
+    "/intake": {"profile_id"},
+    "/appointments": {"profile_id"},
     "/providers/search": {"postal_code", "care_setting", "limit"},
     "/goals": {"on"},
 }

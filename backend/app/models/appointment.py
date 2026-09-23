@@ -54,6 +54,12 @@ class Appointment(Base):
     user_id: Mapped[str] = mapped_column(
         String, ForeignKey("users.id"), nullable=False, index=True
     )
+    # Whose visit this is. NULL is the account holder. A pointer to a display
+    # name the caregiver chose — ⛔ not an identity field, and it must never
+    # become one (see tests/test_booking_identity.py).
+    profile_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("care_profiles.id"), nullable=True, index=True
+    )
 
     # A snapshot of the provider as the user chose them, not a foreign key.
     # NPPES rows change — a clinic closes, a taxonomy is recoded — and an

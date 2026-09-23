@@ -15,6 +15,9 @@ import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { logout } from "@/services/authService";
 import { listAppointments, type Appointment } from "@/services/appointmentService";
 import { clearCheckIn, getCheckIn, isDue, type CheckIn } from "@/services/checkIns";
+import { ProfileBanner } from "@/components/ProfileBanner";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
+import { setActiveProfile } from "@/services/profileService";
 import { rearm } from "@/services/reminderArming";
 import { listMedications, type Medication } from "@/services/medicationService";
 import { listSchedules, type MedicationSchedule } from "@/services/reminderService";
@@ -78,6 +81,7 @@ export function TodayScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [checkIn, setCheckIn] = useState<CheckIn | null>(null);
+  const { active, profiles, ready, profileId } = useActiveProfile();
 
   /**
    * The three lists are independent, so one failing must not blank the other
@@ -89,9 +93,9 @@ export function TodayScreen({ navigation }: Props) {
     setLoading(true);
     const [medicationResult, scheduleResult, appointmentResult] =
       await Promise.allSettled([
-        listMedications(),
+        listMedications(undefined, profileId),
         listSchedules(),
-        listAppointments(),
+        listAppointments(profileId),
       ]);
 
     if (medicationResult.status === "fulfilled") setMedications(medicationResult.value);
@@ -110,16 +114,16 @@ export function TodayScreen({ navigation }: Props) {
           : "Some of today couldn't be loaded. What's shown below is up to date."
     );
     setLoading(false);
-  }, []);
+  }, [profileId]);
 
   useFocusEffect(
     useCallback(() => {
-      void load();
+      if (ready) void load();
       setNow(new Date());
       // On the device, so it shows with no network — the notification is the
       // bonus and this card is the part that is always correct.
       void getCheckIn().then(setCheckIn).catch(() => setCheckIn(null));
-    }, [load])
+    }, [ready, load])
   );
 
   // Keeps "Due now" and "Earlier today" honest without a re-render storm.
@@ -134,6 +138,9 @@ export function TodayScreen({ navigation }: Props) {
     // explicit sign-out only — a 401 must not clear it, because a check-in is
     // due a day later and the session will long since have expired.
     void clearCheckIn();
+    // Whose records were on screen is not something the next person to sign
+    // in on this device should inherit.
+    void setActiveProfile(null);
     void logout();
     navigation.reset({ index: 0, routes: [{ name: "Login" }] });
   };
@@ -145,7 +152,11 @@ export function TodayScreen({ navigation }: Props) {
         .map((reminder) => ({
           key: reminder.id,
           timeOfDay: reminder.timeOfDay,
-          name: schedule.medicationName,
+          // Everyone's times, because a caregiver's day includes Dad's doses —
+          // each one saying whose it is.
+          name: schedule.profileName
+            ? `${schedule.profileName}: ${schedule.medicationName}`
+            : schedule.medicationName,
           dosage: schedule.dosage,
         }))
     )
@@ -475,6 +486,12 @@ export function TodayScreen({ navigation }: Props) {
         Sign-out lives in the rail on a wide window and here on a narrow one —
         one place at a time, never both.
       */}
+      <AppButton
+        label="People you look after"
+        variant="secondary"
+        onPress={() => navigation.navigate("CareProfiles")}
+        accessibilityHint="Keep medications, symptoms and visits for someone else separately"
+      />
       {isExpanded ? null : (
         <AppButton
           label="Sign out"
@@ -513,6 +530,12 @@ export function TodayScreen({ navigation }: Props) {
         )}
 
         {greeting}
+
+        <ProfileBanner
+          active={active}
+          profiles={profiles}
+          onChange={() => navigation.navigate("CareProfiles")}
+        />
 
         {error ? <ErrorNotice message={error} onRetry={load} /> : null}
 

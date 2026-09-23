@@ -13,6 +13,7 @@ import {
   requestPermission,
   supportsBackgroundDelivery,
 } from "@/services/notificationService";
+import { getStoredActiveProfile } from "@/services/profileService";
 import { rearm } from "@/services/reminderArming";
 import { TILE, colors, elevation, radius, spacing, typography } from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
@@ -68,7 +69,12 @@ function CheckInOffer({
     try {
       // A button press is the only thing that may ask for permission.
       if (getPermission() === "prompt") await requestPermission();
-      const checkIn = await setCheckIn(description, tier);
+      const checkIn = await setCheckIn(
+        description,
+        tier,
+        new Date(),
+        await getStoredActiveProfile()
+      );
       setDueAt(new Date(checkIn.dueAt));
       void rearm();
     } catch {

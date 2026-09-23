@@ -4,7 +4,9 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { AppButton } from "@/components/AppButton";
 import { ErrorNotice } from "@/components/ErrorNotice";
+import { ProfileBanner } from "@/components/ProfileBanner";
 import { QuickFillChips } from "@/components/QuickFillChips";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { Screen } from "@/components/Screen";
 import { TextField } from "@/components/TextField";
 import { ApiError, requestAppointment } from "@/services/appointmentService";
@@ -79,6 +81,7 @@ export function AppointmentRequestScreen({ navigation, route }: Props) {
   const [notes, setNotes] = useState("");
 
   const [saving, setSaving] = useState(false);
+  const { active, profiles, ready, profileId } = useActiveProfile();
   const [error, setError] = useState<string | null>(null);
   const [reasonError, setReasonError] = useState<string | null>(null);
 
@@ -103,7 +106,7 @@ export function AppointmentRequestScreen({ navigation, route }: Props) {
         notes: notes.trim() || null,
         urgencyTier: intake?.tier ?? null,
         sourceAssessmentId: intake?.assessmentId ?? null,
-      });
+      }, profileId);
       // `replace`, not `navigate`: going "back" to a form that has already
       // been submitted invites a second identical record.
       navigation.replace("AppointmentConfirmation", { appointment });
@@ -120,6 +123,11 @@ export function AppointmentRequestScreen({ navigation, route }: Props) {
 
   return (
     <Screen domain="care">
+      <ProfileBanner
+        active={active}
+        profiles={profiles}
+        onChange={() => navigation.navigate("CareProfiles")}
+      />
       <View style={styles.provider}>
         <Text style={styles.providerLabel}>Requesting an appointment with</Text>
         <Text style={styles.providerName}>{provider.name}</Text>
@@ -222,7 +230,8 @@ export function AppointmentRequestScreen({ navigation, route }: Props) {
         label="Save this appointment"
         onPress={() => void submit()}
         loading={saving}
-        disabled={saving}
+        // Not before we know whose visit this is — see ProfileBanner.
+        disabled={saving || !ready}
         accessibilityHint="Saves the appointment in MedHelp. Nothing is sent to the provider."
       />
       <AppButton

@@ -3,6 +3,16 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-
 import { SymptomIntakeScreen } from "@/screens/intake/SymptomIntakeScreen";
 import { IntakeError, submitIntake } from "@/services/intakeService";
 
+jest.mock("@/hooks/useActiveProfile", () => ({
+  // Resolved to the account holder, as a single-person account always is.
+  useActiveProfile: () => ({
+    active: null,
+    profiles: [],
+    ready: true,
+    profileId: null,
+    refresh: jest.fn(),
+  }),
+}));
 jest.mock("@/services/intakeService", () => {
   const actual = jest.requireActual("@/services/intakeService");
   return { ...actual, submitIntake: jest.fn() };
@@ -140,7 +150,7 @@ describe("SymptomIntakeScreen", () => {
     // The last two arguments are the follow-up answers (none on a first
     // submission) and the phrases picked from the symptom list (none, because
     // this test does not touch it).
-    expect(mockedSubmit).toHaveBeenCalledWith("sore throat for two days", false, undefined, []);
+    expect(mockedSubmit).toHaveBeenCalledWith("sore throat for two days", false, undefined, [], null);
   });
 
   it("passes consent through when the user opts in", async () => {
@@ -152,7 +162,7 @@ describe("SymptomIntakeScreen", () => {
     );
     await describeSymptoms();
 
-    expect(mockedSubmit).toHaveBeenCalledWith("sore throat for two days", true, undefined, []);
+    expect(mockedSubmit).toHaveBeenCalledWith("sore throat for two days", true, undefined, [], null);
   });
 
   it("sends phrases picked from the symptom list alongside the description", async () => {
@@ -176,7 +186,7 @@ describe("SymptomIntakeScreen", () => {
       "my throat is really sore",
       false,
       undefined,
-      ["a sore throat"]
+      ["a sore throat"], null
     );
   });
 
@@ -205,7 +215,7 @@ describe("SymptomIntakeScreen", () => {
       fireEvent.press(screen.getByText("Get an urgency estimate"));
     });
 
-    expect(mockedSubmit).toHaveBeenCalledWith("", false, undefined, ["a sore throat"]);
+    expect(mockedSubmit).toHaveBeenCalledWith("", false, undefined, ["a sore throat"], null);
   });
 
   it("reaches the symptom list without anything being typed", () => {

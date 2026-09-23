@@ -35,7 +35,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "IntakeFollowUp">;
  *    its emergency guidance immediately instead of asking anything.
  */
 export function IntakeFollowUpScreen({ navigation, route }: Props) {
-  const { followUp, description, consent, priorAnswers } = route.params;
+  const { followUp, description, consent, priorAnswers, profileId } = route.params;
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showMissing, setShowMissing] = useState(false);
@@ -62,7 +62,7 @@ export function IntakeFollowUpScreen({ navigation, route }: Props) {
     // the text it re-screens, and reads which round this is from the ids.
     const allAnswers = { ...(priorAnswers ?? {}), ...answers };
     try {
-      const result = await submitIntake(description, consent, allAnswers);
+      const result = await submitIntake(description, consent, allAnswers, undefined, profileId);
       if (result.status === "needs_detail") {
         // The server decides how many rounds there are and when to stop. The
         // client only refuses to go backwards — a round number that did not
@@ -73,6 +73,7 @@ export function IntakeFollowUpScreen({ navigation, route }: Props) {
             followUp: result,
             description,
             consent,
+            profileId,
             priorAnswers: allAnswers,
           });
           return;

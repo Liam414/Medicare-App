@@ -13,6 +13,8 @@ import { Screen } from "@/components/Screen";
 import { ScreenBand } from "@/components/ScreenBand";
 import { SegmentedControl } from "@/components/SegmentedControl";
 import { TextColumn } from "@/components/TextColumn";
+import { ProfileBanner } from "@/components/ProfileBanner";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
 import {
   ApiError,
@@ -120,12 +122,13 @@ export function AppointmentListScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const { isExpanded } = useBreakpoint();
+  const { active, profiles, ready, profileId } = useActiveProfile();
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setAppointments(await listAppointments());
+      setAppointments(await listAppointments(profileId));
     } catch (caught) {
       setError(
         caught instanceof ApiError
@@ -135,16 +138,17 @@ export function AppointmentListScreen({ navigation }: Props) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [profileId]);
 
   // Loads on mount and again on every return to this screen, so an
   // appointment saved through the booking flow is already here when the user
   // navigates back. `useFocusEffect` covers the mount too — a `useEffect`
-  // beside it would just fire a duplicate request on first render.
+  // beside it would just fire a duplicate request on first render. Waits for
+  // the active profile so nobody's visits are shown under another's name.
   useFocusEffect(
     useCallback(() => {
-      void load();
-    }, [load])
+      if (ready) void load();
+    }, [ready, load])
   );
 
   const markScheduled = async (appointment: Appointment) => {
@@ -203,6 +207,11 @@ export function AppointmentListScreen({ navigation }: Props) {
         use the whole window, and only where there is one to use.
       */}
       <TextColumn>
+        <ProfileBanner
+          active={active}
+          profiles={profiles}
+          onChange={() => navigation.navigate("CareProfiles")}
+        />
 
         {/*
           Searching the directory is the other half of this tab, not a separate

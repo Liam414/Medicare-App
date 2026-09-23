@@ -35,6 +35,11 @@ class IntakeAssessment(Base):
     user_id: Mapped[str] = mapped_column(
         String, ForeignKey("users.id"), nullable=False, index=True
     )
+    # Who the description is about. NULL is the account holder. ⛔ Never a
+    # triage input: it only decides whose history the row appears in.
+    profile_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("care_profiles.id"), nullable=True, index=True
+    )
 
     description: Mapped[str] = mapped_column(Text, nullable=False)
 

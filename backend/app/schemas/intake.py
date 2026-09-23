@@ -27,6 +27,11 @@ class IntakeRequest(BaseModel):
     # Explicit, per-submission consent. Defaults to False so a client that
     # forgets the field stores nothing.
     consent_to_store: bool = False
+    # Whose description this is, for the history it is stored under. ⛔ Never
+    # read by triage, and never a reason to refuse an assessment: an id the
+    # caller does not own means the row is not stored, not that screening is
+    # withheld.
+    profile_id: str | None = Field(default=None, max_length=64)
     # Answers to the follow-up prompts, keyed by question id. Present on any
     # submission after the first. Merged into the description server-side so
     # the combined text is re-screened from the top — see app/core/followup.py.

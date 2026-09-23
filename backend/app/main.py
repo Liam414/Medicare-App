@@ -12,6 +12,7 @@ from app.api import (
     goals,
     intake,
     medications,
+    profiles,
     providers,
     reminders,
 )
@@ -247,6 +248,7 @@ app.include_router(providers.router)
 app.include_router(reminders.router)
 app.include_router(appointments.router)
 app.include_router(goals.router)
+app.include_router(profiles.router)
 
 
 @app.on_event("startup")

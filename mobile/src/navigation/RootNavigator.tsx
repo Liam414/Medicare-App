@@ -7,6 +7,7 @@ import { AppointmentConfirmationScreen } from "@/screens/appointments/Appointmen
 import { AppointmentListScreen } from "@/screens/appointments/AppointmentListScreen";
 import { AppointmentRequestScreen } from "@/screens/appointments/AppointmentRequestScreen";
 import { BookingIdentityScreen } from "@/screens/appointments/BookingIdentityScreen";
+import { CareProfilesScreen } from "@/screens/CareProfilesScreen";
 import { TodayScreen } from "@/screens/TodayScreen";
 import { EmergencyCardEditScreen } from "@/screens/emergency/EmergencyCardEditScreen";
 import { EmergencyCardScreen } from "@/screens/emergency/EmergencyCardScreen";
@@ -160,6 +161,11 @@ export function RootNavigator() {
           name="IntakeResult"
           component={IntakeResultScreen}
           options={{ title: "What to do next" }}
+        />
+        <Stack.Screen
+          name="CareProfiles"
+          component={CareProfilesScreen}
+          options={{ title: "People you look after" }}
         />
         <Stack.Screen
           name="SymptomHistory"

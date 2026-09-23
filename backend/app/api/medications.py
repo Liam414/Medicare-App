@@ -29,6 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.api.profiles import owned_profile_id, profile_filter
 from app.core.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.medication import Medication
@@ -163,12 +164,16 @@ def list_medications(
             "than in a settings table here."
         ),
     ),
+    profile_id: str | None = Query(
+        None, description="Whose list. Omitted means the account holder's own."
+    ),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[MedicationOut]:
+    scope = owned_profile_id(profile_id, user, db)
     medications = (
         db.query(Medication)
-        .filter(Medication.user_id == user.id)
+        .filter(Medication.user_id == user.id, profile_filter(Medication.profile_id, scope))
         .order_by(Medication.name)
         .all()
     )
@@ -188,10 +193,15 @@ def list_medications(
 @router.post("", response_model=MedicationOut, status_code=status.HTTP_201_CREATED)
 def create_medication(
     payload: MedicationCreate,
+    profile_id: str | None = Query(None, description="Whose medication this is."),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> MedicationOut:
-    medication = Medication(user_id=user.id, **payload.model_dump())
+    medication = Medication(
+        user_id=user.id,
+        profile_id=owned_profile_id(profile_id, user, db),
+        **payload.model_dump(),
+    )
     db.add(medication)
     db.commit()
     db.refresh(medication)

@@ -15,6 +15,8 @@ import { SegmentedControl } from "@/components/SegmentedControl";
 import { TextColumn } from "@/components/TextColumn";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { getRefillLeadDays } from "@/services/appSettings";
+import { ProfileBanner } from "@/components/ProfileBanner";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { mirrorMedications } from "@/services/emergencyCard";
 import {
   MedicationError,
@@ -42,6 +44,7 @@ export function MedicationListScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { active, profiles, ready, profileId } = useActiveProfile();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,13 +54,14 @@ export function MedicationListScreen({ navigation }: Props) {
       // The refill lead time is a device setting, so it is read here and
       // passed on — the server does the arithmetic, and doing it there is what
       // keeps every client flagging the same medications.
-      const loaded = await listMedications(await getRefillLeadDays());
+      const loaded = await listMedications(await getRefillLeadDays(), profileId);
       setMedications(loaded);
       // Keep the emergency card's offline copy in step with what was just
       // fetched. The card cannot make this call itself — it has to work with
       // no signal — so this screen is where the copy gets refreshed. It never
-      // throws, so a storage failure cannot cost the user their list.
-      void mirrorMedications(loaded);
+      // throws, so a storage failure cannot cost the user their list. Each
+      // person's card gets their own list.
+      void mirrorMedications(loaded, profileId);
     } catch (caught) {
       if (caught instanceof MedicationError) {
         setError(caught.message);
@@ -68,14 +72,15 @@ export function MedicationListScreen({ navigation }: Props) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [profileId]);
 
   // Reloads when returning from the add/edit screen, so a change made there
-  // is reflected without a manual refresh.
+  // is reflected without a manual refresh. Waits for `ready` so one person's
+  // list is never shown, even briefly, under another person's name.
   useFocusEffect(
     useCallback(() => {
-      void load();
-    }, [load])
+      if (ready) void load();
+    }, [ready, load])
   );
 
   const needingRefill = (medications ?? []).filter(
@@ -101,7 +106,7 @@ export function MedicationListScreen({ navigation }: Props) {
       page={isExpanded}
       band={
         <ScreenBand
-          title="Your medications"
+          title={active ? `${active.displayName}'s medications` : "Your medications"}
           meta="A list you keep yourself. MedHelp does not prescribe or change anything here."
           page={isExpanded}
           action={
@@ -122,6 +127,11 @@ export function MedicationListScreen({ navigation }: Props) {
       }
     >
       <TextColumn>
+        <ProfileBanner
+          active={active}
+          profiles={profiles}
+          onChange={() => navigation.navigate("CareProfiles")}
+        />
 
         {/*
           What you take and when you take it are two views of one list, not two

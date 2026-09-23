@@ -38,6 +38,7 @@ import { listMedications } from "@/services/medicationService";
 import { scheduleAll } from "@/services/notificationService";
 import { toRefillAlerts, type RefillAlert } from "@/services/refillAlerts";
 import { getCheckIn, toCheckInAlerts } from "@/services/checkIns";
+import { listProfiles } from "@/services/profileService";
 import {
   listSchedules,
   toDueReminders,
@@ -77,7 +78,7 @@ export async function rearm(): Promise<ArmedState | null> {
       // and losing them must not cost the person their dose reminders.
       const [schedules, medications] = await Promise.all([
         listSchedules(),
-        listMedications(leadDays).catch(() => []),
+        everyonesMedications(leadDays),
       ]);
 
       const refillAlerts = toRefillAlerts(medications, leadDays);
@@ -98,6 +99,30 @@ export async function rearm(): Promise<ArmedState | null> {
   // belt-and-braces for anything thrown outside the try.
   queue = run.catch(() => undefined);
   return run;
+}
+
+/**
+ * Every person's medications, for their refill estimates.
+ *
+ * ⛔ Not just the active profile's. Arming is the whole set for everyone this
+ * device looks after — a refill alert for Dad's tablets must not depend on
+ * whose list happened to be open last. The medication list endpoint is scoped
+ * per person, so this asks once for the account holder and once per profile
+ * (at most ten). Any one failing costs that person's refill alerts only.
+ */
+async function everyonesMedications(leadDays: number) {
+  const profiles = await listProfiles().catch(() => []);
+  const lists = await Promise.all(
+    [null, ...profiles].map(async (profile) => {
+      const medications = await listMedications(leadDays, profile?.id).catch(() => []);
+      // Only the notification text uses these names, so whose medicine it is
+      // goes into the name here, as it does for dose reminders.
+      return profile
+        ? medications.map((m) => ({ ...m, name: `For ${profile.displayName}: ${m.name}` }))
+        : medications;
+    })
+  );
+  return lists.flat();
 }
 
 /**

@@ -14,6 +14,7 @@ import {
   saveCard,
   type EmergencyCard,
 } from "@/services/emergencyCard";
+import { getStoredActiveProfile, type CareProfile } from "@/services/profileService";
 import { colors, radius, spacing, typography } from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
 
@@ -43,11 +44,17 @@ export function EmergencyCardEditScreen({ navigation }: Props) {
   const [saving, setSaving] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Whose card: read once from the device, and used for load, save and clear
+  // alike so an edit can never land on a different person's card.
+  const [profile, setProfile] = useState<CareProfile | null>(null);
 
   useEffect(() => {
     let active = true;
-    void loadCard().then((loaded) => {
-      if (active) setCard(loaded);
+    void getStoredActiveProfile().then(async (whose) => {
+      const loaded = await loadCard(whose?.id);
+      if (!active) return;
+      setProfile(whose);
+      setCard(loaded);
     });
     return () => {
       active = false;
@@ -64,7 +71,7 @@ export function EmergencyCardEditScreen({ navigation }: Props) {
     setSaving(true);
     setError(null);
     try {
-      await saveCard(card);
+      await saveCard(card, profile?.id);
       navigation.goBack();
     } catch {
       setError(
@@ -79,7 +86,7 @@ export function EmergencyCardEditScreen({ navigation }: Props) {
     setClearing(true);
     setError(null);
     try {
-      await clearCard();
+      await clearCard(profile?.id);
       setCard(EMPTY_CARD);
     } finally {
       setClearing(false);
@@ -103,7 +110,7 @@ export function EmergencyCardEditScreen({ navigation }: Props) {
     <Screen>
       <PageHeader
         icon="alert"
-        title="Your emergency card"
+        title={profile ? `${profile.displayName}'s emergency card` : "Your emergency card"}
         subtitle="Write down what someone helping you would need to know. MedHelp does not check any of it and never sends it anywhere."
       />
 

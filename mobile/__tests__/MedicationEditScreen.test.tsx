@@ -14,6 +14,16 @@ import { MedicationEditScreen } from "@/screens/medications/MedicationEditScreen
 import { createMedication } from "@/services/medicationService";
 import type { ParsedLabel } from "@/services/labelParser";
 
+jest.mock("@/hooks/useActiveProfile", () => ({
+  // Resolved to the account holder, as a single-person account always is.
+  useActiveProfile: () => ({
+    active: null,
+    profiles: [],
+    ready: true,
+    profileId: null,
+    refresh: jest.fn(),
+  }),
+}));
 jest.mock("@/services/medicationService", () => ({
   ...jest.requireActual("@/services/medicationService"),
   createMedication: jest.fn(),
@@ -92,7 +102,7 @@ describe("MedicationEditScreen — a scanned label must be confirmed", () => {
 
     await waitFor(() => expect(createMedicationMock).toHaveBeenCalledTimes(1));
     expect(createMedicationMock).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "Lisinopril", dosage: "10 mg" })
+      expect.objectContaining({ name: "Lisinopril", dosage: "10 mg" }), null
     );
   });
 
@@ -105,7 +115,7 @@ describe("MedicationEditScreen — a scanned label must be confirmed", () => {
 
     await waitFor(() => expect(createMedicationMock).toHaveBeenCalled());
     expect(createMedicationMock).toHaveBeenCalledWith(
-      expect.objectContaining({ dosage: "70 mg" })
+      expect.objectContaining({ dosage: "70 mg" }), null
     );
   });
 
@@ -163,7 +173,7 @@ describe("MedicationEditScreen — manual entry is unchanged", () => {
 
     await waitFor(() =>
       expect(createMedicationMock).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "Placebofen" })
+        expect.objectContaining({ name: "Placebofen" }), null
       )
     );
   });

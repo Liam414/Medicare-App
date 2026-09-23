@@ -35,6 +35,7 @@ from app.db.session import engine  # noqa: E402
 # this the script would cheerfully create nothing at all.
 from app.models import (  # noqa: F401,E402
     appointment,
+    care_profile,
     goal,
     intake,
     medication,

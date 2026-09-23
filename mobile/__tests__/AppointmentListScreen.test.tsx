@@ -8,6 +8,16 @@ import {
   type Appointment,
 } from "@/services/appointmentService";
 
+jest.mock("@/hooks/useActiveProfile", () => ({
+  // Resolved to the account holder, as a single-person account always is.
+  useActiveProfile: () => ({
+    active: null,
+    profiles: [],
+    ready: true,
+    profileId: null,
+    refresh: jest.fn(),
+  }),
+}));
 jest.mock("@/services/appointmentService", () => ({
   ...jest.requireActual("@/services/appointmentService"),
   listAppointments: jest.fn(),

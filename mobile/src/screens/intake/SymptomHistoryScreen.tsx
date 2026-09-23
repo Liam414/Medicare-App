@@ -9,6 +9,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { Screen } from "@/components/Screen";
 import { ScreenBand } from "@/components/ScreenBand";
+import { ProfileBanner } from "@/components/ProfileBanner";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { ApiError } from "@/services/apiClient";
 import {
   PAST_TIER_LABELS,
@@ -33,11 +35,12 @@ export function SymptomHistoryScreen({ navigation }: Props) {
   const [items, setItems] = useState<PastAssessment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const { active, profiles, ready, profileId } = useActiveProfile();
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      setItems(await listPastAssessments());
+      setItems(await listPastAssessments(profileId));
     } catch (caught) {
       setError(
         caught instanceof ApiError
@@ -45,12 +48,12 @@ export function SymptomHistoryScreen({ navigation }: Props) {
           : "We couldn't load your past descriptions. Please try again in a moment."
       );
     }
-  }, []);
+  }, [profileId]);
 
   useFocusEffect(
     useCallback(() => {
-      void load();
-    }, [load])
+      if (ready) void load();
+    }, [ready, load])
   );
 
   const remove = async (id: string) => {
@@ -80,6 +83,12 @@ export function SymptomHistoryScreen({ navigation }: Props) {
           />
         }
       >
+        <ProfileBanner
+          active={active}
+          profiles={profiles}
+          onChange={() => navigation.navigate("CareProfiles")}
+        />
+
         {error && <ErrorNotice message={error} onRetry={() => void load()} />}
 
         {items === null && !error && (

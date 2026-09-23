@@ -22,9 +22,16 @@
 import { PAST_TIER_LABELS, type PastAssessment } from "@/services/intakeService";
 import type { Medication } from "@/services/medicationService";
 
-export const SUMMARY_PREAMBLE =
-  "Written by me in the MedHelp app. MedHelp's urgency estimates are not " +
-  "diagnoses, and nothing here has been reviewed by a clinician.";
+const NOT_A_DIAGNOSIS =
+  "MedHelp's urgency estimates are not diagnoses, and nothing here has been " +
+  "reviewed by a clinician.";
+
+export const SUMMARY_PREAMBLE = `Written by me in the MedHelp app. ${NOT_A_DIAGNOSIS}`;
+
+/** For someone else's summary: who wrote it is not who it is about. */
+export function caregiverPreamble(name: string): string {
+  return `Written in the MedHelp app by the person who looks after ${name}. ${NOT_A_DIAGNOSIS}`;
+}
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
@@ -42,14 +49,16 @@ export function buildVisitSummary(input: {
   assessments: PastAssessment[];
   medications: Medication[] | null;
   preparedOn: Date;
+  /** Whose summary, when it is not the account holder's. */
+  forName?: string | null;
 }): string {
   const lines: string[] = [
-    `MedHelp visit summary — prepared ${input.preparedOn.toLocaleDateString(undefined, {
+    `MedHelp visit summary${input.forName ? ` for ${input.forName}` : ""} — prepared ${input.preparedOn.toLocaleDateString(undefined, {
       year: "numeric",
       month: "short",
       day: "numeric",
     })}`,
-    SUMMARY_PREAMBLE,
+    input.forName ? caregiverPreamble(input.forName) : SUMMARY_PREAMBLE,
   ];
 
   if (input.assessments.length > 0) {

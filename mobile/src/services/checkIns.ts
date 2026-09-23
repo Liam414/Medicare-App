@@ -44,6 +44,9 @@ export interface CheckIn {
   createdAt: string;
   earlierTier: Exclude<Tier, "EMERGENT">;
   description: string | null;
+  /** Whose check-in it is, so answering it files under the right person. */
+  profileId?: string | null;
+  profileName?: string | null;
 }
 
 /** The one-off notification for a check-in, in the shape the scheduler takes. */
@@ -68,9 +71,12 @@ export async function getCheckIn(): Promise<CheckIn | null> {
 export async function setCheckIn(
   description: string,
   earlierTier: Exclude<Tier, "EMERGENT">,
-  now: Date = new Date()
+  now: Date = new Date(),
+  profile: { id: string; displayName: string } | null = null
 ): Promise<CheckIn> {
   const checkIn: CheckIn = {
+    profileId: profile?.id ?? null,
+    profileName: profile?.displayName ?? null,
     dueAt: new Date(now.getTime() + CHECK_IN_AFTER_HOURS * 3_600_000).toISOString(),
     createdAt: now.toISOString(),
     earlierTier,

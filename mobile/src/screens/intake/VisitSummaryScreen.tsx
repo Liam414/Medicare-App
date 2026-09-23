@@ -8,6 +8,7 @@ import { ErrorNotice } from "@/components/ErrorNotice";
 import { Screen } from "@/components/Screen";
 import { ScreenBand } from "@/components/ScreenBand";
 import { SuccessNotice } from "@/components/SuccessNotice";
+import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { ApiError } from "@/services/apiClient";
 import { PAST_TIER_LABELS, listPastAssessments, type PastAssessment } from "@/services/intakeService";
 import { listMedications, type Medication } from "@/services/medicationService";
@@ -35,8 +36,13 @@ export function VisitSummaryScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<string | null>(null);
 
+  const { active, ready, profileId } = useActiveProfile();
+
   useEffect(() => {
-    Promise.all([listPastAssessments(), listMedications()])
+    if (!ready) return;
+    // ⛔ One person's summary: their descriptions and their medications, never
+    // a mixture — a summary handed to Dad's GP must not list your tablets.
+    Promise.all([listPastAssessments(profileId), listMedications(undefined, profileId)])
       .then(([past, meds]) => {
         setAssessments(past);
         setMedications(meds);
@@ -48,7 +54,7 @@ export function VisitSummaryScreen({ navigation }: Props) {
             : "We couldn't load what you've saved. Please try again in a moment."
         )
       );
-  }, []);
+  }, [ready, profileId]);
 
   const text = useMemo(
     () =>
@@ -56,8 +62,9 @@ export function VisitSummaryScreen({ navigation }: Props) {
         assessments: (assessments ?? []).filter((a) => !excluded.has(a.id)),
         medications: includeMedications ? medications ?? [] : null,
         preparedOn: new Date(),
+        forName: active?.displayName ?? null,
       }),
-    [assessments, medications, excluded, includeMedications]
+    [assessments, medications, excluded, includeMedications, active]
   );
 
   const toggle = (id: string) =>

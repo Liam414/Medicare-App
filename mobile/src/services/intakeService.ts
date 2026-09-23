@@ -9,6 +9,7 @@ import { API_BASE_URL, baseUrlIsTransportSafe } from "@/services/baseUrl";
 
 import { getToken, logout } from "@/services/authService";
 import { apiRequest } from "@/services/apiClient";
+import { profileQuery } from "@/services/profileService";
 
 export type Tier = "EMERGENT" | "URGENT" | "SELF_CARE";
 
@@ -164,7 +165,12 @@ export async function submitIntake(
    * separator — see `merge_selected_symptoms` — because two phrases run
    * together match no red-flag rule at all.
    */
-  selectedSymptoms?: string[]
+  selectedSymptoms?: string[],
+  /**
+   * Whose description this is, for the history it is saved under. Never read
+   * by triage; a stale one costs the saved row, never the assessment.
+   */
+  profileId?: string | null
 ): Promise<IntakeAssessment | FollowUpRequest> {
   assertSecureBaseUrl();
 
@@ -192,6 +198,7 @@ export async function submitIntake(
         ...(selectedSymptoms && selectedSymptoms.length > 0
           ? { selected_symptoms: selectedSymptoms }
           : {}),
+        ...(profileId ? { profile_id: profileId } : {}),
       }),
     });
   } catch {
@@ -338,8 +345,8 @@ export const PAST_TIER_LABELS: Record<Tier, string> = {
   SELF_CARE: "Usually self-care",
 };
 
-export async function listPastAssessments(): Promise<PastAssessment[]> {
-  const body = (await apiRequest("/intake", {
+export async function listPastAssessments(profileId?: string | null): Promise<PastAssessment[]> {
+  const body = (await apiRequest(`/intake${profileQuery(profileId)}`, {
     method: "GET",
     fallbackMessage: "We couldn't load your past descriptions. Please try again in a moment.",
   })) as any[] | null;

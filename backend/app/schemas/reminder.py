@@ -72,6 +72,9 @@ class MedicationScheduleOut(BaseModel):
     medication_name: str
     dosage: str | None
     frequency: str | None
+    # Whose medication it is when it is not the account holder's: a caregiver
+    # woken at 8am needs to know which person the alarm is for. None is "me".
+    profile_name: str | None = None
     reminders: list[ReminderOut]
 
 

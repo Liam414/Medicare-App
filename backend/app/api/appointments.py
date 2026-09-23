@@ -17,9 +17,10 @@ NOT_SENT on every row this code can produce, and `provider_notified` is False.
 The user still has to phone, and the UI says so.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.api.profiles import owned_profile_id, profile_filter
 from app.core.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.appointment import Appointment
@@ -75,12 +76,14 @@ def _get_owned_or_404(appointment_id: str, user: User, db: Session) -> Appointme
 
 @router.get("", response_model=list[AppointmentOut])
 def list_appointments(
+    profile_id: str | None = Query(None, description="Whose visits. Omitted means your own."),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[AppointmentOut]:
+    scope = owned_profile_id(profile_id, user, db)
     appointments = (
         db.query(Appointment)
-        .filter(Appointment.user_id == user.id)
+        .filter(Appointment.user_id == user.id, profile_filter(Appointment.profile_id, scope))
         .order_by(Appointment.created_at.desc())
         .all()
     )
@@ -90,6 +93,7 @@ def list_appointments(
 @router.post("", response_model=AppointmentOut, status_code=status.HTTP_201_CREATED)
 def create_appointment(
     payload: AppointmentCreate,
+    profile_id: str | None = Query(None, description="Whose visit this is."),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> AppointmentOut:
@@ -103,6 +107,7 @@ def create_appointment(
     """
     appointment = Appointment(
         user_id=user.id,
+        profile_id=owned_profile_id(profile_id, user, db),
         status="REQUESTED",
         delivery_state="NOT_SENT",
         **payload.model_dump(),

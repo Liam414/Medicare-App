@@ -289,6 +289,7 @@ rules above.
 | `docs/label-scanning.md` | the two OCR engines, the parser rules, the corpus and the two defects it found |
 | `docs/symptom-history.md` | reading back stored assessments, the verbatim visit summary, what leaves the device, consent |
 | `docs/check-ins.md` | the day-later check-in, why it is not a triage input, storage, sign-out, arming |
+| `docs/care-profiles.md` | records kept for someone else: the name-only table, ownership, cascade, the banner, arming for everyone |
 | `docs/emergency-card.md` | storage per platform, the mirrored medication list, the palette exception, the rejected lock-screen widget |
 | `docs/security-posture.md` | auth, tokens, session persistence, CORS, headers, transport, and all nine closed findings with their fixes |
 | `docs/deployment.md` | the Render blueprint, the procedure, the failure modes, what publishing changed |
@@ -508,6 +509,20 @@ read it.** Four rules, each tested:
 - ⛔ The notification is generic (lock screen). Explicit sign-out clears the
   check-in; a 401 must not. Armed by `reminderArming` with the whole set.
 - Nothing is added to the person's text when it is prefilled.
+
+### Care profiles — `docs/care-profiles.md`
+
+- ⛔ **`care_profiles` holds a display name and nothing else** — no age, sex or
+  relationship. An age would invite a triage input, which is fenced. Tested.
+- `profile_id` NULL is the account holder. Ownership is checked only in
+  `owned_profile_id`. ⛔ **Intake never refuses over a bad profile id** — the row
+  is not stored, the assessment is still returned. Tested.
+- ⛔ Deleting a profile deletes its reminders, medications, assessments and
+  visits explicitly (SQLite has no cascade), and its card on the device.
+- ⛔ `ProfileBanner` on every screen that reads or writes someone's records;
+  screens wait for the active profile before loading or saving — except
+  intake, which never waits. Notifications say whose medicine it is.
+- The emergency card is per person and still makes no network request.
 
 ### Emergency card — `docs/emergency-card.md`
 

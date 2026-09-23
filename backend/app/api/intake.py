@@ -10,10 +10,11 @@ reads — it only estimates urgency and explains that estimate.
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from app.api.profiles import owned_profile_id, profile_filter
 from app.core import followup, interpretation, triage_log
 from app.core.config import settings
 from app.core.dependencies import get_current_user
@@ -319,10 +320,18 @@ async def create_assessment(
         related_topics = await _related_topics(description)
 
     record_id: str | None = None
-    if payload.consent_to_store:
+    try:
+        store_under = owned_profile_id(payload.profile_id, user, db)
+        storable = payload.consent_to_store
+    except HTTPException:
+        # ⛔ A stale or foreign profile id costs the stored row, never the
+        # assessment. The screening above has already run and is returned.
+        store_under, storable = None, False
+    if storable:
         # Stored only with explicit consent; see the PHI note on the model.
         record = IntakeAssessment(
             user_id=user.id,
+            profile_id=store_under,
             description=description,
             tier=result.tier.wire_value,
             reasoning=result.reasoning,
@@ -433,6 +442,7 @@ def _recap_out(raw_answers: str | None) -> IntakeRecapOut | None:
 
 @router.get("", response_model=list[IntakeHistoryItemOut])
 def list_assessments(
+    profile_id: str | None = Query(None, description="Whose history. Omitted means your own."),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[IntakeHistoryItemOut]:
@@ -445,9 +455,13 @@ def list_assessments(
     against today's rules, because that would be a different answer presented
     as the one they were given.
     """
+    scope = owned_profile_id(profile_id, user, db)
     rows = (
         db.query(IntakeAssessment)
-        .filter(IntakeAssessment.user_id == user.id)
+        .filter(
+            IntakeAssessment.user_id == user.id,
+            profile_filter(IntakeAssessment.profile_id, scope),
+        )
         .order_by(IntakeAssessment.created_at.desc())
         .limit(HISTORY_LIMIT)
         .all()

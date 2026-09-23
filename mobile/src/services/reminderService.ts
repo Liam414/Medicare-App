@@ -31,6 +31,8 @@ export interface MedicationSchedule {
   dosage: string | null;
   /** The directions exactly as saved. Shown beside any suggested times. */
   frequency: string | null;
+  /** Whose medication, when it is not the account holder's. */
+  profileName?: string | null;
   reminders: Reminder[];
 }
 
@@ -55,6 +57,7 @@ interface ApiSchedule {
   medication_name: string;
   dosage: string | null;
   frequency: string | null;
+  profile_name?: string | null;
   reminders: ApiReminder[];
 }
 
@@ -73,6 +76,7 @@ function scheduleFromApi(item: ApiSchedule): MedicationSchedule {
     medicationName: item.medication_name,
     dosage: item.dosage,
     frequency: item.frequency,
+    profileName: item.profile_name ?? null,
     reminders: (item.reminders ?? []).map(reminderFromApi),
   };
 }
@@ -137,7 +141,12 @@ export function toDueReminders(schedules: MedicationSchedule[]): DueReminder[] {
       .map((reminder) => ({
         reminderId: reminder.id,
         medicationId: schedule.medicationId,
-        medicationName: schedule.medicationName,
+        // A caregiver woken by an alarm needs to know whose medicine it is.
+        // DueReminder only ever becomes notification text, so the name goes
+        // here rather than into both platform schedulers.
+        medicationName: schedule.profileName
+          ? `For ${schedule.profileName}: ${schedule.medicationName}`
+          : schedule.medicationName,
         dosage: schedule.dosage,
         timeOfDay: reminder.timeOfDay,
       }))
