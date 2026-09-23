@@ -44,6 +44,13 @@ def test_red_flag_detection_does_not_get_worse():
     assert len(result["under"]) <= UNDER_TRIAGED_CEILING
 
 
+def test_every_profile_dependent_scenario_reaches_its_level():
+    """Decision 1: the profile floors are what these cases exist to check."""
+    for s in scenarios.SCENARIOS:
+        if s.profile_dependent:
+            assert scenarios.classify(s) == s.gold, s.description
+
+
 def test_no_red_flag_scenario_is_ever_told_self_care():
     for s in _independent():
         if s.gold == scenarios.E:

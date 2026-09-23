@@ -36,7 +36,7 @@ def _result(
 @pytest.fixture()
 def stub_triage(monkeypatch):
     def _set(result=None, error=False):
-        def _fake(description: str, *, followup_already_asked: bool = False):
+        def _fake(description: str, *, followup_already_asked: bool = False, profile=None):
             if error:
                 raise TriageUnavailable("unavailable")
             return result or _result()
@@ -578,7 +578,7 @@ class TestFollowUpQuestions:
     ):
         seen: list[str] = []
 
-        def _capture(description: str, *, followup_already_asked: bool = False):
+        def _capture(description: str, *, followup_already_asked: bool = False, profile=None):
             seen.append(description)
             return _result(tier=Tier.URGENT, rules_defaulted=False)
 
@@ -639,7 +639,7 @@ class TestFailureMode:
     ):
         from app.core.triage import TriageNotConfigured
 
-        def _unconfigured(description: str, *, followup_already_asked: bool = False):
+        def _unconfigured(description: str, *, followup_already_asked: bool = False, profile=None):
             raise TriageNotConfigured("no credentials")
 
         monkeypatch.setattr("app.api.intake.assess", _unconfigured)
@@ -661,7 +661,7 @@ class TestFailureMode:
     ):
         from app.core.triage import TriageNotConfigured
 
-        def _unconfigured(description: str, *, followup_already_asked: bool = False):
+        def _unconfigured(description: str, *, followup_already_asked: bool = False, profile=None):
             raise TriageNotConfigured("no credentials")
 
         monkeypatch.setattr("app.api.intake.assess", _unconfigured)
@@ -696,7 +696,7 @@ class TestFailureMode:
         """
         from app.core.triage import TriageNotConfigured
 
-        def _unconfigured(description: str, *, followup_already_asked: bool = False):
+        def _unconfigured(description: str, *, followup_already_asked: bool = False, profile=None):
             raise TriageNotConfigured("no credentials")
 
         monkeypatch.setattr("app.api.intake.assess", _unconfigured)
@@ -868,7 +868,7 @@ class TestTheEventLoopIsNotBlocked:
 
         on_event_loop: list[bool] = []
 
-        def _record_thread(description: str, *, followup_already_asked: bool = False):
+        def _record_thread(description: str, *, followup_already_asked: bool = False, profile=None):
             try:
                 asyncio.get_running_loop()
                 on_event_loop.append(True)

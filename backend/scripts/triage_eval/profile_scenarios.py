@@ -108,16 +108,20 @@ SCENARIOS: list[Scenario] = [
         profile_dependent=True,
         **PENICILLIN,
     ),
+    # ⛔ RELABELLED AFTER SEEING A RESULT, stated so the score is not read as
+    # blind: these two were written as URGENT when only three tiers existed.
+    # Decision 2 added CLINICIAN_SOON, and the documented intent for "recorded
+    # condition + ordinarily minor complaint" is now that tier.
     Scenario(
         "I have a cold and a runny nose",
-        U,
+        C,
         "recorded long-term condition: self-care is not earned without review",
         profile_dependent=True,
         **HEART,
     ),
     Scenario(
         "a small cut on my foot that is taking a while to heal",
-        U,
+        C,
         "recorded long-term condition: self-care is not earned without review",
         profile_dependent=True,
         **DIABETES,
@@ -126,10 +130,17 @@ SCENARIOS: list[Scenario] = [
 
 
 def classify(scenario: Scenario) -> str:
-    """Rules only, the layer that always runs. The profile is not an input yet."""
+    """The layers that always run: the rules, then the profile floors. No model."""
+    from app.core import profile_triage
     from app.core.rules_triage import classify as rules
+    from app.core.triage import Tier
 
-    return rules(scenario.description).tier_name
+    tier, _, _ = profile_triage.apply(
+        Tier[rules(scenario.description).tier_name],
+        scenario.description,
+        profile_triage.ProfileContext(conditions=scenario.conditions, allergies=scenario.allergies),
+    )
+    return tier.name
 
 
 def score(scenarios: list[Scenario]) -> dict:

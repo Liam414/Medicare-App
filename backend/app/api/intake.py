@@ -14,7 +14,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from app.api.health_profile import load_health_profile
 from app.api.profiles import owned_profile_id, profile_filter
+from app.core.profile_triage import ProfileContext
 from app.core import followup, interpretation, triage_log
 from app.core.config import settings
 from app.core.dependencies import get_current_user
@@ -200,6 +202,32 @@ async def _related_topics(description: str) -> list[SymptomTopicOut]:
     return []
 
 
+def _profile_context(
+    profile_id: str | None, answers: dict[str, str], user: User, db: Session
+) -> ProfileContext | None:
+    """
+    The health profile of whoever this assessment is for (decision 1).
+
+    ⛔ Never a reason to fail an assessment. A stale profile id or an
+    unreadable row means screening runs without the profile — which is what
+    it did before profiles existed, and the profile can only ever raise a
+    tier. Nothing about the row is logged.
+    """
+    try:
+        scoped = owned_profile_id(profile_id, user, db)
+        row = load_health_profile(user, scoped, db)
+    except Exception:  # noqa: BLE001 — see docstring
+        logger.warning("Health profile unavailable for an assessment; screening without it.")
+        return None
+    if row is None:
+        return None
+    return ProfileContext(
+        conditions=tuple(row.conditions),
+        allergies=tuple(row.allergies),
+        allergy_contact=answers.get(followup.ALLERGY_CONTACT.question_id, ""),
+    )
+
+
 @router.post("/assess", response_model=None, status_code=status.HTTP_201_CREATED)
 async def create_assessment(
     payload: IntakeRequest,
@@ -216,6 +244,7 @@ async def create_assessment(
     answers = payload.follow_up_answers or {}
     description = followup.merge(payload.description, answers) if answers else payload.description
     description = merge_selected_symptoms(description, payload.selected_symptoms)
+    profile = _profile_context(payload.profile_id, answers, user, db)
 
     try:
         # ⛔ OFF THE EVENT LOOP. `assess` is synchronous and, when a model
@@ -240,6 +269,7 @@ async def create_assessment(
             assess,
             description,
             followup_already_asked=rounds_asked >= followup.MAX_ROUNDS,
+            profile=profile,
         )
     except TriageUnavailable as exc:
         # Deliberately a failure, not a tier. Telling someone "probably fine"
@@ -304,7 +334,10 @@ async def create_assessment(
                 # The description is passed so round one can skip what the
                 # user has already told us. See `questions_for_round`.
                 for q in followup.questions_for_round(
-                    next_round, answers, description=description
+                    next_round,
+                    answers,
+                    description=description,
+                    has_allergies=bool(profile and profile.allergies),
                 )
             ],
             disclaimer=INTAKE_DISCLAIMER,

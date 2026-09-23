@@ -56,8 +56,12 @@ import os
 from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import anthropic
+
+if TYPE_CHECKING:
+    from app.core.profile_triage import ProfileContext
 
 from app.core import deduction, rules_triage
 from app.core.config import settings
@@ -532,7 +536,12 @@ def _reconcile(
     return max(candidates)
 
 
-def assess(description: str, *, followup_already_asked: bool = False) -> TriageResult:
+def assess(
+    description: str,
+    *,
+    followup_already_asked: bool = False,
+    profile: ProfileContext | None = None,
+) -> TriageResult:
     """
     Estimate urgency for a free-text description.
 
@@ -618,6 +627,14 @@ def assess(description: str, *, followup_already_asked: bool = False) -> TriageR
     if model_tier is not None and final_tier > model_tier:
         reasoning += ESCALATION_NOTE
 
+    # Step 3: the health profile (decision 1). Raise-only — see
+    # `profile_triage.apply`, which returns max(tier, floor). Imported here
+    # because that module imports `Tier` from this one.
+    from app.core import profile_triage
+
+    final_tier, profile_ids, profile_note = profile_triage.apply(final_tier, cleaned, profile)
+    reasoning += profile_note
+
     return TriageResult(
         tier=final_tier,
         reasoning=reasoning,
@@ -629,7 +646,7 @@ def assess(description: str, *, followup_already_asked: bool = False) -> TriageR
             model_tier is not None and final_tier > model_tier
         ),
         rule_tier=rule_tier,
-        rule_ids=[match.rule_id for match in rules.matches],
+        rule_ids=[match.rule_id for match in rules.matches] + profile_ids,
         rules_defaulted=rules.defaulted,
         model_confidence=confidence,
         model_requested_followup=model_requested_followup,

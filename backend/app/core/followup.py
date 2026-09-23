@@ -191,6 +191,19 @@ _RECENT = FollowUpQuestion(
     helper="An illness, a new medicine, travel, an injury — or \"nothing new\".",
 )
 
+# Asked in round one ONLY when the person's health profile lists an allergy
+# (owner decision 1). Its answer is read by `profile_triage` — "Yes" floors
+# the tier at URGENT, "I'm not sure" at CLINICIAN_SOON — and is deliberately
+# NOT merged into the description: a bare "Yes" means nothing to the phrase
+# lists. It is not a round-two id, so it never spends a round.
+ALLERGY_CONTACT = FollowUpQuestion(
+    question_id="allergy_contact",
+    prompt="Could you have been in contact with anything on your allergy list?",
+    kind="choice",
+    choices=["Yes", "No", "I'm not sure"],
+    helper="Your health profile lists at least one allergy.",
+)
+
 ROUND_TWO_QUESTIONS: tuple[FollowUpQuestion, ...] = (
     _ONSET,
     _COURSE,
@@ -369,6 +382,7 @@ def questions_for_round(
     round_number: int,
     answers: dict[str, str] | None = None,
     description: str = "",
+    has_allergies: bool = False,
 ) -> tuple[FollowUpQuestion, ...]:
     """
     The questions to ask for a given round.
@@ -405,7 +419,7 @@ def questions_for_round(
             for question in QUESTIONS
             # `other` is deliberately not skippable — see the docstring.
             if question.question_id == "other" or question.question_id not in already
-        )
+        ) + ((ALLERGY_CONTACT,) if has_allergies else ())
 
     given = answers or {}
     severity = _severity(given)
@@ -525,6 +539,7 @@ RECAP_LABELS: dict[str, str] = {
     "prior": "Had it before",
     "impact": "Getting in the way",
     "recent": "Anything new",
+    "allergy_contact": "In contact with something on the allergy list",
 }
 
 
