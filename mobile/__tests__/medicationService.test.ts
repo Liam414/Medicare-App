@@ -76,6 +76,8 @@ describe("medicationService", () => {
       quantityRemaining: null,
       quantityCountedOn: null,
       dosesPerDay: null,
+      startedOn: null,
+      stoppedOn: null,
       refillDueSoon: true,
       refillOverdue: false,
       daysUntilRefill: 3,
@@ -139,6 +141,8 @@ describe("medicationService", () => {
       quantity_remaining: null,
       quantity_counted_on: null,
       doses_per_day: null,
+      started_on: null,
+      stopped_on: null,
     });
   });
 
