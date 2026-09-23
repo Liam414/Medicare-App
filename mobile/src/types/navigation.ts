@@ -110,6 +110,8 @@ export type RootStackParamList = {
   // Conditions, allergies and the account's export/delete. Takes no params:
   // health data never travels in a route param (see EmergencyCard above).
   HealthProfile: undefined;
+  // "How are you feeling today?" and the trend of the person's own answers.
+  CheckIn: undefined;
 
   EmergencyCard: undefined;
   EmergencyCardEdit: undefined;
