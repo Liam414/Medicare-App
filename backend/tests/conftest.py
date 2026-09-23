@@ -48,11 +48,9 @@ from app.models import (  # noqa: F401
 #
 # ⛔ This weakens hashing inside pytest, so on its own it would mean the suite
 # could no longer notice production being weakened the same way. It does not,
-# because `PRODUCTION_PWD_CONTEXT` below keeps the real configuration and
-# `test_the_production_cost_factor_is_not_the_test_one` asserts its cost is
-# still >= 12. Lower the real one and that test fails.
-PRODUCTION_PWD_CONTEXT = security.pwd_context
-
+# because `test_the_production_cost_factor_is_not_the_test_one` reads the real
+# configuration in a fresh interpreter, out of this swap's reach, and asserts
+# its cost is still >= 12. Lower the real one and that test fails.
 security.pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=4, deprecated="auto")
 security._DUMMY_PASSWORD_HASH = security.pwd_context.hash(
     "synthetic-no-such-account-value-used-only-in-tests"

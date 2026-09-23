@@ -60,14 +60,34 @@ class TestTheTestSuiteDoesNotHideAWeakenedCostFactor:
     confined to pytest and a real regression still fails something.
 
     ⛔ Do not "fix" this by reading `security.pwd_context` — conftest has
-    already replaced that object by the time any test runs. It must read the
-    context captured before the swap.
+    already replaced that object by the time any test runs. It reads the
+    configuration in a separate interpreter, where the swap never happened.
     """
 
     def test_the_production_cost_factor_is_not_the_test_one(self):
-        from tests.conftest import PRODUCTION_PWD_CONTEXT
+        # ⛔ In a fresh interpreter, so conftest's swap cannot reach it. This
+        # used to import `tests.conftest`, which only works when pytest has
+        # registered conftest under exactly that module name; under
+        # --import-mode=importlib the import re-runs conftest, captures the
+        # already-swapped cost-4 context, and fails with production untouched.
+        import pathlib
+        import subprocess
+        import sys
 
-        rounds = PRODUCTION_PWD_CONTEXT.handler("bcrypt").default_rounds
+        backend = pathlib.Path(__file__).resolve().parents[1]
+        probe = (
+            "from app.core.security import pwd_context;"
+            "print(pwd_context.handler('bcrypt').default_rounds)"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", probe],
+            cwd=backend,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert result.returncode == 0, result.stderr
+        rounds = int(result.stdout.strip().splitlines()[-1])
 
         assert rounds >= 12, (
             f"production bcrypt cost is {rounds}; OWASP's floor is 10 and this "
