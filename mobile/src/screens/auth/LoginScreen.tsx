@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { TextInput } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { AppButton } from "@/components/AppButton";
@@ -10,6 +11,7 @@ import { TextField } from "@/components/TextField";
 import { AuthError, login } from "@/services/authService";
 import type { RootStackParamList } from "@/types/navigation";
 import { validateEmail, validateLoginPassword } from "@/utils/validation";
+import { colors, radius, spacing } from "@/theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
@@ -59,6 +61,14 @@ export function LoginScreen({ navigation, route }: Props) {
       title="Welcome back"
       subtitle="Sign in to see your medication reminders."
     >
+      <View style={styles.photoFrame}>
+        <Image
+          source={require("../../../assets/home-photo.jpg")}
+          style={styles.photo}
+          resizeMode="contain"
+          accessibilityLabel="Person holding a small round object"
+        />
+      </View>
 
       {accountCreated && !formError && (
         <SuccessNotice message="Your account is ready. Sign in to get started." />
@@ -120,3 +130,18 @@ export function LoginScreen({ navigation, route }: Props) {
   );
 }
 
+const styles = StyleSheet.create({
+  photoFrame: {
+    alignSelf: "center",
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.sm,
+  },
+  photo: {
+    width: 140,
+    height: 240,
+    borderRadius: radius.lg,
+  },
+});
