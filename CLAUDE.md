@@ -183,7 +183,7 @@ review.
 | 2026-09-12 | restructuring `emergency.py` for the two-term combinator | that change |
 | 2026-09-12 | removing the health-goal blocking (`MEDICAL_GOAL`, `_FORBIDDEN`) | that removal |
 | 2026-09-13 | detailed, sourced, goal-sized plans | that work |
-| 2026-09-22 | asked by name to approve applying `docs/proposed-emergency-routing-2026-09-22.patch` to `emergency.py` and `rules_triage.py` and building offline emergency screening — "i approve" | that patch and that feature. ⛔ The patch is still **not applied**: the tooling's permission check refused it twice. Applying it is the owner's step or needs the permission granted. |
+| 2026-09-22 | asked by name to approve applying `docs/proposed-emergency-routing-2026-09-22.patch` to `emergency.py` and `rules_triage.py` and building offline emergency screening — "i approve" | that patch and that feature. Applied 2026-09-22, with one narrowing of its own new stroke pattern (a side is required) after it fired on every frozen shoulder in the corpus. |
 
 ⛔ **Not one of these is clinical sign-off, and none authorises merging to
 `main`, a second deployment, a custom domain, or any other gated thing that
@@ -421,6 +421,21 @@ rules produced.
   narrowing in the file; do not add an entry there to quieten a false positive.
 - The general "When to see a doctor" copy is deliberately non-specific.
   Condition-specific criteria would be clinical content this app may not author.
+- **Three passes added 2026-09-22**, all running only after the literals and
+  the combinator and all able only to add guidance: lay phrases merged into
+  existing categories, number-aware `_PATTERN_RULES`, and a last-pass
+  `_CORRECTIONS` table (misspellings, apostrophe-less contractions) that never
+  reaches the self-care list. Numeric durations ("for 5 days") now void
+  SELF_CARE in `rules_triage.py`.
+- ⛔ **Measured honestly: a phrase list fixes the phrases you have seen.** On
+  the probe the additions were written from, emergencies caught went 5/39 →
+  36/39. On the blind set frozen before any change (`HELDOUT`), 14/39 →
+  **15/39**. Do not report the first number without the second, and never
+  add a phrase because a HELDOUT case missed — write a new blind set instead.
+  `tests/test_triage_heldout.py` holds both floors.
+- ⛔ The phone screens offline with an export of this file — re-run
+  `scripts/export_emergency_rules.py` after any change, or
+  `test_emergency_export.py` fails.
 
 ## The rules, by feature
 

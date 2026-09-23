@@ -26,7 +26,17 @@
     "chest gets tight",
     "chest goes tight",
     "chest tightens",
-    "tight chest"
+    "tight chest",
+    "chest hurts",
+    "chest hurt",
+    "chest is hurting",
+    "chest hurting",
+    "elephant on my chest",
+    "elephant sitting on my chest",
+    "squeezing in my chest",
+    "squeezing my chest",
+    "chest is squeezing",
+    "chest squeezing"
    ]
   },
   {
@@ -61,7 +71,28 @@
     "out of breath talking",
     "breathless walking",
     "breathless lying flat",
-    "breathless doing nothing"
+    "breathless doing nothing",
+    "not breathing",
+    "stopped breathing",
+    "isn't breathing",
+    "is not breathing",
+    "lips are blue",
+    "lips turning blue",
+    "lips are turning blue",
+    "lips turned blue",
+    "blue lips",
+    "can't breath",
+    "cant breath",
+    "cannot breath",
+    "can not breathe",
+    "can not breath",
+    "gasping for air",
+    "gasping for breath",
+    "can't talk in full sentences",
+    "cant talk in full sentences",
+    "can't speak in full sentences",
+    "cant speak in full sentences",
+    "too breathless to talk"
    ]
   },
   {
@@ -101,7 +132,24 @@
     "weak down one side",
     "weakness on my right side",
     "weakness on my left side",
-    "went weak for a few minutes"
+    "went weak for a few minutes",
+    "speech is slurred",
+    "slurring my words",
+    "slurring his words",
+    "slurring her words",
+    "slurring their words",
+    "slurring words",
+    "one side of my face",
+    "one side of his face",
+    "one side of her face",
+    "one side of their face",
+    "thunderclap headache",
+    "words are coming out wrong",
+    "words coming out wrong",
+    "words come out wrong",
+    "words are jumbled",
+    "can't get my words out",
+    "cant get my words out"
    ]
   },
   {
@@ -128,7 +176,20 @@
     "blood in my vomit",
     "black tarry stools",
     "bleeding heavily",
-    "losing a lot of blood"
+    "losing a lot of blood",
+    "won't stop bleeding",
+    "wont stop bleeding",
+    "will not stop bleeding",
+    "blood is spurting",
+    "spurting blood",
+    "blood spurting",
+    "blood is pouring",
+    "pouring blood",
+    "fell off a ladder",
+    "fell off the ladder",
+    "fell off the roof",
+    "fell from a ladder",
+    "fell from the roof"
    ]
   },
   {
@@ -144,7 +205,17 @@
     "tongue is swelling",
     "severe allergic reaction",
     "lips swelling",
-    "lips are swelling"
+    "lips are swelling",
+    "face is swelling",
+    "face swelling up",
+    "face swelled up",
+    "lips are swelling",
+    "lips swelling up",
+    "throat feels tight",
+    "throat is tight",
+    "throat getting tight",
+    "throat is tightening",
+    "throat tightening"
    ]
   },
   {
@@ -167,7 +238,23 @@
     "lost consciousness",
     "went limp",
     "would not wake up",
-    "wouldn't wake up"
+    "wouldn't wake up",
+    "won't wake up",
+    "wont wake up",
+    "will not wake up",
+    "can't wake him",
+    "can't wake her",
+    "can't wake them",
+    "cant wake him",
+    "cant wake her",
+    "cant wake them",
+    "having a fit",
+    "had a fit",
+    "going to pass out",
+    "gonna pass out",
+    "about to pass out",
+    "like i'll pass out",
+    "like ill pass out"
    ]
   },
   {
@@ -194,7 +281,18 @@
     "dont want to be alive",
     "better off without me",
     "ending my life",
-    "take my own life"
+    "take my own life",
+    "unalive myself",
+    "don't want to live",
+    "dont want to live",
+    "do not want to live",
+    "don't want to be alive",
+    "dont want to be alive",
+    "no reason to live",
+    "end it all",
+    "ending it all",
+    "better off without me",
+    "better off dead"
    ]
   },
   {
@@ -219,7 +317,12 @@
     "part of my vision is gone",
     "part of my vision has gone",
     "lost part of my vision",
-    "flashes and floaters"
+    "flashes and floaters",
+    "went black in one eye",
+    "black in one eye",
+    "blind in one eye",
+    "lost sight in one eye",
+    "seeing double"
    ]
   },
   {
@@ -234,7 +337,17 @@
     "rash that does not fade",
     "non-blanching rash",
     "meningitis",
-    "sepsis"
+    "sepsis",
+    "don't go away when i press",
+    "dont go away when i press",
+    "doesn't go away when i press",
+    "don't fade when i press",
+    "dont fade when i press",
+    "doesn't fade when pressed",
+    "does not fade when pressed",
+    "dont fade when pressed",
+    "press a glass",
+    "glass test"
    ]
   },
   {
@@ -281,7 +394,11 @@
     "pregnant bleeding",
     "bleeding pregnant",
     "bleeding i am pregnant",
-    "bleeding i'm pregnant"
+    "bleeding i'm pregnant",
+    "water broke",
+    "waters broke",
+    "water has broken",
+    "water just broke"
    ]
   },
   {
@@ -294,7 +411,16 @@
     "took too many pills",
     "poisoning",
     "swallowed poison",
-    "drank bleach"
+    "drank bleach",
+    "dishwasher pod",
+    "laundry pod",
+    "detergent pod",
+    "tide pod",
+    "got into the pods",
+    "got into the pills",
+    "got into my pills",
+    "got into the medicine",
+    "got into my medicine"
    ]
   }
  ],
@@ -302,6 +428,120 @@
   "poisoning": [
    "food"
   ]
+ },
+ "patterns": [
+  {
+   "category": "infant_fever",
+   "label": "baby under three months with a fever",
+   "sources": [
+    "\\b(?:[1-9]|1[0-2]|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)[- ]?(?:weeks?|wks?)[- ]old\\b|\\b(?:1|2|one|two)[- ]?months?[- ]old\\b",
+    "\\b(?:fever|feverish|temp|temperature|burning up)\\b"
+   ]
+  },
+  {
+   "category": "pregnancy",
+   "label": "bleeding in pregnancy, with the week written as a number",
+   "sources": [
+    "\\bbleeding (?:at|and i'?m|and i am) (?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve) ?weeks\\b|\\b(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve) ?weeks pregnant (?:and|with) (?:heavy |a lot of |some )?bleeding\\b"
+   ]
+  },
+  {
+   "category": "overdose_poisoning",
+   "label": "a large number of tablets taken",
+   "sources": [
+    "\\btook (?:like |about |around |maybe )?[1-9]\\d+ (?!(?:minutes?|mins?|hours?|hrs?|seconds?|secs?|days?|weeks?|months?|years?|mg|mcg|ml|units?|iu|g|steps?|miles?|km|times?|lbs?|pounds?|percent)\\b)\\w+"
+   ]
+  },
+  {
+   "category": "overdose_poisoning",
+   "label": "too many tablets",
+   "sources": [
+    "\\btoo many (?:of (?:my|his|her|their|the) )?(?:\\w+ ){0,2}(?:pills|tablets|capsules|meds|medications?|medicines?)\\b"
+   ]
+  },
+  {
+   "category": "overdose_poisoning",
+   "label": "a household chemical swallowed",
+   "sources": [
+    "\\b(?:drank|drunk|swallowed|ate|got into) (?:some |some of |the |a |my )*(?:\\w+ )?(?:bleach|cleaner|cleaning \\w+|detergent|antifreeze|drain \\w+|pods?)\\b"
+   ]
+  },
+  {
+   "category": "self_harm",
+   "label": "texting shorthand for kill myself",
+   "sources": [
+    "(?<![\\d.])(?<![\\d.] )\\bkms\\b"
+   ]
+  },
+  {
+   "category": "bleeding_trauma",
+   "label": "cannot move or feel both legs",
+   "sources": [
+    "\\bcan'?t (?:move|feel) (?:my|his|her|their) legs\\b|\\bcannot (?:move|feel) (?:my|his|her|their) legs\\b"
+   ]
+  },
+  {
+   "category": "stroke",
+   "label": "cannot lift or raise one arm",
+   "sources": [
+    "\\b(?:can'?t|cannot) (?:lift|raise) (?:my|his|her|their) (?:right|left) arm\\b"
+   ]
+  }
+ ],
+ "corrections": {
+  "cant": "can't",
+  "dont": "don't",
+  "im": "i'm",
+  "ive": "i've",
+  "isnt": "isn't",
+  "doesnt": "doesn't",
+  "didnt": "didn't",
+  "couldnt": "couldn't",
+  "wouldnt": "wouldn't",
+  "shouldnt": "shouldn't",
+  "arent": "aren't",
+  "wasnt": "wasn't",
+  "theyre": "they're",
+  "pian": "pain",
+  "pani": "pain",
+  "chset": "chest",
+  "cheast": "chest",
+  "brethe": "breathe",
+  "breate": "breathe",
+  "breahte": "breathe",
+  "breating": "breathing",
+  "breahting": "breathing",
+  "bleading": "bleeding",
+  "bleding": "bleeding",
+  "bledding": "bleeding",
+  "siezure": "seizure",
+  "seizur": "seizure",
+  "sezure": "seizure",
+  "unconcious": "unconscious",
+  "unconsious": "unconscious",
+  "concious": "conscious",
+  "sucide": "suicide",
+  "suicde": "suicide",
+  "suiside": "suicide",
+  "sucidal": "suicidal",
+  "suicidel": "suicidal",
+  "alergic": "allergic",
+  "anaphalaxis": "anaphylaxis",
+  "anaphylaxsis": "anaphylaxis",
+  "swolen": "swollen",
+  "swollin": "swollen",
+  "storke": "stroke",
+  "strok": "stroke",
+  "numbess": "numbness",
+  "poisen": "poison",
+  "posion": "poison",
+  "poision": "poison",
+  "pregant": "pregnant",
+  "pregnent": "pregnant",
+  "prenant": "pregnant",
+  "unresponisve": "unresponsive",
+  "atack": "attack",
+  "attak": "attack"
  },
  "concepts": {
   "stiff_neck": [
@@ -995,11 +1235,11 @@
   },
   {
    "text": "my lips are turning blue and I am wheezing badly",
-   "category": null
+   "category": "breathing"
   },
   {
    "text": "blood is pouring from the cut and won't stop",
-   "category": null
+   "category": "bleeding_trauma"
   },
   {
    "text": "I threw up something that looked like coffee grounds",
@@ -1019,15 +1259,15 @@
   },
   {
    "text": "chest pian and my left arm is numb",
-   "category": null
+   "category": "cardiac"
   },
   {
    "text": "feels like an elephant sitting on my chest",
-   "category": null
+   "category": "cardiac"
   },
   {
    "text": "my chest hurts really bad and im sweating",
-   "category": null
+   "category": "cardiac"
   },
   {
    "text": "squeezing in my chest going into my jaw",
@@ -1035,19 +1275,19 @@
   },
   {
    "text": "he's not breathing",
-   "category": null
+   "category": "breathing"
   },
   {
    "text": "my lips are turning blue",
-   "category": null
+   "category": "breathing"
   },
   {
    "text": "cant breath",
-   "category": null
+   "category": "breathing"
   },
   {
    "text": "wheezing so bad i cant talk in full sentences",
-   "category": null
+   "category": "breathing"
   },
   {
    "text": "my dad's speech is slurred and one side of his face looks weird",
@@ -1055,27 +1295,27 @@
   },
   {
    "text": "suddenly cant lift my right arm",
-   "category": null
+   "category": "stroke"
   },
   {
    "text": "thunderclap headache",
-   "category": null
+   "category": "stroke"
   },
   {
    "text": "words are coming out wrong and my hand is numb",
-   "category": null
+   "category": "stroke"
   },
   {
    "text": "cut my hand and it wont stop bleeding",
-   "category": null
+   "category": "bleeding_trauma"
   },
   {
    "text": "blood is spurting from the cut",
-   "category": null
+   "category": "bleeding_trauma"
   },
   {
    "text": "he fell off the ladder and can't move his legs",
-   "category": null
+   "category": "bleeding_trauma"
   },
   {
    "text": "car accident and my neck hurts bad",
@@ -1083,35 +1323,35 @@
   },
   {
    "text": "ate peanuts and my face is swelling up",
-   "category": null
+   "category": "anaphylaxis"
   },
   {
    "text": "bee sting and my throat feels tight",
-   "category": null
+   "category": "anaphylaxis"
   },
   {
    "text": "she won't wake up",
-   "category": null
+   "category": "consciousness"
   },
   {
    "text": "he is having a fit and shaking all over",
-   "category": null
+   "category": "consciousness"
   },
   {
    "text": "my heart is racing and i feel like ill pass out",
-   "category": null
+   "category": "consciousness"
   },
   {
    "text": "i wanna kms",
-   "category": null
+   "category": "self_harm"
   },
   {
    "text": "i dont want to live anymore",
-   "category": null
+   "category": "self_harm"
   },
   {
    "text": "thinking of ending it all",
-   "category": null
+   "category": "self_harm"
   },
   {
    "text": "everyone would be better off without me",
@@ -1119,11 +1359,11 @@
   },
   {
    "text": "everything went black in one eye",
-   "category": null
+   "category": "vision_loss"
   },
   {
    "text": "suddenly seeing double and dizzy",
-   "category": null
+   "category": "vision_loss"
   },
   {
    "text": "purple spots that dont go away when i press a glass on them",
@@ -1131,15 +1371,15 @@
   },
   {
    "text": "my baby is 6 weeks old and has a temp of 100.8",
-   "category": null
+   "category": "infant_fever"
   },
   {
    "text": "2 month old running a fever",
-   "category": null
+   "category": "infant_fever"
   },
   {
    "text": "I'm pregnant and my water broke at 30 weeks",
-   "category": null
+   "category": "pregnancy"
   },
   {
    "text": "34 weeks pregnant with a bad headache and blurry vision",
@@ -1147,11 +1387,11 @@
   },
   {
    "text": "heavy bleeding at 12 weeks pregnant",
-   "category": null
+   "category": "pregnancy"
   },
   {
    "text": "I took 20 tylenol",
-   "category": null
+   "category": "overdose_poisoning"
   },
   {
    "text": "I've been drinking and took my xanax",
@@ -1159,15 +1399,15 @@
   },
   {
    "text": "my kid got into the dishwasher pods",
-   "category": null
+   "category": "overdose_poisoning"
   },
   {
    "text": "toddler drank some of the cleaning spray",
-   "category": null
+   "category": "overdose_poisoning"
   },
   {
    "text": "took way too many of my sleeping pills",
-   "category": null
+   "category": "overdose_poisoning"
   },
   {
    "text": "sore throat and fever for 5 days",
@@ -1355,7 +1595,7 @@
   },
   {
    "text": "8 week old baby with a temperature of 101",
-   "category": null
+   "category": "infant_fever"
   },
   {
    "text": "pregnant and having really bad stomach pain",

@@ -372,6 +372,45 @@ _SELF_CARE_COMPILED = tuple(
 _MODIFIER_COMPILED = tuple((p, _compile(p)) for p in _ESCALATING_MODIFIERS)
 
 
+# ⛔ 2026-09-22: A NUMBER DEFEATED EVERY DURATION RULE, IN THE UNSAFE DIRECTION.
+#
+# The duration phrases above are words — "for a week", "for several days" — so
+# "sore throat for 10 days" matched none of them, matched "sore throat" on the
+# self-care list, and was told it would settle on its own. The same for "sore
+# throat and fever for 5 days". That is the false SELF_CARE this file calls
+# the single most important thing to prevent.
+#
+# The threshold is read off the list, not chosen: "for several days" already
+# escalates, so three days or more does; any count of weeks or months does.
+# It is used twice, exactly as the phrases are — as the persistent_or_worsening
+# urgent rule and as an escalating modifier — so it can only raise a tier.
+# Approved by the repository owner 2026-09-22; see CLAUDE.md, "Held-out probe".
+_NUMBER_WORDS = {
+    "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+    "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "fourteen": 14,
+    "two": 2, "one": 1, "a": 1, "an": 1,
+}
+_DURATION = re.compile(
+    r"\b(?:for|past|last|the past|the last|over the past|over the last|in the last)"
+    r"\s+(?:about |around |over |more than |nearly |almost |like )?"
+    r"(?P<n>\d+|" + "|".join(_NUMBER_WORDS) + r")\s*(?P<unit>days?|weeks?|wks?|months?)\b"
+    r"|\b(?P<n2>\d+|" + "|".join(_NUMBER_WORDS) + r")\s*(?P<unit2>days?|weeks?|months?)"
+    r"\s+(?:now|straight|in a row|running)\b",
+    re.IGNORECASE,
+)
+
+
+def persistent_duration(text: str) -> str | None:
+    """The duration phrase in `text` that means "three days or more", if any."""
+    for match in _DURATION.finditer(text):
+        raw = (match.group("n") or match.group("n2")).lower()
+        unit = (match.group("unit") or match.group("unit2")).lower()
+        count = int(raw) if raw.isdigit() else _NUMBER_WORDS[raw]
+        if not unit.startswith("d") or count >= 3:
+            return match.group(0)
+    return None
+
+
 DEFAULT_REASONING = (
     "MedHelp could not confidently recognise what you described, so it is "
     "suggesting you get it checked rather than assuming it is minor. Not "
@@ -421,6 +460,9 @@ def classify(description: str) -> RuleClassification:
     urgent_matches: list[RuleMatch] = []
     for rule_id, explanation, phrases in _URGENT_COMPILED:
         matched = [phrase for phrase, pattern in phrases if pattern.search(text)]
+        duration = persistent_duration(text) if rule_id == "persistent_or_worsening" else None
+        if duration and duration not in matched:
+            matched.append(duration)
         if matched:
             urgent_matches.append(
                 RuleMatch(rule_id=rule_id, explanation=explanation, matched_terms=matched)
@@ -445,6 +487,9 @@ def classify(description: str) -> RuleClassification:
     # 3. SELF_CARE must be positively earned AND unmodified.
     self_care_hits = _match_all(text, _SELF_CARE_COMPILED)
     modifier_hits = _match_all(text, _MODIFIER_COMPILED)
+    duration = persistent_duration(text)
+    if duration:
+        modifier_hits.append(duration)
 
     if self_care_hits and not modifier_hits:
         return RuleClassification(

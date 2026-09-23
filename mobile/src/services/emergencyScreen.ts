@@ -53,6 +53,24 @@ const RULES = rules.rules as Rule[];
 const VOIDED = rules.voidedByPrefix as Record<string, string[]>;
 const CONCEPTS = rules.concepts as Record<string, string[]>;
 const COMBINATIONS = rules.combinations as { category: string; required: string[] }[];
+const CORRECTIONS = (rules as { corrections?: Record<string, string> }).corrections ?? {};
+
+/**
+ * The number-aware patterns ("took 20 tylenol", "6 weeks old" with a fever).
+ * These genuinely are regular expressions, exported as source. ⛔ One that an
+ * engine cannot compile is dropped rather than crashing the screen: dropping
+ * it only means the phone adds no guidance for it, which is where it stood
+ * before the pattern existed. The parity tests run on the engine jest uses.
+ */
+const PATTERNS = ((rules as { patterns?: { category: string; sources: string[] }[] }).patterns ?? [])
+  .map((entry) => {
+    try {
+      return { category: entry.category, regexes: entry.sources.map((s) => new RegExp(s, "i")) };
+    } catch {
+      return null;
+    }
+  })
+  .filter((entry): entry is { category: string; regexes: RegExp[] } => entry !== null);
 
 /** Mirrors `emergency.normalize_query`. */
 export function normalizeQuery(query: string): string {
@@ -115,13 +133,11 @@ function guidanceFor(category: string): LocalEmergencyGuidance {
  */
 export function screenLocally(query: string): LocalEmergencyGuidance | null {
   if (!query || !query.trim()) return null;
-  const text = normalizeQuery(query).toLowerCase();
+  const normalized = normalizeQuery(query);
+  const text = normalized.toLowerCase();
 
-  for (const rule of RULES) {
-    if (rule.phrases.some((phrase) => phraseMatches(text, phrase))) {
-      return guidanceFor(rule.category);
-    }
-  }
+  const literal = screenLiterals(text);
+  if (literal) return literal;
 
   // Concept phrases carry no plural tolerance, matching `symptom_concepts`.
   const named = new Set(
@@ -134,5 +150,34 @@ export function screenLocally(query: string): LocalEmergencyGuidance | null {
       return guidanceFor(combination.category);
     }
   }
+
+  // Then, as on the server, the patterns, and last of all the corrected text.
+  const pattern = screenPatterns(normalized);
+  if (pattern) return pattern;
+  const corrected = corrections(normalized);
+  if (corrected !== normalized) {
+    return screenLiterals(corrected.toLowerCase()) ?? screenPatterns(corrected);
+  }
   return null;
+}
+
+function screenLiterals(text: string): LocalEmergencyGuidance | null {
+  for (const rule of RULES) {
+    if (rule.phrases.some((phrase) => phraseMatches(text, phrase))) {
+      return guidanceFor(rule.category);
+    }
+  }
+  return null;
+}
+
+function screenPatterns(text: string): LocalEmergencyGuidance | null {
+  for (const entry of PATTERNS) {
+    if (entry.regexes.every((regex) => regex.test(text))) return guidanceFor(entry.category);
+  }
+  return null;
+}
+
+/** Mirrors `emergency._corrected`: ASCII words through the correction table. */
+function corrections(text: string): string {
+  return text.replace(/[A-Za-z]+/g, (word) => CORRECTIONS[word.toLowerCase()] ?? word);
 }
