@@ -1,16 +1,14 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { AppButton } from "@/components/AppButton";
 import { AppNav } from "@/components/AppNav";
 import { CardGrid } from "@/components/CardGrid";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { Glyph } from "@/components/Glyph";
 import { MedicationCard } from "@/components/MedicationCard";
-import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
 import { ScreenBand } from "@/components/ScreenBand";
 import { SegmentedControl } from "@/components/SegmentedControl";
@@ -23,7 +21,15 @@ import {
   listMedications,
   type Medication,
 } from "@/services/medicationService";
-import { colors, radius, spacing, typography } from "@/theme";
+import {
+  BORDER_WIDTH,
+  MIN_TAP_TARGET,
+  colors,
+  domains,
+  radius,
+  spacing,
+  typography,
+} from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
 
 type Props = NativeStackScreenProps<RootStackParamList, "MedicationList">;
@@ -95,9 +101,23 @@ export function MedicationListScreen({ navigation }: Props) {
       page={isExpanded}
       band={
         <ScreenBand
-          title="Medications"
+          title="Your medications"
           meta="A list you keep yourself. MedHelp does not prescribe or change anything here."
           page={isExpanded}
+          action={
+            <Pressable
+              onPress={() => navigation.navigate("MedicationEdit", {})}
+              accessibilityRole="button"
+              accessibilityLabel="Add a medication"
+              accessibilityHint="Opens a form to add a medication to your list"
+              style={({ pressed }) => [
+                styles.addRound,
+                pressed && styles.addRoundPressed,
+              ]}
+            >
+              <Text style={styles.addRoundGlyph}>+</Text>
+            </Pressable>
+          }
         />
       }
     >
@@ -125,23 +145,22 @@ export function MedicationListScreen({ navigation }: Props) {
         />
 
         {/*
-          Two ways in, and typing it in stays the primary one. Scanning is a
-          shortcut that prefills the same form; it is not a replacement for
-          manual entry and never saves anything on its own.
+          Two ways in, and typing it in stays the primary one — the "+" in the
+          header. Scanning is a shortcut that prefills the same form; it is not
+          a replacement for manual entry and never saves anything on its own,
+          which is why it is drawn as a dashed outline rather than as a second
+          filled button competing with the one above it.
         */}
-        <View style={styles.addActions}>
-          <AppButton
-            label="Add a medication"
-            onPress={() => navigation.navigate("MedicationEdit", {})}
-            accessibilityHint="Opens a form to add a medication to your list"
-          />
-          <AppButton
-            label="Scan a label instead"
-            variant="secondary"
-            onPress={() => navigation.navigate("MedicationScan")}
-            accessibilityHint="Uses the camera to read a prescription label and fill in the form for you"
-          />
-        </View>
+        <Pressable
+          onPress={() => navigation.navigate("MedicationScan")}
+          accessibilityRole="button"
+          accessibilityLabel="Scan a prescription label"
+          accessibilityHint="Uses the camera to read a prescription label and fill in the form for you"
+          style={({ pressed }) => [styles.scanChip, pressed && styles.scanChipPressed]}
+        >
+          <Glyph name="search" size={18} color={domains.medications.ink} />
+          <Text style={styles.scanChipText}>Scan a prescription label</Text>
+        </Pressable>
 
         {error && <ErrorNotice message={error} onRetry={isOffline ? load : undefined} />}
 
@@ -205,8 +224,42 @@ export function MedicationListScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  addActions: {
+  addRound: {
+    width: MIN_TAP_TARGET,
+    height: MIN_TAP_TARGET,
+    borderRadius: MIN_TAP_TARGET / 2,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: domains.medications.fill,
+  },
+  addRoundPressed: {
+    backgroundColor: domains.medications.pressed,
+  },
+  addRoundGlyph: {
+    ...typography.display,
+    lineHeight: undefined,
+    color: colors.textOnAccent,
+  },
+  scanChip: {
+    minHeight: MIN_TAP_TARGET,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: BORDER_WIDTH,
+    borderStyle: "dashed",
+    borderColor: domains.medications.border,
+    backgroundColor: domains.medications.surface,
+  },
+  scanChipPressed: {
+    backgroundColor: colors.surfaceMuted,
+  },
+  scanChipText: {
+    ...typography.bodyStrong,
+    color: domains.medications.ink,
   },
   loading: {
     flexDirection: "row",

@@ -128,9 +128,14 @@ describe("TodayScreen", () => {
     renderToday();
 
     // The point of the new layout: navigation is present everywhere rather
-    // than being a hub you have to come back to. "Today" appears twice on
-    // purpose — the page title and the tab that is currently selected.
-    await waitFor(() => expect(screen.getAllByText("Today")).toHaveLength(2));
+    // than being a hub you have to come back to.
+    //
+    // "Today" appears ONCE — the selected tab. It used to appear twice, the
+    // second being the coloured band across the top of the screen; the
+    // bright-card pass replaced that band with the greeting panel, which
+    // carries the date the band carried and is headed "Hi there".
+    await waitFor(() => expect(screen.getAllByText("Today")).toHaveLength(1));
+    expect(screen.getByText("Hi there")).toBeTruthy();
     expect(screen.getByText("Symptoms")).toBeTruthy();
     expect(screen.getByText("Medications")).toBeTruthy();
     expect(screen.getByText("Care")).toBeTruthy();
@@ -163,8 +168,12 @@ describe("TodayScreen", () => {
     // about the user, and nothing here tracks adherence.
     renderToday();
 
-    await waitFor(() => expect(screen.getByText("Earlier today")).toBeTruthy());
-    expect(screen.getByText("Later today")).toBeTruthy();
+    // Anchored to the start of the row's own line. The bright-card pass puts
+    // the standing and the time in one string ("Earlier today, 6:00 PM"), so
+    // this matches the prefix rather than the whole line — the claim under
+    // test is unchanged: the row says "Earlier today" and nothing stronger.
+    await waitFor(() => expect(screen.getByText(/^Earlier today/)).toBeTruthy());
+    expect(screen.getByText(/^Later today/)).toBeTruthy();
     expect(screen.queryByText(/missed/i)).toBeNull();
     expect(screen.queryByText(/overdue/i)).toBeNull();
     expect(screen.queryByText(/on track|adherence|streak/i)).toBeNull();
@@ -210,7 +219,7 @@ describe("TodayScreen", () => {
     // what stops an agent quietly adding it later.
     renderToday();
 
-    await waitFor(() => expect(screen.getAllByText("Today")).toHaveLength(2));
+    await waitFor(() => expect(screen.getByText("Hi there")).toBeTruthy());
     expect(screen.queryByText(/Call 911/i)).toBeNull();
     expect(screen.queryByText(/emergency/i)).toBeNull();
   });

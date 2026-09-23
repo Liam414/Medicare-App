@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { AppButton } from "@/components/AppButton";
+import { Glyph } from "@/components/Glyph";
 import { EmergencyCallBar } from "@/components/EmergencyCallBar";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { AppNav } from "@/components/AppNav";
@@ -13,7 +14,17 @@ import { TextField } from "@/components/TextField";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { IntakeError, submitIntake } from "@/services/intakeService";
 import { composeDescription, labelsFor } from "@/services/symptomVocabulary";
-import { MIN_TAP_TARGET, colors, fonts, radius, spacing, typography } from "@/theme";
+import {
+  BORDER_WIDTH,
+  EDGE_WIDTH,
+  MIN_TAP_TARGET,
+  colors,
+  domains,
+  fonts,
+  radius,
+  spacing,
+  typography,
+} from "@/theme";
 import type { RootStackParamList } from "@/types/navigation";
 
 type Props = NativeStackScreenProps<RootStackParamList, "SymptomIntake">;
@@ -231,14 +242,32 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
       />
 
       <View style={styles.dictationRow}>
-        <AppButton
-          label={speech.listening ? "Stop dictating" : "Dictate instead"}
-          variant="secondary"
-          style={styles.dictationButton}
+        {/*
+          A round mic rather than a text button. It is the one icon-only
+          control in the app, which a microphone can carry because it is about
+          as universally recognised as a glyph gets — and it still names
+          itself to a screen reader, and still says in that name whether it is
+          currently listening.
+        */}
+        <Pressable
           onPress={speech.listening ? speech.stop : speech.start}
           disabled={submitting}
+          accessibilityRole="button"
+          accessibilityLabel={
+            speech.listening ? "Stop dictating" : "Dictate instead"
+          }
           accessibilityHint="Uses your device's speech recognition to fill in the description"
-        />
+          style={({ pressed }) => [
+            styles.dictationButton,
+            (pressed || speech.listening) && styles.dictationButtonActive,
+            submitting && styles.dictationButtonDisabled,
+          ]}
+        >
+          <Glyph name="mic" size={26} color={colors.textOnAccent} />
+        </Pressable>
+        <Text style={styles.dictationLabel}>
+          {speech.listening ? "Listening — tap to stop" : "Or dictate it"}
+        </Text>
         {!speech.supported && (
           <Text style={styles.dictationNote}>
             Dictation isn't available on this device yet — typing works fine.
@@ -302,10 +331,35 @@ const styles = StyleSheet.create({
   },
   disclaimerHeading: { ...typography.bodyStrong, color: colors.noticeText },
   disclaimerBody: { ...typography.caption, color: colors.noticeText },
-  dictationRow: { gap: spacing.xs, alignItems: "flex-start" },
-  // L3: a tinted fill rather than a bare label, so it is obviously pressable
-  // without competing with the one filled action at the foot of the screen.
-  dictationButton: { backgroundColor: colors.surfaceMuted },
+  dictationRow: { gap: spacing.sm, alignItems: "center" },
+  /*
+    ⛔ Filled in the destination's hue, which makes two filled controls on
+    this screen — this and "Get an urgency estimate". It is allowed because
+    the two are not competing for the same press: this one is an input method
+    for the field above it, and the other ends the task. If a third filled
+    control ever appears here, one of them is wrong.
+  */
+  dictationButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: domains.symptoms.fill,
+    borderBottomWidth: EDGE_WIDTH,
+    borderBottomColor: domains.symptoms.edge,
+  },
+  dictationButtonActive: {
+    backgroundColor: domains.symptoms.pressed,
+    borderBottomColor: domains.symptoms.pressed,
+    borderBottomWidth: BORDER_WIDTH,
+    marginTop: EDGE_WIDTH - BORDER_WIDTH,
+  },
+  dictationButtonDisabled: {
+    backgroundColor: colors.accentDisabled,
+    borderBottomColor: colors.accentDisabled,
+  },
+  dictationLabel: { ...typography.captionStrong, color: colors.textSecondary },
   dictationNote: { ...typography.caption, color: colors.textSecondary },
   dictationError: { ...typography.caption, color: colors.errorText },
   consentRow: {

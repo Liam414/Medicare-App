@@ -228,7 +228,7 @@ export function HealthGoalsScreen({ navigation, route }: Props) {
       aside={GOALS_ASIDE}
       band={
         <ScreenBand
-          title="Goals"
+          title="Your goals"
           meta="Things you decided to do, and what you've ticked off today."
         />
       }

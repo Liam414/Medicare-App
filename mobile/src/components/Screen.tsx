@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import {
-  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,33 +11,31 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useBreakpoint } from "@/hooks/useBreakpoint";
-import { DomainProvider, useDomain } from "@/hooks/useDomain";
-import {
-  CONTENT_WIDTH,
-  chart,
-  colors,
-  meter,
-  spacing,
-  type DomainName,
-} from "@/theme";
+import { DomainProvider } from "@/hooks/useDomain";
+import { CONTENT_WIDTH, colors, spacing, type DomainName } from "@/theme";
 
 /**
- * Shared page frame: the chart-paper ground, consistent padding, clear of the
+ * Shared page frame: a plain white ground, consistent padding, clear of the
  * keyboard, scrolling when content doesn't fit.
  *
  * Scrolling matters for accessibility as much as for small screens — at large
  * system font sizes these screens overflow even on a big phone, and a
  * non-scrolling View would put the submit button permanently out of reach.
  *
- * It draws two of the three things that make this app look like itself:
+ * ## What the bright-card pass removed from here
  *
- * - **The ground**, a tile of ruled paper. See `chart` in `theme.ts`.
- * - **The meter**, a measured colour edge down the leading side, saying which
- *   part of the app this is. See `meter`, and `useDomain` for how a screen
- *   declares its colour.
+ * Two devices, both deliberate and both gone:
  *
- * The third is `ScreenBand`, passed in as `band` so this component can bleed
- * it to the full width while the content below it stays in a readable column.
+ * - **The ruled chart-paper ground.** A 40pt tile of graph paper under every
+ *   screen. It made the app look like a record rather than a tool.
+ * - **The meter**, a 4pt coloured rule down the leading edge carrying the
+ *   destination's hue. Its job — "which part of MedHelp am I in?" — is now
+ *   done by the tab bar, the filled button and the tinted row tiles, all of
+ *   which were already doing it too.
+ *
+ * Nothing was ever encoded in either that was not also written down on the
+ * screen, which is what makes removing them safe rather than a loss of
+ * information.
  */
 interface ScreenProps {
   children: ReactNode;
@@ -94,18 +91,10 @@ interface ScreenProps {
    * leave this alone.
    */
   domain?: DomainName;
-  /**
-   * Hides the colour edge. For screens that are not inside the app's
-   * navigation at all — sign-in, sign-up — where there is no destination to
-   * be oriented within yet.
-   */
-  meterless?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
   /** Overrides the spacing rhythm of the content column itself. */
   innerStyle?: StyleProp<ViewStyle>;
 }
-
-const GRID = require("../../assets/chart-grid.png");
 
 export function Screen({ domain, children, ...rest }: ScreenProps) {
   if (domain) {
@@ -126,13 +115,11 @@ function ScreenBody({
   centerContent = false,
   wide = false,
   page = false,
-  meterless = false,
   contentStyle,
   innerStyle,
 }: Omit<ScreenProps, "domain">) {
   const insets = useSafeAreaInsets();
   const { isExpanded } = useBreakpoint();
-  const { ink } = useDomain();
 
   // Two columns only where there is room for two. Below `expanded` the aside
   // is still rendered, stacked under the content — it is real information, not
@@ -146,32 +133,7 @@ function ScreenBody({
       // handles this, and enabling it there causes double-padding.
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/*
-        The ruled ground. A 40pt tile repeated rather than a hundred Views or
-        an SVG — it is 132 bytes, it composites as an opaque image, and it
-        needs no library this repository has deliberately avoided adding.
-      */}
-      <ImageBackground
-        source={GRID}
-        resizeMode="repeat"
-        imageStyle={styles.grid}
-        style={styles.flex}
-      >
-        {/*
-          Decoration and orientation, never information on its own — whatever
-          this edge says, the screen's own title says in words. So it is hidden
-          from assistive technology rather than given a label that would be read
-          out before every screen.
-        */}
-        {meterless ? null : (
-          <View
-            style={[styles.meter, { backgroundColor: ink }]}
-            pointerEvents="none"
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          />
-        )}
-
+      <View style={styles.flex}>
         <ScrollView
           style={styles.flex}
           contentContainerStyle={[styles.scroll, centerContent && styles.centered]}
@@ -183,7 +145,6 @@ function ScreenBody({
           <View
             style={[
               styles.content,
-              meterless && styles.contentMeterless,
               band ? styles.contentUnderBand : null,
               { paddingBottom: spacing.xl + insets.bottom },
               contentStyle,
@@ -213,7 +174,7 @@ function ScreenBody({
             </View>
           </View>
         </ScrollView>
-      </ImageBackground>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -222,22 +183,6 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  grid: {
-    // The tile is baked over `colors.background`, so it needs no tint and no
-    // opacity — see the note on `chart` in theme.ts.
-    width: chart.tile,
-    height: chart.tile,
-  },
-  meter: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: meter.width,
-    // Sits above the scrolling content so it reads as an edge of the page
-    // rather than as something printed on the page.
-    zIndex: 1,
   },
   scroll: {
     flexGrow: 1,
@@ -248,11 +193,6 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     padding: spacing.xl,
-    // Clears the meter, so a card's left edge does not sit flush against it.
-    paddingLeft: spacing.xl + meter.width,
-  },
-  contentMeterless: {
-    paddingLeft: spacing.xl,
   },
   contentUnderBand: {
     // The band has already paid the top margin, and doubling it leaves the

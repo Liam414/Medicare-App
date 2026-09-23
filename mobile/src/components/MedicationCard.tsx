@@ -2,7 +2,17 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Glyph, GlyphTile } from "@/components/Glyph";
-import { MIN_TAP_TARGET, colors, elevation, radius, spacing, typography } from "@/theme";
+import {
+  BORDER_WIDTH,
+  MIN_TAP_TARGET,
+  TILE,
+  colors,
+  domains,
+  elevation,
+  radius,
+  spacing,
+  typography,
+} from "@/theme";
 import type { Medication } from "@/services/medicationService";
 
 /**
@@ -97,16 +107,24 @@ export function MedicationCard({ medication, onPress }: MedicationCardProps) {
       }
       style={({ pressed }) => [
         styles.card,
+        attention && styles.cardAttention,
         hovered && styles.cardHovered,
         pressed && styles.cardPressed,
       ]}
     >
       <View style={styles.row}>
+        {/*
+          "Rx" rather than a drawn pill: the monogram is read instantly and a
+          drawn capsule is a guess at a dose form MedHelp does not know.
+          ⛔ The tint follows the card, and whatever it says the badge below
+          says in words — see the note on `TILE` in theme.ts.
+        */}
         <GlyphTile
           name="pill"
-          size={40}
-          tint={medication.refillOverdue ? colors.errorSurface : colors.accentSurface}
-          color={medication.refillOverdue ? colors.errorText : colors.accent}
+          label="Rx"
+          size={TILE.md}
+          tint={attention ? colors.noticeSurface : domains.medications.surface}
+          color={attention ? colors.noticeText : domains.medications.ink}
         />
         <View style={styles.body}>
           <Text style={styles.name}>{medication.name}</Text>
@@ -155,20 +173,29 @@ const styles = StyleSheet.create({
   card: {
     minHeight: MIN_TAP_TARGET,
     backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderWidth: 1,
+    // A resting card has no visible outline — the grey fill on the white page
+    // is what separates it. The border is transparent rather than absent so
+    // that a card which *is* carrying a badge does not change size when it
+    // gains one.
+    borderColor: colors.surface,
+    borderWidth: BORDER_WIDTH,
     borderRadius: radius.lg,
-    padding: spacing.lg,
+    padding: spacing.md,
     gap: spacing.sm,
     ...elevation.sm,
   },
+  // The one card on the list that wants reading first. It is tinted *and*
+  // badged; the words are never left to the colour alone.
+  cardAttention: {
+    backgroundColor: colors.noticeSurface,
+    borderColor: colors.noticeBorder,
+  },
   cardHovered: {
-    borderColor: colors.accentBorder,
+    borderColor: domains.medications.border,
     ...elevation.md,
   },
   cardPressed: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentSurface,
+    backgroundColor: colors.surfaceMuted,
     ...elevation.sm,
   },
   row: {
@@ -181,7 +208,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   name: {
-    ...typography.title,
+    ...typography.titleSmall,
     color: colors.textPrimary,
   },
   details: {
@@ -198,7 +225,7 @@ const styles = StyleSheet.create({
     borderColor: colors.noticeBorder,
   },
   badgeInset: {
-    marginLeft: 40 + spacing.md,
+    marginLeft: TILE.md + spacing.md,
   },
   badgeOverdue: {
     backgroundColor: colors.errorSurface,

@@ -1,6 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { MIN_TAP_TARGET, colors, radius, spacing, typography } from "@/theme";
+import {
+  BORDER_WIDTH,
+  MIN_TAP_TARGET,
+  colors,
+  radius,
+  spacing,
+  typography,
+} from "@/theme";
 
 /**
  * Tappable shortcuts that fill a free-text field.
@@ -101,7 +108,7 @@ export function QuickFillChips({
 
 const styles = StyleSheet.create({
   wrap: { gap: spacing.xs },
-  label: { ...typography.caption, color: colors.textSecondary },
+  label: { ...typography.overline, color: colors.textSecondary },
   row: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -110,11 +117,11 @@ const styles = StyleSheet.create({
   chip: {
     minHeight: MIN_TAP_TARGET,
     justifyContent: "center",
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: radius.pill,
+    borderWidth: BORDER_WIDTH,
+    borderColor: colors.surface,
     backgroundColor: colors.surface,
   },
   /*
@@ -124,6 +131,6 @@ const styles = StyleSheet.create({
   */
   chipChosen: { backgroundColor: colors.accent, borderColor: colors.accent },
   chipDisabled: { opacity: 0.5 },
-  chipText: { ...typography.caption, color: colors.textPrimary },
-  chipChosenText: { ...typography.caption, color: colors.textOnAccent },
+  chipText: { ...typography.captionStrong, color: colors.textPrimary },
+  chipChosenText: { ...typography.captionStrong, color: colors.textOnAccent },
 });

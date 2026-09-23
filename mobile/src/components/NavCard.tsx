@@ -8,8 +8,7 @@ import {
   colors,
   domains,
   elevation,
-  meter,
-  radius,
+    radius,
   spacing,
   typography,
   type DomainName,
@@ -178,7 +177,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.lg,
     // Room for the spine, so the icon tile does not sit on top of it.
-    paddingLeft: spacing.lg + meter.width,
+    paddingLeft: spacing.lg,
     overflow: "hidden",
     ...elevation.sm,
   },
@@ -198,7 +197,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    width: meter.width,
+    width: 4,
   },
   tile: {
     width: 40,
