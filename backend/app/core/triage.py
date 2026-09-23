@@ -546,12 +546,17 @@ def assess(description: str, *, followup_already_asked: bool = False) -> TriageR
     emergency = rules.emergency
 
     # Step 2: the model, if one is configured. Skipped silently otherwise —
-    # a missing key degrades quality, it does not break the feature. Even on a
-    # red-flag match we still ask when available, so the audit trail records
-    # what the model would have said.
+    # a missing key degrades quality, it does not break the feature.
+    #
+    # ⛔ NEVER ON A RED FLAG (owner decision 3, approved 2026-09-22). This used
+    # to ask the model anyway so the audit trail recorded what it would have
+    # said — which held the 911 guidance behind a network round trip, minutes
+    # long on a local model. The model cannot change an EMERGENT answer
+    # (`_reconcile` is max()), so asking bought an audit column at the price
+    # of the one instruction that matters.
     verdict: ModelVerdict | None = None
 
-    if credentials_available():
+    if emergency is None and credentials_available():
         try:
             verdict = _classify_with_model(cleaned)
         except TriageUnavailable:

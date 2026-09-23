@@ -63,7 +63,10 @@ class TestSafetyNetCannotBeOverridden:
 
         assert result.tier is Tier.EMERGENT
         assert result.red_flag_match is True
-        assert result.escalated_by_safety_net is True
+        # Since decision 3 the model is not asked on a red flag at all, so
+        # there is no lower answer for the safety net to override.
+        assert result.model_tier is None
+        assert result.escalated_by_safety_net is False
 
     def test_model_saying_urgent_cannot_downgrade_a_red_flag(self, model_says):
         model_says(Tier.URGENT)
@@ -568,3 +571,18 @@ class TestNeedsMoreInfoCannotBeRankedAgainstATier:
         )
 
         assert verdict.tier is None
+
+
+def test_a_red_flag_never_waits_on_the_model(monkeypatch):
+    """Emergency guidance must not sit behind a model round trip (decision 3)."""
+
+    def _must_not_be_called(description: str):
+        raise AssertionError("the model was consulted on a red flag")
+
+    monkeypatch.setattr(triage, "credentials_available", lambda: True)
+    monkeypatch.setattr(triage, "_classify_with_model", _must_not_be_called)
+
+    result = assess("crushing chest pain going down my left arm")
+
+    assert result.tier is Tier.EMERGENT
+    assert result.model_tier is None
