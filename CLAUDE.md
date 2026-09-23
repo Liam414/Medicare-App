@@ -183,6 +183,7 @@ review.
 | 2026-09-12 | restructuring `emergency.py` for the two-term combinator | that change |
 | 2026-09-12 | removing the health-goal blocking (`MEDICAL_GOAL`, `_FORBIDDEN`) | that removal |
 | 2026-09-13 | detailed, sourced, goal-sized plans | that work |
+| 2026-09-22 | asked by name to approve applying `docs/proposed-emergency-routing-2026-09-22.patch` to `emergency.py` and `rules_triage.py` and building offline emergency screening — "i approve" | that patch and that feature. ⛔ The patch is still **not applied**: the tooling's permission check refused it twice. Applying it is the owner's step or needs the permission granted. |
 
 ⛔ **Not one of these is clinical sign-off, and none authorises merging to
 `main`, a second deployment, a custom domain, or any other gated thing that
@@ -500,6 +501,21 @@ read it.** Four rules, each tested:
 - Audit fields (rule ids, model tier, confidence) are never in the read-back.
 - Only consented rows exist; the intake consent sentence says so, and that
   sentence belongs in the reviewer's read of the intake screen.
+
+### Offline emergency screening — `mobile/src/services/emergencyScreen.ts`
+
+- When intake cannot reach the server, the phone screens the same text with
+  `src/generated/emergencyRules.json`, exported from `emergency.py` by
+  `backend/scripts/export_emergency_rules.py`, and shows the reviewed
+  headline and action verbatim above the failure message.
+- ⛔ **One copy of the rules, in `emergency.py`.** Never edit the JSON; re-run
+  the export. `tests/test_emergency_export.py` fails when it is stale, and
+  asserts the copy is verbatim.
+- ⛔ **Parity is tested, not assumed**: the phone must return the server's
+  category on 252 exported cases and a ~2,800-row common-illness sample.
+- ⛔ A fallback that can only add guidance. The server's answer always wins
+  when there is one, and an unflagged description is shown exactly what it
+  was shown before.
 
 ### Check-ins — `docs/check-ins.md`
 

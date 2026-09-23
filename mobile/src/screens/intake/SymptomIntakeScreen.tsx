@@ -16,6 +16,7 @@ import { ProfileBanner } from "@/components/ProfileBanner";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { useLanguage } from "@/i18n/useLanguage";
 import { clearCheckIn, getCheckIn, type CheckIn } from "@/services/checkIns";
+import { screenLocally, type LocalEmergencyGuidance } from "@/services/emergencyScreen";
 import { IntakeError, PAST_TIER_LABELS, submitIntake } from "@/services/intakeService";
 import { rearm } from "@/services/reminderArming";
 import { composeDescription, labelsFor } from "@/services/symptomVocabulary";
@@ -41,6 +42,7 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+  const [localGuidance, setLocalGuidance] = useState<LocalEmergencyGuidance | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [checkIn, setCheckInState] = useState<CheckIn | null>(null);
   const { active, profiles, profileId } = useActiveProfile();
@@ -153,6 +155,7 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
     setDescriptionError(null);
     setError(null);
     setIsOffline(false);
+    setLocalGuidance(null);
     setSubmitting(true);
 
     try {
@@ -185,6 +188,10 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
         });
       }
     } catch (caught) {
+      // ⛔ No answer from the server, so the phone screens the same text with
+      // the exported rules. It can only add guidance — the reviewed copy, word
+      // for word — and never replaces the message below. See emergencyScreen.ts.
+      setLocalGuidance(screenLocally(composed));
       if (caught instanceof IntakeError) {
         setError(caught.message);
         setIsOffline(caught.isNetworkError);
@@ -233,6 +240,18 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
           agreement to do that.
         </Text>
       </View>
+
+      {/*
+        Above the error, because if it is here at all it is the most important
+        thing on the screen. Reviewed copy only, from the export of
+        emergency.py; the call button is the EmergencyCallBar at the top.
+      */}
+      {localGuidance && (
+        <View style={styles.localGuidance} accessibilityRole="alert">
+          <Text style={styles.localGuidanceHeadline}>{localGuidance.headline}</Text>
+          <Text style={styles.localGuidanceAction}>{localGuidance.action}</Text>
+        </View>
+      )}
 
       {error && (
         <ErrorNotice message={error} onRetry={isOffline ? handleSubmit : undefined} />
@@ -390,6 +409,17 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
+  // The reviewed emergency family, used as it is used everywhere else.
+  localGuidance: {
+    backgroundColor: colors.emergencySurface,
+    borderColor: colors.emergencyBorder,
+    borderWidth: BORDER_WIDTH,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  localGuidanceHeadline: { ...typography.bodyStrong, color: colors.emergencyText },
+  localGuidanceAction: { ...typography.body, color: colors.emergencyText },
   checkIn: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,

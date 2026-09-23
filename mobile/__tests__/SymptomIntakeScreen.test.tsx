@@ -273,6 +273,37 @@ describe("SymptomIntakeScreen", () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
+  it("⛔ still gives the reviewed emergency guidance when the server cannot be reached", async () => {
+    // Offline screening: the phone runs the exported red-flag rules itself.
+    mockedSubmit.mockRejectedValueOnce(
+      new IntakeError("Can't reach the MedHelp server.", { isNetworkError: true })
+    );
+    renderScreen();
+
+    fireEvent.changeText(screen.getByLabelText(FIELD_LABEL), "I have crushing chest pain");
+    await act(async () => {
+      fireEvent.press(screen.getByText("Get an urgency estimate"));
+    });
+
+    expect(screen.getByText("If you have chest pain, call 911 now.")).toBeTruthy();
+    // It adds to the failure message; it never replaces it.
+    expect(screen.getByText(/Can't reach the MedHelp server/)).toBeTruthy();
+  });
+
+  it("adds no guidance offline for a description the rules do not flag", async () => {
+    mockedSubmit.mockRejectedValueOnce(
+      new IntakeError("Can't reach the MedHelp server.", { isNetworkError: true })
+    );
+    renderScreen();
+
+    fireEvent.changeText(screen.getByLabelText(FIELD_LABEL), "I stubbed my toe");
+    await act(async () => {
+      fireEvent.press(screen.getByText("Get an urgency estimate"));
+    });
+
+    expect(screen.queryByText(/call 911 now/)).toBeNull();
+  });
+
   it("does not submit twice when the button is pressed twice", () => {
     mockedSubmit.mockReturnValueOnce(new Promise(() => {}));
     renderScreen();
