@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -118,6 +119,24 @@ class IntakeRecapOut(BaseModel):
 
     understood: list[IntakeRecapEntryOut]
     unclear: list[str]
+
+
+class IntakeHistoryItemOut(BaseModel):
+    """
+    One stored assessment, read back to the person who made it.
+
+    ⛔ Only fields that were already shown to them on the result screen, and
+    nothing an auditor wants that they do not: no rule ids, no model tier, no
+    confidence. `description` is what was stored — the person's own words with
+    their follow-up answers joined on, verbatim. It is never re-summarised.
+    """
+
+    id: str
+    created_at: datetime
+    tier: str
+    reasoning: str
+    description: str
+    summary: IntakeRecapOut | None
 
 
 class IntakeResponse(BaseModel):

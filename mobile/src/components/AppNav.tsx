@@ -91,7 +91,14 @@ type TabRoute =
 /** A destination inside a tab, offered in the rail when that tab is current. */
 interface SubDestination {
   label: string;
-  route: "MedicationEdit" | "MedicationScan" | "MedicationReminders" | "ProviderSearch" | "GoalCreate";
+  route:
+    | "MedicationEdit"
+    | "MedicationScan"
+    | "MedicationReminders"
+    | "ProviderSearch"
+    | "GoalCreate"
+    | "SymptomHistory"
+    | "VisitSummary";
   hint: string;
 }
 
@@ -105,7 +112,16 @@ interface Tab {
 
 const TABS: readonly Tab[] = [
   { name: "Today", route: "Home", icon: "clock", domain: "today" },
-  { name: "Symptoms", route: "SymptomIntake", icon: "symptom", domain: "symptoms" },
+  {
+    name: "Symptoms",
+    route: "SymptomIntake",
+    icon: "symptom",
+    domain: "symptoms",
+    within: [
+      { label: "Past descriptions", route: "SymptomHistory", hint: "The descriptions you chose to save" },
+      { label: "Visit summary", route: "VisitSummary", hint: "Your own words, set out to share with a clinician" },
+    ],
+  },
   {
     name: "Medications",
     route: "MedicationList",

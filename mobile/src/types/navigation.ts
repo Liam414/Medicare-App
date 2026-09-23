@@ -49,6 +49,10 @@ export type RootStackParamList = {
   // merged in). It is carried so the appointment flow can prefill the reason
   // for visit; the assessment itself does not include it.
   IntakeResult: { assessment: IntakeAssessment; description?: string };
+  // Saved descriptions, read back as they were shown, and a verbatim summary
+  // of them for a clinician. No params: both load from the server.
+  SymptomHistory: undefined;
+  VisitSummary: undefined;
 
   // Finding a provider and recording a visit.
   //

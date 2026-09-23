@@ -24,7 +24,9 @@ import { ReminderEditScreen } from "@/screens/medication-reminders/ReminderEditS
 import { ProviderDetailScreen } from "@/screens/appointments/ProviderDetailScreen";
 import { ProviderSearchScreen } from "@/screens/appointments/ProviderSearchScreen";
 import { SignupScreen } from "@/screens/auth/SignupScreen";
+import { SymptomHistoryScreen } from "@/screens/intake/SymptomHistoryScreen";
 import { SymptomIntakeScreen } from "@/screens/intake/SymptomIntakeScreen";
+import { VisitSummaryScreen } from "@/screens/intake/VisitSummaryScreen";
 import { restoreSession } from "@/services/authService";
 import { rearm } from "@/services/reminderArming";
 import { colors, typography } from "@/theme";
@@ -158,6 +160,16 @@ export function RootNavigator() {
           name="IntakeResult"
           component={IntakeResultScreen}
           options={{ title: "What to do next" }}
+        />
+        <Stack.Screen
+          name="SymptomHistory"
+          component={SymptomHistoryScreen}
+          options={{ title: "Past descriptions" }}
+        />
+        <Stack.Screen
+          name="VisitSummary"
+          component={VisitSummaryScreen}
+          options={{ title: "Visit summary" }}
         />
         <Stack.Screen
           name="MedicationList"

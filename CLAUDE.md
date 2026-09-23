@@ -287,6 +287,7 @@ rules above.
 | `docs/appointment-booking.md` | the option analysis for real booking |
 | `docs/medication-reminders.md` | dose-schedule phrase lists, delivery per platform, arming, refill forecasting |
 | `docs/label-scanning.md` | the two OCR engines, the parser rules, the corpus and the two defects it found |
+| `docs/symptom-history.md` | reading back stored assessments, the verbatim visit summary, what leaves the device, consent |
 | `docs/emergency-card.md` | storage per platform, the mirrored medication list, the palette exception, the rejected lock-screen widget |
 | `docs/security-posture.md` | auth, tokens, session persistence, CORS, headers, transport, and all nine closed findings with their fixes |
 | `docs/deployment.md` | the Render blueprint, the procedure, the failure modes, what publishing changed |
@@ -483,6 +484,19 @@ read it.** Four rules, each tested:
   `SymptomChip` and `AreaRow` are each **one component with a varying label** —
   two fixed labels in two places cannot vary, and the accessibility guard
   catches it.
+
+### Symptom history and visit summary — `docs/symptom-history.md`
+
+- ⛔ **A receipt, never an interpretation.** A past assessment is shown as it
+  was given and is **never re-assessed**. No trend, count or grouping of
+  someone's symptoms — that is a clinical observation. Tested.
+- ⛔ **The visit summary is verbatim** (`visitSummary.ts`): the person's words,
+  their answers, and medication directions quoted as entered. MedHelp adds
+  headings and the tier label marked as a non-diagnostic estimate, nothing
+  else. Built on the device; leaves only via the person's own share sheet.
+- Audit fields (rule ids, model tier, confidence) are never in the read-back.
+- Only consented rows exist; the intake consent sentence says so, and that
+  sentence belongs in the reviewer's read of the intake screen.
 
 ### Emergency card — `docs/emergency-card.md`
 

@@ -24,6 +24,7 @@ from app.models.user import User
 from app.schemas.intake import (
     FollowUpQuestionOut,
     IntakeFeedbackRequest,
+    IntakeHistoryItemOut,
     IntakeRecapEntryOut,
     IntakeRecapOut,
     IntakeRequest,
@@ -410,3 +411,82 @@ def report_assessment(
 
     record.user_reported_wrong = payload.reported_wrong
     db.commit()
+
+
+# How many past assessments one read returns. A history, not an archive.
+HISTORY_LIMIT = 50
+
+
+def _recap_out(raw_answers: str | None) -> IntakeRecapOut | None:
+    try:
+        answers = json.loads(raw_answers) if raw_answers else {}
+    except ValueError:
+        answers = {}
+    recap = followup.summarise(answers if isinstance(answers, dict) else {})
+    if recap.is_empty():
+        return None
+    return IntakeRecapOut(
+        understood=[IntakeRecapEntryOut(label=e.label, value=e.value) for e in recap.understood],
+        unclear=recap.unclear,
+    )
+
+
+@router.get("", response_model=list[IntakeHistoryItemOut])
+def list_assessments(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[IntakeHistoryItemOut]:
+    """
+    The caller's own stored assessments, newest first.
+
+    Only assessments the person consented to storing exist to be listed — an
+    unconsented one was never written. Each row is read back exactly as it was
+    stored and shown; nothing is re-assessed, and a tier is never recomputed
+    against today's rules, because that would be a different answer presented
+    as the one they were given.
+    """
+    rows = (
+        db.query(IntakeAssessment)
+        .filter(IntakeAssessment.user_id == user.id)
+        .order_by(IntakeAssessment.created_at.desc())
+        .limit(HISTORY_LIMIT)
+        .all()
+    )
+    return [
+        IntakeHistoryItemOut(
+            id=row.id,
+            created_at=row.created_at,
+            tier=row.tier,
+            reasoning=row.reasoning,
+            description=row.description,
+            summary=_recap_out(row.followup_answers),
+        )
+        for row in rows
+    ]
+
+
+@router.delete("/{assessment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_assessment(
+    assessment_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
+    """
+    Remove one of the caller's stored assessments.
+
+    Consent to store is not consent to keep forever. Now that a person can see
+    what was stored, they can also take it back. Another user's id is a 404,
+    never a 403, so the endpoint does not confirm that an id exists.
+    """
+    deleted = (
+        db.query(IntakeAssessment)
+        .filter(
+            IntakeAssessment.id == assessment_id,
+            IntakeAssessment.user_id == user.id,
+        )
+        .delete()
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Assessment not found.")
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

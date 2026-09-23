@@ -303,10 +303,16 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
         <View style={[styles.checkbox, consent && styles.checkboxChecked]}>
           {consent && <Text style={styles.checkboxMark}>✓</Text>}
         </View>
+        {/*
+          2026-09-22: the second sentence is new. Saving now also puts the
+          description under Past descriptions, and consent has to say what it
+          is consent to. Belongs in the reviewer's read of this screen.
+        */}
         <Text style={styles.consentText}>
           Save this description and the result so MedHelp can review how
           accurate these estimates are. Optional — the estimate works either
-          way.
+          way. Saved ones also appear under Past descriptions, where you can
+          remove them.
         </Text>
       </Pressable>
 
@@ -314,6 +320,13 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
         label={submitting ? "Checking…" : "Get an urgency estimate"}
         onPress={handleSubmit}
         loading={submitting}
+      />
+
+      <AppButton
+        label="Past descriptions"
+        variant="secondary"
+        accessibilityHint="The descriptions you chose to save, and a summary to share with a clinician"
+        onPress={() => navigation.navigate("SymptomHistory")}
       />
     </Screen>
     </AppNav>
