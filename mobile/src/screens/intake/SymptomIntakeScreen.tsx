@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { AppButton } from "@/components/AppButton";
@@ -349,6 +349,17 @@ export function SymptomIntakeScreen({ navigation, route }: Props) {
           </Text>
         )}
         {speech.error && <Text style={styles.dictationError}>{speech.error}</Text>}
+        {/* Decision 8 (2026-09-22). The browser's built-in recognition is not
+            on-device in every browser — Chrome sends the audio to Google — and
+            this project has no BAA with any speech vendor. Said before the
+            first tap, not after. */}
+        {speech.supported && Platform.OS === "web" && (
+          <Text style={styles.dictationNote}>
+            Dictation uses your browser's own speech service, which may send
+            your voice to the browser's maker (in Chrome, Google) to turn it
+            into text. Typing does not use that service.
+          </Text>
+        )}
       </View>
 
       <Pressable
