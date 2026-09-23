@@ -23,7 +23,7 @@ own caller-configurable lead time.
 ⛔ Do not collapse them into one field. One is a record; the other is a guess.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
@@ -33,6 +33,7 @@ from app.api.profiles import owned_profile_id, profile_filter
 from app.core.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.medication import Medication
+from app.models.medication_history import MedicationChange, MedicationDose
 from app.models.reminder import MedicationReminder
 from app.models.user import User
 from app.schemas.medication import (
@@ -45,6 +46,7 @@ from app.schemas.medication import (
     MedicationUpdate,
     RefillEstimateOut,
 )
+from app.schemas.medication_history import ChangeOut, DoseIn, DoseOut, MedicationHistoryOut
 from app.services.refill_forecast import clamp_lead_days, forecast
 
 router = APIRouter(prefix="/medications", tags=["medications"])
@@ -90,6 +92,8 @@ def _to_out(
         quantity_remaining=medication.quantity_remaining,
         quantity_counted_on=medication.quantity_counted_on,
         doses_per_day=medication.doses_per_day,
+        started_on=medication.started_on,
+        stopped_on=medication.stopped_on,
         refill_due_soon=refill_due_soon,
         refill_overdue=refill_overdue,
         days_until_refill=days_until_refill,
@@ -230,6 +234,15 @@ def update_medication(
 ) -> MedicationOut:
     medication = _get_owned_or_404(medication_id, user, db)
 
+    # Decision 4: every change to what someone takes, or when, is kept.
+    changes = {
+        field: [_plain(getattr(medication, field)), _plain(value)]
+        for field, value in payload.model_dump().items()
+        if field in TRACKED_FIELDS and getattr(medication, field) != value
+    }
+    if changes:
+        db.add(MedicationChange(user_id=user.id, medication_id=medication.id, changes=changes))
+
     for field, value in payload.model_dump().items():
         setattr(medication, field, value)
 
@@ -256,6 +269,102 @@ def delete_medication(
     db.query(MedicationReminder).filter(
         MedicationReminder.medication_id == medication.id
     ).delete()
+    # Its history goes too: SQLite does not enforce the cascade.
+    for model in (MedicationDose, MedicationChange):
+        db.query(model).filter(model.medication_id == medication.id).delete()
 
     db.delete(medication)
+    db.commit()
+
+
+# --- History (owner decision 4) --------------------------------------------
+#
+# ⛔ A dose row exists only because the person tapped "taken" or "skipped".
+# Nothing here infers, counts or scores adherence, and no response ever says
+# "missed": an unmarked time is "not marked", because MedHelp has no idea.
+
+TRACKED_FIELDS = ("name", "dosage", "frequency", "started_on", "stopped_on")
+HISTORY_DAYS = 90
+
+
+def _plain(value: object) -> object:
+    return value.isoformat() if isinstance(value, date) else value
+
+
+@router.get("/{medication_id}/history", response_model=MedicationHistoryOut)
+def medication_history(
+    medication_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> MedicationHistoryOut:
+    medication = _get_owned_or_404(medication_id, user, db)
+    since = date.today() - timedelta(days=HISTORY_DAYS)
+    doses = (
+        db.query(MedicationDose)
+        .filter(MedicationDose.medication_id == medication.id, MedicationDose.taken_on >= since)
+        .order_by(MedicationDose.taken_on.desc(), MedicationDose.time_of_day.desc())
+        .all()
+    )
+    changes = (
+        db.query(MedicationChange)
+        .filter(MedicationChange.medication_id == medication.id)
+        .order_by(MedicationChange.changed_at.desc())
+        .all()
+    )
+    return MedicationHistoryOut(
+        started_on=medication.started_on,
+        stopped_on=medication.stopped_on,
+        doses=[DoseOut.model_validate(d) for d in doses],
+        changes=[ChangeOut.model_validate(c) for c in changes],
+    )
+
+
+@router.post("/{medication_id}/doses", response_model=DoseOut)
+def mark_dose(
+    medication_id: str,
+    payload: DoseIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> MedicationDose:
+    """Record a tap. Marking the same slot again replaces the earlier tap."""
+    medication = _get_owned_or_404(medication_id, user, db)
+    dose = (
+        db.query(MedicationDose)
+        .filter(
+            MedicationDose.medication_id == medication.id,
+            MedicationDose.taken_on == payload.taken_on,
+            MedicationDose.time_of_day == payload.time_of_day,
+        )
+        .first()
+    )
+    if dose is None:
+        dose = MedicationDose(
+            user_id=user.id,
+            medication_id=medication.id,
+            taken_on=payload.taken_on,
+            time_of_day=payload.time_of_day,
+        )
+        db.add(dose)
+    dose.status = payload.status
+    db.commit()
+    db.refresh(dose)
+    return dose
+
+
+@router.delete("/{medication_id}/doses/{dose_id}", status_code=status.HTTP_204_NO_CONTENT)
+def unmark_dose(
+    medication_id: str,
+    dose_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> None:
+    """Undo a tap, back to "not marked"."""
+    medication = _get_owned_or_404(medication_id, user, db)
+    deleted = (
+        db.query(MedicationDose)
+        .filter(MedicationDose.id == dose_id, MedicationDose.medication_id == medication.id)
+        .delete()
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Dose not found.")
     db.commit()

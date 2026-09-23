@@ -22,6 +22,7 @@ from app.models.care_profile import CareProfile
 from app.models.health_profile import HealthProfile
 from app.models.intake import IntakeAssessment
 from app.models.medication import Medication
+from app.models.medication_history import MedicationChange, MedicationDose
 from app.models.reminder import MedicationReminder
 from app.models.user import User
 from app.schemas.profile import CareProfileCreate, CareProfileOut
@@ -112,9 +113,10 @@ def delete_profile(
         )
     ]
     if medication_ids:
-        db.query(MedicationReminder).filter(
-            MedicationReminder.medication_id.in_(medication_ids)
-        ).delete(synchronize_session=False)
+        for child in (MedicationReminder, MedicationDose, MedicationChange):
+            db.query(child).filter(child.medication_id.in_(medication_ids)).delete(
+                synchronize_session=False
+            )
     for model in (Medication, IntakeAssessment, Appointment, HealthProfile):
         db.query(model).filter(
             model.user_id == user.id, model.profile_id == profile_id

@@ -40,6 +40,7 @@ from app.models import (  # noqa: F401,E402
     health_profile,
     intake,
     medication,
+    medication_history,
     provider_location,
     reminder,
     user,

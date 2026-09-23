@@ -29,6 +29,7 @@ from app.models.goal import GoalActivity, GoalCompletion, HealthGoal
 from app.models.health_profile import HealthProfile
 from app.models.intake import IntakeAssessment
 from app.models.medication import Medication
+from app.models.medication_history import MedicationChange, MedicationDose
 from app.models.reminder import MedicationReminder
 from app.models.user import User
 
@@ -37,6 +38,8 @@ router = APIRouter(prefix="/account", tags=["account"])
 # Deletion order: children before the rows they point at.
 _OWNED = (
     MedicationReminder,
+    MedicationDose,
+    MedicationChange,
     Medication,
     IntakeAssessment,
     Appointment,

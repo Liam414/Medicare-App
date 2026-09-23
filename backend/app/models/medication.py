@@ -61,6 +61,14 @@ class Medication(Base):
     # reminder times they confirmed.
     doses_per_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Dates the person says they started and stopped taking it (decision 4).
+    # Recorded, never advised: MedHelp never tells anyone to start or stop a
+    # medicine. A stopped medication arms no reminders — an alarm for a
+    # medicine someone has stopped is the failure this app guards against
+    # elsewhere. Added by scripts/add_medication_history_columns.py.
+    started_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    stopped_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
