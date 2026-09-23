@@ -184,6 +184,7 @@ review.
 | 2026-09-12 | removing the health-goal blocking (`MEDICAL_GOAL`, `_FORBIDDEN`) | that removal |
 | 2026-09-13 | detailed, sourced, goal-sized plans | that work |
 | 2026-09-22 | asked by name to approve applying `docs/proposed-emergency-routing-2026-09-22.patch` to `emergency.py` and `rules_triage.py` and building offline emergency screening — "i approve" | that patch and that feature. Applied 2026-09-22, with one narrowing of its own new stroke pattern (a side is required) after it fired on every frozen shoulder in the corpus. |
+| 2026-09-22 | shown eight named decisions for the care-orchestration work (triage reads conditions/allergies and may only raise a tier; a fourth level "see a clinician soon"; skip the model on a red flag and add one-tap 988; a user-marked medication history that says "not marked", never "missed"; trends of the user's own better/same/worse check-ins; user-entered clinical targets and readings; the profile on the server with column encryption; a notice that web dictation goes to the browser's speech service) — "approve all 8" | those eight changes, built phase by phase. **Not** merging or deploying. The skip-the-model edit to `triage.py` was refused by the agent's own permission classifier and is **not yet applied**. |
 
 ⛔ **Not one of these is clinical sign-off, and none authorises merging to
 `main`, a second deployment, a custom domain, or any other gated thing that
@@ -556,6 +557,27 @@ read it.** Four rules, each tested:
   intake, which never waits. Notifications say whose medicine it is.
 - The emergency card is per person and still makes no network request.
 
+### Health profile and data rights — `app/models/health_profile.py`, `app/api/account.py`
+
+- Conditions and allergies per person (account holder or care profile), free
+  text **stored verbatim**, no picker, never checked or corrected — the
+  emergency card's rule.
+- ⛔ **An empty list means "not recorded", never "none".** Screens say "Not
+  recorded"; the visit summary always carries ALLERGIES and CONDITIONS
+  sections and says a failed load in words. Tested on both sides.
+- ⛔ **The first encrypted table.** `app/core/crypto.py` seals the columns with
+  Fernet under a key derived from `DATA_ENCRYPTION_KEY`; outside development a
+  missing or short secret refuses to boot. A value that will not decrypt
+  **raises** — never reads as an empty allergy list. Never regenerate the key
+  on an existing database.
+- Triage does not read the profile yet (Phase 3, owner decision 1: it may
+  only ever raise a tier).
+- `GET /account/export` returns every row the account owns (no password
+  hash); `DELETE /account` needs the password again. ⛔ A new table holding
+  user rows must join `account._OWNED` — a test fails otherwise.
+- `scripts/triage_eval/profile_scenarios.py` is a frozen blind set carrying a
+  profile per case. ⛔ Never add a phrase because one of its cases missed.
+
 ### Interface language — `mobile/src/i18n/strings.ts`
 
 - ⛔ **Spanish ships switched OFF** (`EXPO_PUBLIC_SPANISH_UI`). Red-flag
@@ -752,9 +774,11 @@ Full text, including the seven closed with tests: `docs/security-posture.md`.
 ⛔ **Still open — each needs a call before the app holds real user data:**
 
 1. The app connects to Postgres as the `postgres` superuser.
-2. **Nothing is encrypted at rest.** `medications`, `intake_assessments`,
+2. **Almost nothing is encrypted at rest.** Only `health_profiles` is
+   (column-level, `app/core/crypto.py`). `medications`, `intake_assessments`,
    `medication_reminders`, `appointments.reason_for_visit`, the goals tables,
-   and the emergency card in a browser. The largest remaining gap.
+   and the emergency card in a browser are still plaintext. The largest
+   remaining gap; `EncryptedJSON` is the tool for closing it table by table.
 3. The dev database holds a real email address. Synthetic data only.
 4. No token revocation and no refresh flow.
 5. Signup discloses whether an address is registered (kept deliberately).
