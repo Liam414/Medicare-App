@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppButton } from "@/components/AppButton";
 import { Glyph, type GlyphName } from "@/components/Glyph";
@@ -13,7 +14,7 @@ import {
   MIN_TAP_TARGET,
   colors,
   domains,
-    radius,
+  radius,
   spacing,
   typography,
   type DomainName,
@@ -187,6 +188,7 @@ export function AppNav({
   attention,
 }: AppNavProps) {
   const { isExpanded } = useBreakpoint();
+  const insets = useSafeAreaInsets();
   const currentTab = TABS.find((tab) => tab.name === current) ?? TABS[0];
 
   const go = (tab: Tab) => {
@@ -269,7 +271,14 @@ export function AppNav({
     <DomainProvider domain={currentTab.domain}>
       <View style={styles.column}>
         <View style={styles.content}>{children}</View>
-        <View style={styles.tabBar} accessibilityRole="tablist">
+        <View
+          style={[styles.tabBar, {
+            paddingBottom: Math.max(spacing.md, insets.bottom),
+            paddingLeft: Math.max(spacing.sm, insets.left),
+            paddingRight: Math.max(spacing.sm, insets.right),
+          }]}
+          accessibilityRole="tablist"
+        >
           {TABS.map((tab) => (
             <NavItem
               key={tab.name}
@@ -357,7 +366,7 @@ function NavItem({
           active && (variant === "rail" ? styles.railLabelActive : styles.tabLabelActive),
           active && { color: hue.ink },
         ]}
-        numberOfLines={1}
+        numberOfLines={variant === "rail" ? 1 : undefined}
       >
         {label}
       </Text>
@@ -537,16 +546,19 @@ const styles = StyleSheet.create({
     borderTopWidth: BORDER_WIDTH,
     borderTopColor: colors.border,
     paddingTop: spacing.sm,
-    // Clears the home indicator / gesture bar without a safe-area inset,
-    // which this component cannot read from inside a plain View tree.
+    // Device safe-area insets are applied by AppNav above.
     paddingBottom: spacing.md,
     paddingHorizontal: spacing.sm,
   },
   tabItem: {
-    flex: 1,
+    // Longer destination names need more room than "Care" or "Today".
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: "auto",
+    minWidth: MIN_TAP_TARGET,
     minHeight: MIN_TAP_TARGET,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     gap: spacing.xs,
     paddingVertical: spacing.xs,
   },
@@ -563,6 +575,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     letterSpacing: 0,
     color: colors.textSecondary,
+    textAlign: "center",
   },
   tabLabelActive: {
     ...typography.captionStrong,

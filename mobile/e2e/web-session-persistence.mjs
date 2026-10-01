@@ -25,7 +25,7 @@
  * for reasons that are not the thing under test.
  */
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { chromium } from "playwright-core";
 
 const APP_PORT = Number(process.env.E2E_APP_PORT ?? 8091);
@@ -94,20 +94,13 @@ async function reached(locator) {
 async function signIn(page) {
   await page.goto(APP_ORIGIN, { waitUntil: "domcontentloaded" });
   await page.getByLabel("Email").fill("e2e.synthetic@example.com");
-  await page.getByLabel("Password").fill("e2e-password-123");
+  await page.getByLabel("Password", { exact: true }).fill("e2e-password-123");
   await page.getByRole("button", { name: "Log in" }).click();
   await onHomeScreen(page).waitFor({ timeout: 20_000 });
 }
 
 function stop(child) {
-  if (!child.pid) return;
-  if (process.platform === "win32") {
-    // `shell: true` puts a cmd.exe in between; killing that alone orphans the
-    // server, which then serves a stale build to the next run.
-    spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
-  } else {
-    child.kill("SIGTERM");
-  }
+  child.kill("SIGTERM");
 }
 
 /** Refuse to run against something we did not start. */
@@ -130,9 +123,9 @@ async function run() {
   }
 
   const app = spawn(
-    process.platform === "win32" ? "npx.cmd" : "npx",
-    ["serve", "dist", "-l", String(APP_PORT), "--single"],
-    { stdio: "ignore", shell: process.platform === "win32" }
+    process.execPath,
+    ["node_modules/serve/build/main.js", "dist", "-l", String(APP_PORT), "--single"],
+    { stdio: "ignore", windowsHide: true }
   );
 
   const browser = await chromium.launch({ executablePath: CHROME, headless: true });

@@ -9,7 +9,7 @@ import {
   colors,
   domains,
   elevation,
-    radius,
+  radius,
   spacing,
   typography,
   type DomainName,
@@ -84,50 +84,52 @@ export function AuthShell({ title, subtitle, children }: AuthShellProps) {
   }
 
   return (
-    <Screen page centerContent innerStyle={styles.split}>
-      {/*
-        The panel holds no focusable element — it is text and decorative
-        marks — so putting it first costs a returning user no keyboard steps
-        on the way to the email field, while a first-time visitor reads it in
-        the order it is laid out.
-      */}
-      <View style={styles.brand}>
-        <View style={styles.wordmark}>
-          <View style={styles.mark}>
-            <Glyph name="symptom" size={17} color={colors.textOnAccent} />
+    <Screen page centerContent>
+      <View style={styles.split}>
+        {/*
+          The panel holds no focusable element — it is text and decorative
+          marks — so putting it first costs a returning user no keyboard steps
+          on the way to the email field, while a first-time visitor reads it in
+          the order it is laid out.
+        */}
+        <View style={styles.brand}>
+          <View style={styles.wordmark}>
+            <View style={styles.mark}>
+              <Glyph name="symptom" size={17} color={colors.textOnAccent} />
+            </View>
+            <Text style={styles.brandTitle} accessibilityRole="header">
+              MedHelp
+            </Text>
           </View>
-          <Text style={styles.brandTitle} accessibilityRole="header">
-            MedHelp
+
+          <Text style={styles.brandEyebrow}>Your health companion</Text>
+          <Text style={styles.brandSubtitle}>
+            General health information and medication reminders.
+          </Text>
+
+          <View style={styles.index}>
+            {INDEX.map((entry) => {
+              const hue = domains[entry.domain];
+              return (
+                <View key={entry.name} style={styles.indexRow}>
+                  <View style={[styles.indexBar, { backgroundColor: hue.fill }]} />
+                  <View style={styles.indexBody}>
+                    <Text style={[styles.indexName, { color: hue.ink }]}>{entry.name}</Text>
+                    <Text style={styles.indexText}>{entry.text}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
+          <Text style={styles.brandNote}>
+            MedHelp provides general information only. It does not diagnose
+            conditions or recommend treatment.
           </Text>
         </View>
 
-        <Text style={styles.brandEyebrow}>Your health companion</Text>
-        <Text style={styles.brandSubtitle}>
-          General health information and medication reminders.
-        </Text>
-
-        <View style={styles.index}>
-          {INDEX.map((entry) => {
-            const hue = domains[entry.domain];
-            return (
-              <View key={entry.name} style={styles.indexRow}>
-                <View style={[styles.indexBar, { backgroundColor: hue.fill }]} />
-                <View style={styles.indexBody}>
-                  <Text style={[styles.indexName, { color: hue.ink }]}>{entry.name}</Text>
-                  <Text style={styles.indexText}>{entry.text}</Text>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-
-        <Text style={styles.brandNote}>
-          MedHelp provides general information only. It does not diagnose
-          conditions or recommend treatment.
-        </Text>
+        <View style={styles.formColumn}>{form}</View>
       </View>
-
-      <View style={styles.formColumn}>{form}</View>
     </Screen>
   );
 }

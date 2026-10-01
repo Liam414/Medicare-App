@@ -22,10 +22,12 @@ export function SignupScreen({ navigation }: Props) {
   const [submitting, setSubmitting] = useState(false);
 
   const passwordRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const requestPending = useRef(false);
 
   const handleSignup = async () => {
     // Guards against a double tap creating two signup requests.
-    if (submitting) return;
+    if (requestPending.current) return;
 
     const nextEmailError = validateEmail(email);
     const nextPasswordError = validatePassword(password);
@@ -34,8 +36,13 @@ export function SignupScreen({ navigation }: Props) {
     setFormError(null);
     setIsOffline(false);
 
-    if (nextEmailError || nextPasswordError) return;
+    if (nextEmailError || nextPasswordError) {
+      if (nextEmailError) emailRef.current?.focus();
+      else passwordRef.current?.focus();
+      return;
+    }
 
+    requestPending.current = true;
     setSubmitting(true);
     try {
       await signup(email.trim(), password);
@@ -50,6 +57,7 @@ export function SignupScreen({ navigation }: Props) {
         setFormError("Something stopped us creating your account. Please try again in a moment.");
       }
     } finally {
+      requestPending.current = false;
       setSubmitting(false);
     }
   };
@@ -65,10 +73,16 @@ export function SignupScreen({ navigation }: Props) {
       )}
 
       <TextField
+        ref={emailRef}
         label="Email"
         placeholder="you@example.com"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(value) => {
+          setEmail(value);
+          if (emailError) setEmailError(validateEmail(value));
+          setFormError(null);
+          setIsOffline(false);
+        }}
         error={emailError}
         keyboardType="email-address"
         autoComplete="email"
@@ -83,7 +97,12 @@ export function SignupScreen({ navigation }: Props) {
         label="Password"
         placeholder="Choose a password"
         value={password}
-        onChangeText={setPassword}
+        onChangeText={(value) => {
+          setPassword(value);
+          if (passwordError) setPasswordError(validatePassword(value));
+          setFormError(null);
+          setIsOffline(false);
+        }}
         error={passwordError}
         // Stated up front rather than only after a rejected submit.
         hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
@@ -111,4 +130,3 @@ export function SignupScreen({ navigation }: Props) {
     </AuthShell>
   );
 }
-
