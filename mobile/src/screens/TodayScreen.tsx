@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -77,15 +77,23 @@ type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 export function TodayScreen({ navigation }: Props) {
   const { isExpanded } = useBreakpoint();
 
-  const [medications, setMedications] = useState<Medication[] | null>(null);
+  const [records, setRecords] = useState<{
+    profileId: string | null;
+    medications: Medication[] | null;
+    appointments: Appointment[] | null;
+  } | null>(null);
   const [schedules, setSchedules] = useState<MedicationSchedule[] | null>(null);
-  const [appointments, setAppointments] = useState<Appointment[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [checkIn, setCheckIn] = useState<CheckIn | null>(null);
   const { active, profiles, ready, profileId } = useActiveProfile();
   const { language, setLanguage, t } = useLanguage();
+  const requestVersion = useRef(0);
+  // Never show another person's records under the newly selected name,
+  // even during the render before the focus effect starts their request.
+  const medications = records?.profileId === profileId ? records.medications : null;
+  const appointments = records?.profileId === profileId ? records.appointments : null;
 
   /**
    * The three lists are independent, so one failing must not blank the other
@@ -94,7 +102,9 @@ export function TodayScreen({ navigation }: Props) {
    * their appointment list timed out.
    */
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
+    setError(null);
     const [medicationResult, scheduleResult, appointmentResult] =
       await Promise.allSettled([
         listMedications(undefined, profileId),
@@ -102,9 +112,18 @@ export function TodayScreen({ navigation }: Props) {
         listAppointments(profileId),
       ]);
 
-    if (medicationResult.status === "fulfilled") setMedications(medicationResult.value);
+    if (version !== requestVersion.current) return;
+    setRecords((previous) => {
+      const samePerson = previous?.profileId === profileId ? previous : null;
+      return {
+        profileId,
+        medications: medicationResult.status === "fulfilled"
+          ? medicationResult.value : samePerson?.medications ?? null,
+        appointments: appointmentResult.status === "fulfilled"
+          ? appointmentResult.value : samePerson?.appointments ?? null,
+      };
+    });
     if (scheduleResult.status === "fulfilled") setSchedules(scheduleResult.value);
-    if (appointmentResult.status === "fulfilled") setAppointments(appointmentResult.value);
 
     const failed = [medicationResult, scheduleResult, appointmentResult].filter(
       (result) => result.status === "rejected"
@@ -114,19 +133,26 @@ export function TodayScreen({ navigation }: Props) {
       failed === 0
         ? null
         : failed === 3
-          ? "We couldn't load anything just now. Check your connection and try again."
-          : "Some of today couldn't be loaded. What's shown below is up to date."
+          ? "We couldn't load anything just now. Previously loaded information may be out of date. Check your connection and try again."
+          : "Some of today couldn't be loaded. Previously loaded information may be out of date."
     );
     setLoading(false);
   }, [profileId]);
 
   useFocusEffect(
     useCallback(() => {
+      let focused = true;
       if (ready) void load();
       setNow(new Date());
       // On the device, so it shows with no network — the notification is the
       // bonus and this card is the part that is always correct.
-      void getCheckIn().then(setCheckIn).catch(() => setCheckIn(null));
+      void getCheckIn()
+        .then((value) => { if (focused) setCheckIn(value); })
+        .catch(() => { if (focused) setCheckIn(null); });
+      return () => {
+        focused = false;
+        requestVersion.current += 1;
+      };
     }, [ready, load])
   );
 
@@ -317,7 +343,18 @@ export function TodayScreen({ navigation }: Props) {
         </Pressable>
       </View>
 
-      {times.length === 0 ? (
+      {schedules === null ? (
+        <View style={styles.quietCard}>
+          <Text style={styles.quietTitle}>
+            {loading ? "Loading reminder times…" : "Reminder times unavailable"}
+          </Text>
+          {!loading && (
+            <Text style={styles.quietText}>
+              Try loading your day again to see your saved times.
+            </Text>
+          )}
+        </View>
+      ) : times.length === 0 ? (
         <View style={styles.quietCard}>
           <Text style={styles.quietTitle}>No reminder times set</Text>
           <Text style={styles.quietText}>
@@ -566,17 +603,7 @@ export function TodayScreen({ navigation }: Props) {
           </View>
         )}
 
-        <View style={[styles.opening, isExpanded && styles.openingExpanded]}>
-          <View style={styles.openingGreeting}>{greeting}</View>
-          <View style={styles.photoFrame}>
-            <Image
-              source={require("../../assets/home-photo.jpg")}
-              style={styles.homePhoto}
-              resizeMode="contain"
-              accessibilityLabel="Person holding a small round object"
-            />
-          </View>
-        </View>
+        {greeting}
 
         <ProfileBanner
           active={active}
@@ -641,30 +668,6 @@ const WHERE_INFORMATION_GOES = [
 const styles = StyleSheet.create({
   screen: {
     gap: spacing.lg,
-  },
-  opening: {
-    gap: spacing.md,
-  },
-  openingExpanded: {
-    flexDirection: "row",
-    alignItems: "stretch",
-  },
-  openingGreeting: {
-    flex: 1,
-    minWidth: 0,
-  },
-  photoFrame: {
-    alignSelf: "center",
-    padding: spacing.sm,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  homePhoto: {
-    width: 215,
-    height: 369,
-    borderRadius: radius.lg,
   },
   topBar: {
     flexDirection: "row",

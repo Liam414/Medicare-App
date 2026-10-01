@@ -136,7 +136,7 @@ function ScreenBody({
       <View style={styles.flex}>
         <ScrollView
           style={styles.flex}
-          contentContainerStyle={[styles.scroll, centerContent && styles.centered]}
+          contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           alwaysBounceVertical={false}
         >
@@ -145,6 +145,7 @@ function ScreenBody({
           <View
             style={[
               styles.content,
+              centerContent && styles.centered,
               band ? styles.contentUnderBand : null,
               { paddingBottom: spacing.xl + insets.bottom },
               contentStyle,

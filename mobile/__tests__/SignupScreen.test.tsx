@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 
 import { SignupScreen } from "@/screens/auth/SignupScreen";
 import { AuthError, signup } from "@/services/authService";
@@ -24,6 +24,31 @@ function fillCredentials(email = "new.synthetic@example.com", password = "fake-p
 }
 
 describe("SignupScreen", () => {
+  it("clears corrected validation errors and obsolete server errors", async () => {
+    mockedSignup.mockRejectedValueOnce(new AuthError("Synthetic server error"));
+    renderSignupScreen();
+    fireEvent.press(screen.getByText("Sign up"));
+    expect(screen.getByLabelText("Email").props.accessibilityHint).toBeTruthy();
+    fillCredentials();
+    expect(screen.getByLabelText("Email").props.accessibilityHint).toBeUndefined();
+    fireEvent.press(screen.getByText("Sign up"));
+    await screen.findByText("Synthetic server error");
+    fireEvent.changeText(screen.getByLabelText("Email"), "corrected.synthetic@example.com");
+    expect(screen.queryByText("Synthetic server error")).toBeNull();
+  });
+
+  it("guards two keyboard submissions before React can render the busy state", () => {
+    mockedSignup.mockReturnValueOnce(new Promise(() => {}));
+    renderSignupScreen();
+    fillCredentials();
+    const submit = screen.getByLabelText("Password").props.onSubmitEditing;
+    act(() => {
+      void submit();
+      void submit();
+    });
+    expect(mockedSignup).toHaveBeenCalledTimes(1);
+  });
+
   beforeEach(() => {
     mockedSignup.mockReset();
   });

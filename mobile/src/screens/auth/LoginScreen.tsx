@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import type { TextInput } from "react-native";
-import { Image, StyleSheet, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { AppButton } from "@/components/AppButton";
@@ -11,7 +10,6 @@ import { TextField } from "@/components/TextField";
 import { AuthError, login } from "@/services/authService";
 import type { RootStackParamList } from "@/types/navigation";
 import { validateEmail, validateLoginPassword } from "@/utils/validation";
-import { colors, radius, spacing } from "@/theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
@@ -26,10 +24,12 @@ export function LoginScreen({ navigation, route }: Props) {
   const [submitting, setSubmitting] = useState(false);
 
   const passwordRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const requestPending = useRef(false);
 
   const handleLogin = async () => {
     // Guards against a double tap firing two login requests.
-    if (submitting) return;
+    if (requestPending.current) return;
 
     const nextEmailError = validateEmail(email);
     const nextPasswordError = validateLoginPassword(password);
@@ -38,8 +38,13 @@ export function LoginScreen({ navigation, route }: Props) {
     setFormError(null);
     setIsOffline(false);
 
-    if (nextEmailError || nextPasswordError) return;
+    if (nextEmailError || nextPasswordError) {
+      if (nextEmailError) emailRef.current?.focus();
+      else passwordRef.current?.focus();
+      return;
+    }
 
+    requestPending.current = true;
     setSubmitting(true);
     try {
       await login(email.trim(), password);
@@ -52,6 +57,7 @@ export function LoginScreen({ navigation, route }: Props) {
         setFormError("Something stopped us signing you in. Please try again in a moment.");
       }
     } finally {
+      requestPending.current = false;
       setSubmitting(false);
     }
   };
@@ -61,15 +67,6 @@ export function LoginScreen({ navigation, route }: Props) {
       title="Welcome back"
       subtitle="Sign in to see your medication reminders."
     >
-      <View style={styles.photoFrame}>
-        <Image
-          source={require("../../../assets/home-photo.jpg")}
-          style={styles.photo}
-          resizeMode="contain"
-          accessibilityLabel="Person holding a small round object"
-        />
-      </View>
-
       {accountCreated && !formError && (
         <SuccessNotice message="Your account is ready. Sign in to get started." />
       )}
@@ -84,10 +81,16 @@ export function LoginScreen({ navigation, route }: Props) {
       )}
 
       <TextField
+        ref={emailRef}
         label="Email"
         placeholder="you@example.com"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(value) => {
+          setEmail(value);
+          if (emailError) setEmailError(validateEmail(value));
+          setFormError(null);
+          setIsOffline(false);
+        }}
         error={emailError}
         keyboardType="email-address"
         autoComplete="email"
@@ -102,7 +105,12 @@ export function LoginScreen({ navigation, route }: Props) {
         label="Password"
         placeholder="Your password"
         value={password}
-        onChangeText={setPassword}
+        onChangeText={(value) => {
+          setPassword(value);
+          if (passwordError) setPasswordError(validateLoginPassword(value));
+          setFormError(null);
+          setIsOffline(false);
+        }}
         error={passwordError}
         secureTextEntry
         autoComplete="current-password"
@@ -129,19 +137,3 @@ export function LoginScreen({ navigation, route }: Props) {
     </AuthShell>
   );
 }
-
-const styles = StyleSheet.create({
-  photoFrame: {
-    alignSelf: "center",
-    backgroundColor: colors.surfaceMuted,
-    borderColor: colors.border,
-    borderWidth: 1,
-    borderRadius: radius.xl,
-    padding: spacing.sm,
-  },
-  photo: {
-    width: 140,
-    height: 240,
-    borderRadius: radius.lg,
-  },
-});

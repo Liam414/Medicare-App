@@ -1,6 +1,8 @@
-import { forwardRef, useState } from "react";
+import { forwardRef, useId, useState } from "react";
 import {
   StyleSheet,
+  Pressable,
+  Platform,
   Text,
   TextInput,
   View,
@@ -68,15 +70,42 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
   ref
 ) {
   const [focused, setFocused] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const fieldId = useId();
   const domain = useDomain();
   const describedBy = error ?? hint;
+  // React Native Web drops accessibilityHint. Tie its visible explanation
+  // to the actual DOM input; native screen readers keep the existing hint.
+  const webAccessibility = Platform.OS === "web" ? {
+    "aria-describedby": describedBy ? `${fieldId}-description` : undefined,
+    "aria-invalid": Boolean(error),
+  } : {};
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label} nativeID={`${label}-label`}>
-        {label}
-      </Text>
+      <View style={styles.labelRow}>
+        <Text style={styles.label} nativeID={`${fieldId}-label`}>
+          {label}
+        </Text>
+        {secureTextEntry && (
+          <Pressable
+            onPress={() => setPasswordVisible((visible) => !visible)}
+            disabled={!editable}
+            accessibilityRole="button"
+            accessibilityLabel={passwordVisible && editable ? "Hide password" : "Show password"}
+            style={({ pressed }) => [
+              styles.visibilityButton,
+              pressed && { backgroundColor: domain.surface },
+            ]}
+          >
+            <Text style={[styles.visibilityText, { color: domain.ink }]}>
+              {passwordVisible && editable ? "Hide" : "Show"}
+            </Text>
+          </Pressable>
+        )}
+      </View>
       <TextInput
+        {...webAccessibility}
         ref={ref}
         style={[
           styles.input,
@@ -97,7 +126,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         onBlur={() => setFocused(false)}
         placeholder={placeholder}
         placeholderTextColor={colors.textSecondary}
-        secureTextEntry={secureTextEntry}
+        secureTextEntry={secureTextEntry && !(passwordVisible && editable)}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         // Without these, iOS and Android password managers don't offer to fill
@@ -116,11 +145,11 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         accessibilityState={{ disabled: !editable }}
       />
       {error ? (
-        <Text style={styles.error} accessibilityRole="alert">
+        <Text nativeID={`${fieldId}-description`} style={styles.error} accessibilityRole="alert">
           {error}
         </Text>
       ) : hint ? (
-        <Text style={styles.hint}>{hint}</Text>
+        <Text nativeID={`${fieldId}-description`} style={styles.hint}>{hint}</Text>
       ) : null}
     </View>
   );
@@ -133,6 +162,23 @@ const styles = StyleSheet.create({
   label: {
     ...typography.captionStrong,
     color: colors.textPrimary,
+    flexShrink: 1,
+  },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  visibilityButton: {
+    minHeight: MIN_TAP_TARGET,
+    minWidth: MIN_TAP_TARGET,
+    paddingHorizontal: spacing.sm,
+    justifyContent: "center",
+    borderRadius: radius.sm,
+  },
+  visibilityText: {
+    ...typography.captionStrong,
   },
   input: {
     minHeight: MIN_TAP_TARGET,

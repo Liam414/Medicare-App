@@ -11,6 +11,7 @@
     "test": "jest",
     "e2e:web": "expo export --platform web --clear && node e2e/web-provider-search.mjs",
     "e2e:web:session": "expo export --platform web --clear && node e2e/web-session-persistence.mjs",
+    "e2e:web:auth": "expo export --platform web --clear && node e2e/web-auth-layout.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
