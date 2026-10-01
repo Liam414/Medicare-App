@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   getActiveProfileId,
@@ -27,12 +27,15 @@ export function useActiveProfile() {
   const [profiles, setProfiles] = useState<CareProfile[]>([]);
   const [active, setActive] = useState<CareProfile | null>(null);
   const [ready, setReady] = useState(false);
+  const requestVersion = useRef(0);
 
   const refresh = useCallback(async () => {
+    const version = ++requestVersion.current;
     const [stored, list] = await Promise.all([
       getActiveProfileId(),
       listProfiles().catch(() => [] as CareProfile[]),
     ]);
+    if (version !== requestVersion.current) return;
     setProfiles(list);
     setActive(resolveActive(stored, list));
     setReady(true);
@@ -40,7 +43,11 @@ export function useActiveProfile() {
 
   useEffect(() => {
     void refresh();
-    return onProfilesChange(() => void refresh());
+    const unsubscribe = onProfilesChange(() => void refresh());
+    return () => {
+      requestVersion.current += 1;
+      unsubscribe();
+    };
   }, [refresh]);
 
   return { active, profiles, ready, profileId: active?.id ?? null, refresh };

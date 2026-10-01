@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -40,22 +40,29 @@ export function MedicationListScreen({ navigation }: Props) {
   // Cards two across on a desktop window; the heading and the buttons above
   // them stay in a readable column either way. See `TextColumn`.
   const { isExpanded } = useBreakpoint();
-  const [medications, setMedications] = useState<Medication[] | null>(null);
+  const [records, setRecords] = useState<{
+    profileId: string | null;
+    medications: Medication[];
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isOffline, setIsOffline] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const { active, profiles, ready, profileId } = useActiveProfile();
+  const requestVersion = useRef(0);
+  // A profile change must hide the old list before the next request starts.
+  const medications = ready && records?.profileId === profileId
+    ? records.medications : null;
 
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
     setError(null);
-    setIsOffline(false);
     try {
       // The refill lead time is a device setting, so it is read here and
       // passed on — the server does the arithmetic, and doing it there is what
       // keeps every client flagging the same medications.
       const loaded = await listMedications(await getRefillLeadDays(), profileId);
-      setMedications(loaded);
+      if (version !== requestVersion.current) return;
+      setRecords({ profileId, medications: loaded });
       // Keep the emergency card's offline copy in step with what was just
       // fetched. The card cannot make this call itself — it has to work with
       // no signal — so this screen is where the copy gets refreshed. It never
@@ -63,14 +70,14 @@ export function MedicationListScreen({ navigation }: Props) {
       // person's card gets their own list.
       void mirrorMedications(loaded, profileId);
     } catch (caught) {
+      if (version !== requestVersion.current) return;
       if (caught instanceof MedicationError) {
         setError(caught.message);
-        setIsOffline(caught.isNetworkError);
       } else {
         setError("Something stopped your medications loading. Please try again.");
       }
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }, [profileId]);
 
@@ -80,6 +87,7 @@ export function MedicationListScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       if (ready) void load();
+      return () => { requestVersion.current += 1; };
     }, [ready, load])
   );
 
@@ -172,7 +180,7 @@ export function MedicationListScreen({ navigation }: Props) {
           <Text style={styles.scanChipText}>Scan a prescription label</Text>
         </Pressable>
 
-        {error && <ErrorNotice message={error} onRetry={isOffline ? load : undefined} />}
+        {error && <ErrorNotice message={error} onRetry={loading ? undefined : load} />}
 
         {loading && medications === null && (
           <View style={styles.loading} accessibilityLiveRegion="polite">
@@ -181,7 +189,7 @@ export function MedicationListScreen({ navigation }: Props) {
           </View>
         )}
 
-        {needingRefill.length > 0 && (
+        {!error && needingRefill.length > 0 && (
           <View style={styles.refillSummary} accessibilityRole="summary">
             <Glyph name="alert" size={18} color={colors.noticeText} />
             <Text style={styles.refillSummaryText}>
@@ -192,7 +200,7 @@ export function MedicationListScreen({ navigation }: Props) {
           </View>
         )}
 
-        {runningLow.length > 0 && (
+        {!error && runningLow.length > 0 && (
           <View style={styles.refillSummary} accessibilityRole="summary">
             <Glyph name="alert" size={18} color={colors.noticeText} />
             <Text style={styles.refillSummaryText}>
